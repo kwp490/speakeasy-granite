@@ -107,11 +107,11 @@ class TestEngineRegistryHasEngines(unittest.TestCase):
     def test_engines_dict_not_empty(self):
         from speakeasy.engine import ENGINES
         self.assertIsInstance(ENGINES, dict)
-        self.assertIn("cohere", ENGINES)
+        self.assertIn("granite", ENGINES)
         self.assertEqual(len(ENGINES), 1)
 
-    def test_cohere_is_speech_engine(self):
+    def test_granite_is_speech_engine(self):
         from speakeasy.engine import ENGINES
         from speakeasy.engine.base import SpeechEngine
-        self.assertTrue(issubclass(ENGINES["cohere"], SpeechEngine))
+        self.assertTrue(issubclass(ENGINES["granite"], SpeechEngine))
 

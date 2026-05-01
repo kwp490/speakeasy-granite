@@ -244,8 +244,8 @@ class RealtimeDataWidget(QWidget):
 
         layout.addWidget(engine_sec)
 
-        # ── ASR Throughput section (Cohere) ─────────────────────────────────
-        asr_sec, asr_form = make_section("ASR Throughput (Cohere)", self)
+        # ── ASR Throughput section (Granite) ────────────────────────────────
+        asr_sec, asr_form = make_section("ASR Throughput (Granite)", self)
 
         self._lbl_asr_rtf = QLabel("0.0x realtime")
         self._lbl_asr_rtf.setFont(QFont(Font.FAMILY, Font.BODY[0]))
@@ -381,7 +381,7 @@ class RealtimeDataWidget(QWidget):
     def update_asr_tokens(self, tok_per_sec: float, total_tokens: int,
                            total_audio_sec: float, realtime_factor: float,
                            seq: int = 0) -> None:
-        """Update ASR (Cohere) throughput section.
+        """Update ASR (Granite) throughput section.
 
         The sparkline plots **realtime factor** (audio sec / wall sec) over
         time — the standard performance metric for ASR.  ``seq`` is a

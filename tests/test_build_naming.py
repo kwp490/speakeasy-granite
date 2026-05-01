@@ -133,7 +133,7 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
         output_base = re.search(r"OutputBaseFilename=(.+)", self.iss_text)
         self.assertIsNotNone(output_base, "Could not parse OutputBaseFilename from .iss")
         # OutputBaseFilename contains {#MyAppVersion} which resolves to the version
-        # Build-Installer.ps1 uses a wildcard like SpeakEasy-AI-Setup-*.exe
+        # Build-Installer.ps1 uses a wildcard like SpeakEasy-AI-Granite-Setup-*.exe
         iss_base = output_base.group(1).strip()
         # Replace InnoSetup preprocessor tokens with regex wildcards
         iss_pattern = re.sub(r"\{#\w+\}", ".*", iss_base)
@@ -143,7 +143,7 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
         m = re.search(r'Get-ChildItem\s+"([^"]+Setup[^"]*\.exe)"', self.build_ps1_full)
         if m is None:
             # Variant-aware: look for the glob pattern in a variable assignment
-            m = re.search(r"'(SpeakEasy-AI-Setup-\*\.exe)'", self.build_ps1_full)
+            m = re.search(r"'(SpeakEasy-AI-Granite-Setup-\*\.exe)'", self.build_ps1_full)
         self.assertIsNotNone(m, "Could not find installer glob in Build-Installer.ps1")
         # Convert PowerShell glob to comparable form (replace * with .*)
         ps_pattern = m.group(1).replace("\\", "/").split("/")[-1].replace("*", ".*")
@@ -282,25 +282,25 @@ class TestTorchTorchaudioCompatibility(unittest.TestCase):
         )
 
 
-class TestInstallerHandlesGatedRepos(unittest.TestCase):
-    """speakeasy-setup.iss must handle the Cohere gated model and bundle the setup script."""
+class TestInstallerHandlesModelDownload(unittest.TestCase):
+    """speakeasy-setup.iss must handle the Granite model and bundle the setup script."""
 
     @classmethod
     def setUpClass(cls):
         cls.iss_text = _read("installer/speakeasy-setup.iss")
 
-    def test_iss_downloads_cohere(self):
-        """The ISS script must download the Cohere model via download-model."""
+    def test_iss_downloads_granite(self):
+        """The ISS script must download the Granite model via download-model."""
         self.assertIsNotNone(
             re.search(r"download-model", self.iss_text),
             "speakeasy-setup.iss must contain a download-model invocation.",
         )
 
-    def test_iss_bundles_cohere_setup_script(self):
-        """The ISS [Files] section must include cohere-model-setup.ps1."""
+    def test_iss_bundles_granite_setup_script(self):
+        """The ISS [Files] section must include granite-model-setup.ps1."""
         self.assertIsNotNone(
-            re.search(r'cohere-model-setup\.ps1', self.iss_text),
-            "speakeasy-setup.iss must reference cohere-model-setup.ps1 in the [Files] section.",
+            re.search(r'granite-model-setup\.ps1', self.iss_text),
+            "speakeasy-setup.iss must reference granite-model-setup.ps1 in the [Files] section.",
         )
 
     def test_exit_code_constants_match_python(self):

@@ -25,7 +25,7 @@ for dependency_name, dependency_req in dependency_table.items():
 
 
 # Keep transformers importable without shipping source .py files for the
-# entire model zoo; the Cohere runtime only needs bytecode at inference time.
+# entire model zoo; the Granite runtime only needs bytecode at inference time.
 module_collection_mode = 'pyz'
 
 # Legacy model families deliberately excluded from the packaged runtime.

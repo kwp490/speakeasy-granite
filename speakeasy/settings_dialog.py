@@ -38,22 +38,25 @@ from .config import Settings
 
 log = logging.getLogger(__name__)
 
-# Cohere Transcribe 03-2026 supported languages
-COHERE_LANGUAGES = [
+# IBM Granite Speech 4.1 supported ASR languages
+GRANITE_LANGUAGES = [
     ("en", "English"),
     ("fr", "French"),
     ("de", "German"),
-    ("it", "Italian"),
     ("es", "Spanish"),
     ("pt", "Portuguese"),
-    ("el", "Greek"),
-    ("nl", "Dutch"),
-    ("pl", "Polish"),
-    ("zh", "Chinese (Mandarin)"),
     ("ja", "Japanese"),
-    ("ko", "Korean"),
-    ("vi", "Vietnamese"),
-    ("ar", "Arabic"),
+]
+
+GRANITE_TRANSLATION_TARGETS = [
+    "English",
+    "French",
+    "German",
+    "Spanish",
+    "Portuguese",
+    "Japanese",
+    "Italian",
+    "Mandarin",
 ]
 
 
@@ -124,13 +127,38 @@ class SettingsWidget(QWidget):
         self._device_combo.currentTextChanged.connect(self._on_device_changed)
 
         self._language_combo = QComboBox()
-        for code, label in COHERE_LANGUAGES:
+        for code, label in GRANITE_LANGUAGES:
             self._language_combo.addItem(f"{label} ({code})", code)
         self._language_combo.setToolTip(
             "The spoken language in your recordings.\n"
             "Choose the language you will be dictating in for best accuracy."
         )
         engine_form.addRow("Language:", self._language_combo)
+
+        self._task_combo = QComboBox()
+        self._task_combo.addItem("Transcribe", "transcribe")
+        self._task_combo.addItem("Translate", "translate")
+        self._task_combo.setToolTip(
+            "Choose whether Granite should transcribe the speech as-is or\n"
+            "translate it to the selected target language."
+        )
+        engine_form.addRow("Task:", self._task_combo)
+
+        self._translation_target = QComboBox()
+        for target in GRANITE_TRANSLATION_TARGETS:
+            self._translation_target.addItem(target, target)
+        self._translation_target.setToolTip(
+            "Target language for Granite speech translation."
+        )
+        engine_form.addRow("Translate to:", self._translation_target)
+
+        self._keyword_bias = QLineEdit()
+        self._keyword_bias.setPlaceholderText("names, acronyms, product terms")
+        self._keyword_bias.setToolTip(
+            "Optional comma-separated keywords to bias Granite toward\n"
+            "names, acronyms, and technical terms."
+        )
+        engine_form.addRow("Keywords:", self._keyword_bias)
 
         self._punctuation = ToggleSwitch("Enable automatic punctuation")
         self._punctuation.setToolTip(
@@ -302,6 +330,13 @@ class SettingsWidget(QWidget):
         idx = self._language_combo.findData(s.language)
         if idx >= 0:
             self._language_combo.setCurrentIndex(idx)
+        idx = self._task_combo.findData(s.speech_task)
+        if idx >= 0:
+            self._task_combo.setCurrentIndex(idx)
+        idx = self._translation_target.findData(s.translation_target_language)
+        if idx >= 0:
+            self._translation_target.setCurrentIndex(idx)
+        self._keyword_bias.setText(s.keyword_bias)
         self._punctuation.setChecked(s.punctuation)
         self._inference_timeout.setValue(s.inference_timeout)
         self._silence_threshold.setValue(s.silence_threshold)
@@ -321,12 +356,16 @@ class SettingsWidget(QWidget):
             self._mic_combo.setCurrentIndex(idx)
 
         self._on_device_changed(self._device_combo.currentText())
+        self._on_task_changed()
 
     # ── Auto-apply wiring ────────────────────────────────────────────────────
 
     def _wire_auto_apply(self) -> None:
         # All fields deferred — just track dirty state until Apply is clicked
         self._language_combo.currentIndexChanged.connect(self._on_any_changed)
+        self._task_combo.currentIndexChanged.connect(self._on_task_changed)
+        self._translation_target.currentIndexChanged.connect(self._on_any_changed)
+        self._keyword_bias.textChanged.connect(self._on_any_changed)
         self._punctuation.toggled.connect(self._on_any_changed)
         self._inference_timeout.valueChanged.connect(self._on_any_changed)
         self._auto_copy.toggled.connect(self._on_any_changed)
@@ -355,6 +394,9 @@ class SettingsWidget(QWidget):
             or self._device_combo.currentText() != s.get("device")
             or self._sample_rate.value() != s.get("sample_rate")
             or self._language_combo.currentData() != s.get("language")
+            or self._task_combo.currentData() != s.get("speech_task")
+            or self._translation_target.currentData() != s.get("translation_target_language")
+            or self._keyword_bias.text().strip() != s.get("keyword_bias")
             or self._punctuation.isChecked() != s.get("punctuation")
             or self._inference_timeout.value() != s.get("inference_timeout")
             or self._auto_copy.isChecked() != s.get("auto_copy")
@@ -379,6 +421,9 @@ class SettingsWidget(QWidget):
         s.device = self._device_combo.currentText()
         s.sample_rate = self._sample_rate.value()
         s.language = self._language_combo.currentData() or "en"
+        s.speech_task = self._task_combo.currentData() or "transcribe"
+        s.translation_target_language = self._translation_target.currentData() or "English"
+        s.keyword_bias = self._keyword_bias.text().strip()
         s.punctuation = self._punctuation.isChecked()
         s.inference_timeout = self._inference_timeout.value()
         s.auto_copy = self._auto_copy.isChecked()
@@ -406,6 +451,11 @@ class SettingsWidget(QWidget):
         self._device_warning.setVisible(cuda_blocked)
         self._btn_apply.setEnabled(not cuda_blocked and self._has_any_diff())
 
+    def _on_task_changed(self, *_) -> None:
+        is_translation = self._task_combo.currentData() == "translate"
+        self._translation_target.setEnabled(is_translation)
+        self._on_any_changed()
+
     # ── Helpers ──────────────────────────────────────────────────────────────
 
     def _browse_model_path(self) -> None:
@@ -423,6 +473,13 @@ class SettingsWidget(QWidget):
         self._language_combo.setCurrentIndex(
             max(0, self._language_combo.findData(defaults.language))
         )
+        self._task_combo.setCurrentIndex(
+            max(0, self._task_combo.findData(defaults.speech_task))
+        )
+        self._translation_target.setCurrentIndex(
+            max(0, self._translation_target.findData(defaults.translation_target_language))
+        )
+        self._keyword_bias.setText(defaults.keyword_bias)
         self._punctuation.setChecked(defaults.punctuation)
         self._inference_timeout.setValue(defaults.inference_timeout)
         self._silence_threshold.setValue(defaults.silence_threshold)

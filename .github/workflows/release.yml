@@ -76,8 +76,8 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
-            installer/Output/SpeakEasy-AI-Setup-*.exe
-            installer/Output/SpeakEasy-AI-CPU-Setup-*.exe
+            installer/Output/SpeakEasy-AI-Granite-Setup-*.exe
+            installer/Output/SpeakEasy-AI-Granite-CPU-Setup-*.exe
             installer/Output/SHA256SUMS.txt
           body_path: installer/Output/release-notes.md
           draft: false

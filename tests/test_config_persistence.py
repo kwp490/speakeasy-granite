@@ -63,7 +63,7 @@ class TestForwardCompat:
 
     def test_load_old_settings_file_without_new_keys_uses_defaults(self, tmp_path):
         path = tmp_path / "settings.json"
-        old_data = {"engine": "cohere", "auto_copy": False}
+        old_data = {"engine": "granite", "auto_copy": False}
         path.write_text(json.dumps(old_data), encoding="utf-8")
 
         loaded = Settings.load(path)

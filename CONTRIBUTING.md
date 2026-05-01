@@ -37,12 +37,12 @@ uv run python -c "from speakeasy.engine import ENGINES; print(list(ENGINES.keys(
 
 - **Thread safety**: Clipboard writes (`set_clipboard_text`) must only happen on the main Qt thread. Worker threads emit signals; connected slots run on the main thread.
 - **Audio format**: All engine calls receive 1D float32 mono numpy arrays. Audio is resampled to 16 kHz before engine input, regardless of recording sample rate.
-- **Single process**: The Cohere engine runs in-process via HuggingFace `transformers`. No subprocess bridge needed.
+- **Single process**: The Granite engine runs in-process via HuggingFace `transformers`. No subprocess bridge needed.
 - **GPU cleanup**: `unload()` methods must explicitly `del` the model, call `gc.collect()`, and `torch.cuda.empty_cache()` to free VRAM.
 - **Professional Mode**: Text cleanup runs on a `Worker` thread via the OpenAI API (no GPU conflict). The API key is held in memory on `MainWindow._api_key` — it must **never** be logged, printed, or serialized to `settings.json`. Use `_sanitize_error()` from `text_processor.py` when handling API exceptions.
 - **Preset system**: Professional Mode uses `ProPreset` dataclass instances. Five built-in presets are always available; user presets are stored as JSON files in `config/presets/`. Built-in presets cannot be deleted.
 - **Sleep/wake recovery**: `HotkeyManager.re_register()` is called on `WM_POWERBROADCAST` / `PBT_APMRESUMEAUTOMATIC` to restore keyboard hooks invalidated during sleep.
-- **Single-instance guard**: A Windows named mutex (`Global\SpeakEasyAIMutex`) prevents multiple processes.
+- **Single-instance guard**: A Windows named mutex (`Global\SpeakEasyAIGraniteMutex`) prevents multiple processes.
 
 ## Building the Binary
 
@@ -58,7 +58,7 @@ After building the binary, compile the Inno Setup installer:
 ```bash
 # Requires Inno Setup 6.x — https://jrsoftware.org/isdl.php
 iscc installer\speakeasy-setup.iss
-# Output: installer/Output/SpeakEasy-AI-Setup-0.7.1.exe
+# Output: installer/Output/SpeakEasy-AI-Granite-Setup-0.7.1.exe
 ```
 
 Or run the combined build script:

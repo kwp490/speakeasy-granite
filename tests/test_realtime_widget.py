@@ -28,13 +28,13 @@ def realtime_widget():
 
 class TestEngineStatus:
     def test_engine_status_label_updates_on_call(self, realtime_widget):
-        realtime_widget.update_engine_status("cohere", "cuda", "Ready", "#22cc22")
-        assert "cohere" in realtime_widget._lbl_engine.text()
+        realtime_widget.update_engine_status("granite", "cuda", "Ready", "#22cc22")
+        assert "granite" in realtime_widget._lbl_engine.text()
         assert "GPU" in realtime_widget._lbl_engine.text()
         assert "Ready" in realtime_widget._lbl_model_status.text()
 
     def test_engine_status_cpu_device(self, realtime_widget):
-        realtime_widget.update_engine_status("cohere", "cpu", "Loading", "#ffaa00")
+        realtime_widget.update_engine_status("granite", "cpu", "Loading", "#ffaa00")
         assert "CPU" in realtime_widget._lbl_engine.text()
 
 

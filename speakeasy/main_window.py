@@ -57,7 +57,7 @@ from ._constants import (
 from .config import DEFAULT_LOG_DIR, DEFAULT_PRESETS_DIR, Settings
 from ._build_variant import VARIANT
 from .engine import ENGINES
-from .engine.cohere_transcribe import CohereTranscribeEngine
+from .engine.granite_transcribe import GraniteTranscribeEngine
 from .hotkeys import HotkeyManager
 from ._resource_monitor import ResourceMonitor
 from .pro_preset import ProPreset, bootstrap_presets, load_all_presets
@@ -455,7 +455,7 @@ class MainWindow(QMainWindow):
         if engine is not None:
             self._engine = engine
         else:
-            self._engine = CohereTranscribeEngine()
+            self._engine = GraniteTranscribeEngine()
 
         # ── Audio ────────────────────────────────────────────────────────────
         self._recorder = AudioRecorder(
@@ -511,7 +511,7 @@ class MainWindow(QMainWindow):
             log.warning("Professional Mode enabled but no API key configured")
 
         # ── Build UI ─────────────────────────────────────────────────────────
-        self.setWindowTitle("SpeakEasy AI — Voice to Text")
+        self.setWindowTitle("SpeakEasy AI Granite — Voice to Text")
         self.setMinimumSize(640, 700)
         self.resize(720, 820)
         self._build_ui()
@@ -527,10 +527,10 @@ class MainWindow(QMainWindow):
             self._log_ui(f"Microphone error: {exc}", error=True)
 
         # ── Begin model loading ──────────────────────────────────────────────
-        if self._cohere_model_ready():
+        if self._granite_model_ready():
             self._load_model()
         else:
-            log.warning("Cohere model not found at %s", self.settings.model_path)
+            log.warning("Granite model not found at %s", self.settings.model_path)
             self._set_model_status(ModelStatus.ERROR)
             self._log_ui("Model not found — setup required", error=True)
             # Defer dialog to after the event loop starts so the window is visible
@@ -673,7 +673,7 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "_status_bar"):
             return
 
-        engine_display = str(getattr(self._engine, "name", "cohere")).capitalize()
+        engine_display = str(getattr(self._engine, "name", "granite")).capitalize()
         device_label = "GPU" if self.settings.device == "cuda" and not self._device_fallback_to_cpu else "CPU"
         self._status_bar.set_ai_model(
             name=engine_display,
@@ -942,7 +942,7 @@ class MainWindow(QMainWindow):
             else:
                 tps, ti, to, llm_seq = 0.0, 0, 0, 0
             rw.update_tokens(tps, ti, to, seq=llm_seq)
-            # Forward ASR (Cohere) token stats
+            # Forward speech-engine token stats
             if self._engine is not None and hasattr(self._engine, 'token_stats'):
                 asr_tps, asr_tot, asr_audio, asr_rtf, asr_seq = self._engine.token_stats
             else:
@@ -1097,6 +1097,14 @@ class MainWindow(QMainWindow):
             # Contiguous copy — trim_silence returns a view/slice that can
             # cause native-code crashes in CUDA / torch.
             trimmed = np.ascontiguousarray(trimmed, dtype=np.float32)
+
+            configure_prompt_options = getattr(self._engine, "configure_prompt_options", None)
+            if callable(configure_prompt_options):
+                configure_prompt_options(
+                    speech_task=self.settings.speech_task,
+                    translation_target_language=self.settings.translation_target_language,
+                    keyword_bias=self.settings.keyword_bias,
+                )
 
             # Transcribe in-process
             text = self._engine.transcribe(
@@ -1528,13 +1536,13 @@ class MainWindow(QMainWindow):
         self.settings.dev_panel_open = False
         self.settings.save()
 
-    # ── Cohere model setup helpers ────────────────────────────────────────────
+    # ── Granite model setup helpers ───────────────────────────────────────────
 
     def _prompt_model_setup_on_start(self) -> None:
-        """Show the Cohere setup dialog at startup when model is missing."""
-        if self._prompt_cohere_setup():
+        """Show the Granite setup dialog at startup when model is missing."""
+        if self._prompt_granite_setup():
             # User ran setup successfully — try loading
-            if self._cohere_model_ready():
+            if self._granite_model_ready():
                 self._load_model()
             else:
                 self._log_ui("Model still not found after setup", error=True)
@@ -1544,39 +1552,38 @@ class MainWindow(QMainWindow):
                 error=True,
             )
 
-    def _cohere_model_ready(self) -> bool:
-        """Return True if Cohere model files are present locally."""
+    def _granite_model_ready(self) -> bool:
+        """Return True if Granite model files are present locally."""
         from .model_downloader import model_ready
-        return model_ready("cohere", self.settings.model_path)
+        return model_ready("granite", self.settings.model_path)
 
-    def _prompt_cohere_setup(self) -> bool:
-        """Show a dialog explaining Cohere access requirements.
+    def _prompt_granite_setup(self) -> bool:
+        """Show a dialog explaining Granite model download requirements.
 
-        If the user chooses to proceed, launch ``cohere-model-setup.ps1``
+        If the user chooses to proceed, launch ``granite-model-setup.ps1``
         and return True if the model was successfully downloaded.
         If the user declines, return False.
         """
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Information)
-        msg.setWindowTitle("Cohere Transcribe — Setup Required")
+        msg.setWindowTitle("IBM Granite Speech — Setup Required")
         msg.setTextFormat(Qt.TextFormat.RichText)
         msg.setText(
-            "The Cohere Transcribe model requires a free HuggingFace account "
-            "and access approval before it can be downloaded."
+            "The IBM Granite Speech model must be downloaded from HuggingFace "
+            "before local transcription can run."
         )
         msg.setInformativeText(
-            "<b>Steps to get access:</b><br><br>"
+            "<b>Setup steps:</b><br><br>"
             "1. Create a free account at:<br>"
             '&nbsp;&nbsp;&nbsp;<a href="https://huggingface.co/join">'
             "https://huggingface.co/join</a><br><br>"
-            "2. Visit the model page and click<br>"
-            '&nbsp;&nbsp;&nbsp;"Agree and access repository":<br>'
-            '&nbsp;&nbsp;&nbsp;<a href="https://huggingface.co/CohereLabs/cohere-transcribe-03-2026">'
-            "https://huggingface.co/CohereLabs/cohere-transcribe-03-2026</a><br><br>"
-            "3. Create an access token (Read permission):<br>"
+            "2. Visit the model page:<br>"
+            '&nbsp;&nbsp;&nbsp;<a href="https://huggingface.co/ibm-granite/granite-speech-4.1-2b">'
+            "https://huggingface.co/ibm-granite/granite-speech-4.1-2b</a><br><br>"
+            "3. Create an access token if HuggingFace requests one:<br>"
             '&nbsp;&nbsp;&nbsp;<a href="https://huggingface.co/settings/tokens">'
             "https://huggingface.co/settings/tokens</a><br><br>"
-            "Would you like to run the Cohere model setup now?"
+            "Would you like to run the Granite model setup now?"
         )
         msg.setStandardButtons(
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
@@ -1591,8 +1598,8 @@ class MainWindow(QMainWindow):
         if not getattr(sys, "frozen", False):
             return self._run_source_model_download()
 
-        # Launch cohere-model-setup.ps1 (frozen/installed builds)
-        return self._run_cohere_setup_script()
+        # Launch granite-model-setup.ps1 (frozen/installed builds)
+        return self._run_granite_setup_script()
 
     def _run_source_model_download(self) -> bool:
         """Collect a HuggingFace token via dialog and download directly."""
@@ -1609,16 +1616,16 @@ class MainWindow(QMainWindow):
             self._log_ui("Model download cancelled — no token provided", error=True)
             return False
 
-        self._log_ui("Downloading Cohere model (this may take several minutes)…")
+        self._log_ui("Downloading Granite model (this may take several minutes)…")
         # Force a repaint so the log message is visible before the blocking call
         from PySide6.QtWidgets import QApplication
         QApplication.processEvents()
 
         from .model_downloader import download_model, EXIT_SUCCESS, EXIT_AUTH_REQUIRED
 
-        rc = download_model("cohere", self.settings.model_path, token=token.strip())
+        rc = download_model("granite", self.settings.model_path, token=token.strip())
         if rc == EXIT_SUCCESS:
-            self._log_ui("Cohere model downloaded successfully")
+            self._log_ui("Granite model downloaded successfully")
             return True
         elif rc == EXIT_AUTH_REQUIRED:
             QMessageBox.warning(
@@ -1626,8 +1633,8 @@ class MainWindow(QMainWindow):
                 "Authentication Failed",
                 "The token was rejected. Possible causes:\n\n"
                 "• Invalid or expired token\n"
-                "• You have not accepted the license at:\n"
-                "  https://huggingface.co/CohereLabs/cohere-transcribe-03-2026\n\n"
+                "• HuggingFace denied access to:\n"
+                "  https://huggingface.co/ibm-granite/granite-speech-4.1-2b\n\n"
                 "Please verify your token and repo access, then try again.",
             )
             return False
@@ -1641,46 +1648,46 @@ class MainWindow(QMainWindow):
             )
             return False
 
-    def _run_cohere_setup_script(self) -> bool:
-        """Launch ``cohere-model-setup.ps1`` and return True if the model
+    def _run_granite_setup_script(self) -> bool:
+        """Launch ``granite-model-setup.ps1`` and return True if the model
         is present afterwards."""
         from .model_downloader import (
-            get_cohere_setup_script_candidates,
-            launch_cohere_setup_script,
+            get_granite_setup_script_candidates,
+            launch_granite_setup_script,
         )
 
-        install_script, repo_script = get_cohere_setup_script_candidates()
+        install_script, repo_script = get_granite_setup_script_candidates()
         if install_script == repo_script:
             searched_paths = f"  {install_script}"
         else:
             searched_paths = f"  {install_script}\n  {repo_script}"
 
-        model_dir = Path(self.settings.model_path) / "cohere"
+        model_dir = Path(self.settings.model_path) / "granite"
 
-        self._log_ui("Launching Cohere model setup…")
+        self._log_ui("Launching Granite model setup…")
         try:
-            ret = launch_cohere_setup_script(target_dir=self.settings.model_path)
+            ret = launch_granite_setup_script(target_dir=self.settings.model_path)
         except FileNotFoundError:
             QMessageBox.critical(
                 self,
                 "Setup Script Missing",
-                f"Could not find cohere-model-setup.ps1 in:\n"
+                f"Could not find granite-model-setup.ps1 in:\n"
                 f"{searched_paths}\n\n"
-                "Please reinstall SpeakEasy AI or run the Cohere setup manually.",
+                "Please reinstall SpeakEasy AI Granite or run the Granite setup manually.",
             )
             return False
         except Exception as exc:
-            self._log_ui(f"Failed to launch Cohere setup: {exc}", error=True)
+            self._log_ui(f"Failed to launch Granite setup: {exc}", error=True)
             return False
 
         if ret <= 32:
-            self._log_ui("Cohere setup was cancelled or failed to launch", error=True)
+            self._log_ui("Granite setup was cancelled or failed to launch", error=True)
             return False
 
         confirm = QMessageBox.question(
             self,
-            "Cohere Setup",
-            "The Cohere model setup wizard has been launched in a\n"
+            "Granite Setup",
+            "The Granite model setup wizard has been launched in a\n"
             "separate window. Click OK once it has finished.",
             QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Ok,
@@ -1689,17 +1696,17 @@ class MainWindow(QMainWindow):
             return False
 
         # Check if the model was actually downloaded
-        if self._cohere_model_ready():
-            self._log_ui("Cohere model is ready")
+        if self._granite_model_ready():
+            self._log_ui("Granite model is ready")
             return True
         else:
             QMessageBox.warning(
                 self,
-                "Cohere Model Not Found",
-                "The Cohere model was not detected after setup.\n\n"
+                "Granite Model Not Found",
+                "The Granite model was not detected after setup.\n\n"
                 f"Expected model directory:\n  {model_dir}\n\n"
                 "You can try again later from Settings, or run\n"
-                "cohere-model-setup.ps1 from the install directory.",
+                "granite-model-setup.ps1 from the install directory.",
             )
             return False
 

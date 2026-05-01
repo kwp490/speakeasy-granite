@@ -1,4 +1,4 @@
-"""Engine registry — registers the Cohere Transcribe speech engine."""
+"""Engine registry — registers the IBM Granite speech engine."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ log = logging.getLogger(__name__)
 ENGINES: Dict[str, Type] = {}
 
 try:
-    from .cohere_transcribe import CohereTranscribeEngine
-    ENGINES["cohere"] = CohereTranscribeEngine
+    from .granite_transcribe import GraniteTranscribeEngine
+    ENGINES["granite"] = GraniteTranscribeEngine
 except ImportError:
-    log.debug("Cohere engine unavailable (transformers not installed)")
+    log.debug("Granite engine unavailable (transformers not installed)")
 
 
 # ── Model-file detection ─────────────────────────────────────────────────────

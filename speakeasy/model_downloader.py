@@ -1,7 +1,7 @@
 """
 Model downloader using huggingface_hub.
 
-Downloads the Cohere Transcribe model from HuggingFace Hub to local storage.
+Downloads the IBM Granite Speech model from HuggingFace Hub to local storage.
 """
 
 from __future__ import annotations
@@ -20,45 +20,45 @@ EXIT_AUTH_REQUIRED = 2  # gated repo — anonymous access denied
 
 # ── Model constants (single source of truth) ─────────────────────────────────
 
-COHERE_REPO_ID = "CohereLabs/cohere-transcribe-03-2026"
+GRANITE_REPO_ID = "ibm-granite/granite-speech-4.1-2b"
 
 _ENGINE_REPO_MAP = {
-    "cohere": COHERE_REPO_ID,
+    "granite": GRANITE_REPO_ID,
 }
 
 
-def get_cohere_setup_script_candidates() -> tuple[Path, Path]:
+def get_granite_setup_script_candidates() -> tuple[Path, Path]:
     """Return the install and source locations for the setup script."""
     from speakeasy.config import INSTALL_DIR
 
     repo_root = Path(__file__).resolve().parent.parent
     return (
-        INSTALL_DIR / "cohere-model-setup.ps1",
-        repo_root / "installer" / "cohere-model-setup.ps1",
+        INSTALL_DIR / "granite-model-setup.ps1",
+        repo_root / "installer" / "granite-model-setup.ps1",
     )
 
 
-def find_cohere_setup_script() -> Path | None:
-    """Return the first available Cohere setup script path."""
-    for script in get_cohere_setup_script_candidates():
+def find_granite_setup_script() -> Path | None:
+    """Return the first available Granite setup script path."""
+    for script in get_granite_setup_script_candidates():
         if script.is_file():
             return script
     return None
 
 
-def launch_cohere_setup_script(
+def launch_granite_setup_script(
     target_dir: str | None = None,
     *,
     require_elevation: bool = False,
 ) -> int:
-    """Launch the installed Cohere setup script via PowerShell.
+    """Launch the installed Granite setup script via PowerShell.
 
     Returns the ``ShellExecuteW`` result code. Values greater than 32
     indicate the script was launched successfully.
     """
-    script = find_cohere_setup_script()
+    script = find_granite_setup_script()
     if script is None:
-        raise FileNotFoundError("cohere-model-setup.ps1 was not found")
+        raise FileNotFoundError("granite-model-setup.ps1 was not found")
 
     verb = "runas" if require_elevation else "open"
     args = f'-NoProfile -ExecutionPolicy Bypass -File "{script}"'

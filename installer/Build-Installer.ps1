@@ -8,7 +8,7 @@
       Build (default when -Mode Build is specified)
         PyInstaller binary + Inno Setup installer. Two-step build:
           1. pyinstaller speakeasy.spec  -> dist/speakeasy/
-          2. iscc installer/speakeasy-setup.iss -> installer/Output/SpeakEasy-AI-Setup-<version>.exe
+          2. iscc installer/speakeasy-setup.iss -> installer/Output/SpeakEasy-AI-Granite-Setup-<version>.exe
 
       Release
         Full release cycle: syncs dependencies, runs the test suite, builds
@@ -652,7 +652,7 @@ function Build-Variant {
         [Parameter(Mandatory)] [string]$IssFile,       # e.g. 'installer\speakeasy-setup.iss'
         [Parameter(Mandatory)] [string]$DistDir,       # e.g. 'dist\speakeasy'
         [Parameter(Mandatory)] [string]$HashFilePath,  # e.g. 'build\.speakeasy-build-hash'
-        [Parameter(Mandatory)] [string]$InstallerGlob  # e.g. 'SpeakEasy-AI-Setup-*.exe'
+        [Parameter(Mandatory)] [string]$InstallerGlob  # e.g. 'SpeakEasy-AI-Granite-Setup-*.exe'
     )
 
     $distExe = "$DistDir\speakeasy.exe"
@@ -820,7 +820,7 @@ if ($Mode -eq 'Build') {
                 -IssFile     'installer\speakeasy-setup.iss' `
                 -DistDir     'dist\speakeasy' `
                 -HashFilePath $HashFile `
-                -InstallerGlob 'SpeakEasy-AI-Setup-*.exe'
+                -InstallerGlob 'SpeakEasy-AI-Granite-Setup-*.exe'
         } else {
             Build-Variant `
                 -VariantTag  'cpu' `
@@ -828,7 +828,7 @@ if ($Mode -eq 'Build') {
                 -IssFile     'installer\speakeasy-cpu-setup.iss' `
                 -DistDir     'dist\speakeasy-cpu' `
                 -HashFilePath $CpuHashFile `
-                -InstallerGlob 'SpeakEasy-AI-CPU-Setup-*.exe'
+                -InstallerGlob 'SpeakEasy-AI-Granite-CPU-Setup-*.exe'
         }
     }
 
@@ -894,7 +894,7 @@ if ($Mode -eq 'Release') {
                 -IssFile     'installer\speakeasy-setup.iss' `
                 -DistDir     'dist\speakeasy' `
                 -HashFilePath $HashFile `
-                -InstallerGlob 'SpeakEasy-AI-Setup-*.exe'
+                -InstallerGlob 'SpeakEasy-AI-Granite-Setup-*.exe'
         } else {
             Build-Variant `
                 -VariantTag  'cpu' `
@@ -902,7 +902,7 @@ if ($Mode -eq 'Release') {
                 -IssFile     'installer\speakeasy-cpu-setup.iss' `
                 -DistDir     'dist\speakeasy-cpu' `
                 -HashFilePath $CpuHashFile `
-                -InstallerGlob 'SpeakEasy-AI-CPU-Setup-*.exe'
+                -InstallerGlob 'SpeakEasy-AI-Granite-CPU-Setup-*.exe'
         }
     }
     Write-Ok "Installer(s) built successfully"
@@ -974,8 +974,8 @@ if ($Mode -eq 'Release') {
     # The old embedded uninstaller may lack the cleanup rules added in this
     # version, so explicitly nuke config/logs/temp to guarantee a clean slate.
     # Models are always preserved.
-    $installDir = 'C:\Program Files\SpeakEasy AI'
-    $dataDir    = "$env:PROGRAMDATA\SpeakEasy AI"
+    $installDir = 'C:\Program Files\SpeakEasy AI Granite'
+    $dataDir    = "$env:PROGRAMDATA\SpeakEasy AI Granite"
     Write-Step "Cleaning leftover settings/logs/temp from previous install..."
     # Clean old layout (data under Program Files) and new layout (data under ProgramData)
     foreach ($baseDir in @($installDir, $dataDir)) {
@@ -991,7 +991,7 @@ if ($Mode -eq 'Release') {
     # -- Silent install --------------------------------------------------------
     Write-Step "Installing new build..."
 
-    $setupPattern = if ($installVariant -eq 'cpu') { 'SpeakEasy-AI-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Setup-*.exe' }
+    $setupPattern = if ($installVariant -eq 'cpu') { 'SpeakEasy-AI-Granite-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Granite-Setup-*.exe' }
     $setupExe = Get-ChildItem "installer\Output\$setupPattern" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
@@ -1022,7 +1022,7 @@ if ($Mode -eq 'Release') {
     # -- Verify installed bundle matches freshly-built dist --------------------
     $distSubdir = if ($installVariant -eq 'cpu') { 'dist\speakeasy-cpu' } else { 'dist\speakeasy' }
     $distTorchLib = Join-Path $RepoRoot "$distSubdir\_internal\torch\lib"
-    $installedTorchLib = 'C:\Program Files\SpeakEasy AI\_internal\torch\lib'
+    $installedTorchLib = 'C:\Program Files\SpeakEasy AI Granite\_internal\torch\lib'
     Write-Step "Verifying installed torch DLL bundle..."
 
     $distTorchDlls = Get-RelativeFileList $distTorchLib
@@ -1050,20 +1050,20 @@ if ($Mode -eq 'Release') {
     }
     Write-Ok "Installed torch DLL bundle matches dist"
 
-    # -- Verify Cohere model is present ----------------------------------------
-    $installedCohereConfig = 'C:\Program Files\SpeakEasy AI\models\cohere\config.json'
-    if (Test-Path $installedCohereConfig) {
-        Write-Ok "Cohere model found at C:\Program Files\SpeakEasy AI\models\cohere"
+    # -- Verify Granite model is present ---------------------------------------
+    $installedGraniteConfig = 'C:\Program Files\SpeakEasy AI Granite\models\granite\config.json'
+    if (Test-Path $installedGraniteConfig) {
+        Write-Ok "Granite model found at C:\Program Files\SpeakEasy AI Granite\models\granite"
     } else {
-        Write-Warn "Cohere model NOT found at $installedCohereConfig"
-        Write-Info "The installer may not have downloaded the model (gated repo)."
+        Write-Warn "Granite model NOT found at $installedGraniteConfig"
+        Write-Info "The installer may not have downloaded the model."
         Write-Info "The app will prompt for model setup on launch."
     }
 
     # -- Launch ----------------------------------------------------------------
-    Write-Step "Launching SpeakEasy AI (installed build)..."
+    Write-Step "Launching SpeakEasy AI Granite (installed build)..."
 
-    $installedExe = 'C:\Program Files\SpeakEasy AI\speakeasy.exe'
+    $installedExe = 'C:\Program Files\SpeakEasy AI Granite\speakeasy.exe'
     if (-not (Test-Path $installedExe)) {
         Write-Err "speakeasy.exe not found at $installedExe"
         Exit-Script 1
@@ -1121,7 +1121,7 @@ if ($Mode -eq 'Install') {
     Write-Ok "Running as Administrator"
 
     # -- Find installer --------------------------------------------------------
-    $setupPattern = if ($Variant -eq 'CPU') { 'SpeakEasy-AI-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Setup-*.exe' }
+    $setupPattern = if ($Variant -eq 'CPU') { 'SpeakEasy-AI-Granite-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Granite-Setup-*.exe' }
     $setupExe = Get-ChildItem "installer\Output\$setupPattern" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
@@ -1176,7 +1176,7 @@ if ($Mode -eq 'Install') {
     }
 
     # -- Post-uninstall cleanup ------------------------------------------------
-    $installDir = 'C:\Program Files\SpeakEasy AI'
+    $installDir = 'C:\Program Files\SpeakEasy AI Granite'
     Write-Step "Cleaning leftover settings/logs/temp..."
     foreach ($sub in @('config', 'logs', 'temp')) {
         $dir = Join-Path $installDir $sub
@@ -1203,12 +1203,12 @@ if ($Mode -eq 'Install') {
         Write-Err "Installer failed (exit code $($proc.ExitCode))."
         Exit-Script 1
     }
-    Write-Ok "SpeakEasy AI installed successfully"
+    Write-Ok "SpeakEasy AI Granite installed successfully"
 
     # -- Launch ----------------------------------------------------------------
-    Write-Step "Launching SpeakEasy AI..."
+    Write-Step "Launching SpeakEasy AI Granite..."
 
-    $installedExe = 'C:\Program Files\SpeakEasy AI\speakeasy.exe'
+    $installedExe = 'C:\Program Files\SpeakEasy AI Granite\speakeasy.exe'
     if (-not (Test-Path $installedExe)) {
         Write-Err "speakeasy.exe not found at $installedExe"
         Exit-Script 1
@@ -1276,7 +1276,7 @@ if ($Mode -eq 'Source') {
 
     # -- Model access via directory junction -----------------------------------
     $devModels = Join-Path $devTemp 'models'
-    $installedModels = 'C:\Program Files\SpeakEasy AI\models'
+    $installedModels = 'C:\Program Files\SpeakEasy AI Granite\models'
     $repoModels = Join-Path $RepoRoot 'models'
 
     if (Test-Path $devModels) {
@@ -1304,11 +1304,11 @@ if ($Mode -eq 'Source') {
     }
 
     # -- Validate model presence -----------------------------------------------
-    $cohereConfig = Join-Path $devModels 'cohere\config.json'
-    if (Test-Path $cohereConfig) {
-        Write-Ok "Cohere model found at $devModels\cohere"
+    $graniteConfig = Join-Path $devModels 'granite\config.json'
+    if (Test-Path $graniteConfig) {
+        Write-Ok "Granite model found at $devModels\granite"
     } else {
-        Write-Warn "Cohere model NOT found at $devModels\cohere\config.json"
+        Write-Warn "Granite model NOT found at $devModels\granite\config.json"
         Write-Info "The app will prompt for model setup on launch."
         Write-Info "To download manually:"
         Write-Info "  uv run python -m speakeasy download-model --token <HF_TOKEN>"

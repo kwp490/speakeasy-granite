@@ -13,7 +13,7 @@
 | `test_audio.py` | STILL VALID | No changes. Tests core audio recording utilities. |
 | `test_audio_utils.py` | STILL VALID | No changes. Tests resampling/ensure_16khz. |
 | `test_build_naming.py` | STILL VALID | No changes. Tests build variant naming. |
-| `test_cohere_transcribe.py` | STILL VALID | No changes. Tests Cohere engine transcription. |
+| `test_granite_transcribe.py` | STILL VALID | Updated for Granite engine transcription. |
 | `test_config.py` | STILL VALID | No changes. Tests Settings save/load/validate (core logic untouched by refactor). |
 | `test_engine_base.py` | STILL VALID | No changes. Tests ABC SpeechEngine interface. |
 | `test_engine_load.py` | STILL VALID | No changes. Tests engine registry and availability. |

@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for SpeakEasy AI — Cohere Transcribe engine (transformers/torch).
+PyInstaller spec for SpeakEasy AI Granite — IBM Granite Speech engine (transformers/torch).
 
 Build: pyinstaller speakeasy.spec
 Output: dist/speakeasy/speakeasy.exe (onedir)
@@ -18,7 +18,7 @@ binaries += collect_dynamic_libs('torch')
 
 # transformers>=5.5 scans transformers/models on disk from __init__.py,
 # and Auto* helpers reach cross-model packages like encoder_decoder during
-# normal Cohere loading. Keep the root __init__.py and the models tree as
+# normal Granite loading. Keep the root __init__.py and the models tree as
 # real .py files under _internal/transformers instead of only in the PYZ.
 datas = []
 try:
@@ -98,15 +98,10 @@ a = Analysis(
         'transformers.training_args',
         'transformers.training_args_seq2seq',
         'transformers.optimization',
-        # Model families not used by the Cohere-only runtime
+        # Model families not used by the Granite-only runtime
         'transformers.models.whisper',
         'transformers.models.nemotron',
         'transformers.models.nemotron_h',
-        'transformers.models.granite',
-        'transformers.models.granite_speech',
-        'transformers.models.granitemoe',
-        'transformers.models.granitemoehybrid',
-        'transformers.models.granitemoeshared',
         # ── Dev / build tools not needed at runtime ────────────────────
         'setuptools',
         'pkg_resources',
@@ -138,8 +133,7 @@ _STRIP_PATTERNS = [
     # Unused transformer model families that otherwise create stale bundle payloads
     _re.compile(r'transformers(?:[\\/.]|$)models(?:[\\/.])whisper(?:[\\/.]|$)', _re.I),
     _re.compile(r'transformers(?:[\\/.]|$)models(?:[\\/.])nemotron(?:_h)?(?:[\\/.]|$)', _re.I),
-    _re.compile(r'transformers(?:[\\/.]|$)models(?:[\\/.])granite(?:_speech|moe(?:hybrid|shared)?)?(?:[\\/.]|$)', _re.I),
-    # sklearn is not used by the active Cohere path; drop any leftover package/data payload
+    # sklearn is not used by the active Granite path; drop any leftover package/data payload
     _re.compile(r'(?:^|[\\/])sklearn[\\/]', _re.I),
     _re.compile(r'(?:^|[\\/])scikit_learn-[^\\/]+\.dist-info[\\/]', _re.I),
     # Duplicate / dev binaries in torch/bin

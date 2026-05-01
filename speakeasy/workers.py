@@ -67,7 +67,7 @@ class Worker(QRunnable):
 class DedicatedWorkerPool(QObject):
     """Minimal QThreadPool-like facade backed by Python threads.
 
-    Cohere/CUDA inference can hang when executed on Qt-managed worker threads on
+    Speech/CUDA inference can hang when executed on Qt-managed worker threads on
     Windows. This class preserves the ``start()`` and ``waitForDone()`` API that
     the UI already uses, but runs QRunnables on a ``ThreadPoolExecutor``.
     """

@@ -1,9 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Cohere Transcribe Model Setup
+# IBM Granite Speech Model Setup
 #
-# This script guides the user through downloading the Cohere Transcribe
-# model from HuggingFace.  It can be launched standalone to (re)download
-# the model after installation.
+# This script guides the user through downloading the IBM Granite Speech model
+# from HuggingFace. It can be launched standalone to (re)download the model
+# after installation.
 #
 # The HuggingFace token is used for this single download only.
 # It is NOT stored anywhere — not in settings or on disk.
@@ -37,22 +37,21 @@ if (-not (Test-Path $Exe)) {
 function Write-Banner {
     Write-Host ''
     Write-Host '════════════════════════════════════════════════════════════════' -ForegroundColor Cyan
-    Write-Host '  Cohere Transcribe — Model Setup' -ForegroundColor Cyan
+    Write-Host '  IBM Granite Speech — Model Setup' -ForegroundColor Cyan
     Write-Host '════════════════════════════════════════════════════════════════' -ForegroundColor Cyan
     Write-Host ''
 }
 
 function Write-Instructions {
-    Write-Host 'Cohere Transcribe requires a free HuggingFace account.' -ForegroundColor Yellow
+    Write-Host 'IBM Granite Speech is downloaded from HuggingFace.' -ForegroundColor Yellow
     Write-Host ''
-    Write-Host '  Step 1: Create a free account at' -ForegroundColor White
+    Write-Host '  Step 1: Create a free HuggingFace account if needed' -ForegroundColor White
     Write-Host '          https://huggingface.co/join' -ForegroundColor Green
     Write-Host ''
-    Write-Host '  Step 2: Go to the model page and click "Agree and access repository"' -ForegroundColor White
-    Write-Host '          https://huggingface.co/CohereLabs/cohere-transcribe-03-2026' -ForegroundColor Green
-    Write-Host '          (use the same account the token belongs to)' -ForegroundColor Gray
+    Write-Host '  Step 2: Review the model page' -ForegroundColor White
+    Write-Host '          https://huggingface.co/ibm-granite/granite-speech-4.1-2b' -ForegroundColor Green
     Write-Host ''
-    Write-Host '  Step 3: Create an access token (Read permission is sufficient)' -ForegroundColor White
+    Write-Host '  Step 3: Create an access token if HuggingFace requests one' -ForegroundColor White
     Write-Host '          https://huggingface.co/settings/tokens' -ForegroundColor Green
     Write-Host ''
 }
@@ -60,24 +59,16 @@ function Write-Instructions {
 function Start-Download {
     while ($true) {
         Write-Host ''
-        $secureToken = Read-Host -AsSecureString 'Paste your HuggingFace access token (press Enter to skip)'
+        $secureToken = Read-Host -AsSecureString 'Paste your HuggingFace access token (press Enter to try anonymous download)'
 
-        if ($secureToken.Length -eq 0) {
-            Write-Host ''
-            Write-Host 'Skipped. You can run this setup later:' -ForegroundColor Yellow
-            Write-Host "  `$env:HF_TOKEN = 'your_token'; & '$Exe' download-model" -ForegroundColor Gray
-            return 1
+        if ($secureToken.Length -gt 0) {
+            $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureToken)
+            $env:HF_TOKEN = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
         }
 
-        # Extract to plain text only for the child process lifetime, then clear.
-        # The token is passed via environment variable, not on the command line,
-        # so it does not appear in the Windows process list.
-        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureToken)
-        $env:HF_TOKEN = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-
         Write-Host ''
-        Write-Host 'Downloading Cohere model — this may take several minutes...' -ForegroundColor Cyan
+        Write-Host 'Downloading Granite model — this may take several minutes...' -ForegroundColor Cyan
 
         try {
             $arguments = @('download-model')
@@ -85,9 +76,6 @@ function Start-Download {
                 $arguments += @('--target-dir', "`"$TargetDir`"")
             }
 
-            # speakeasy.exe is a GUI-subsystem app (console=False) so stdout/stderr
-            # are not inherited from the parent console. Redirect them to temp files
-            # so we can display progress and error details.
             $tmpOut = [System.IO.Path]::GetTempFileName()
             $tmpErr = [System.IO.Path]::GetTempFileName()
 
@@ -97,7 +85,6 @@ function Start-Download {
                 -RedirectStandardOutput $tmpOut `
                 -RedirectStandardError  $tmpErr
 
-            # Print captured output to the console
             $outLines = Get-Content $tmpOut -ErrorAction SilentlyContinue
             $errLines = Get-Content $tmpErr -ErrorAction SilentlyContinue
             Remove-Item $tmpOut, $tmpErr -ErrorAction SilentlyContinue
@@ -123,18 +110,14 @@ function Start-Download {
         switch ($process.ExitCode) {
             0 {
                 Write-Host ''
-                Write-Host 'Cohere model downloaded successfully!' -ForegroundColor Green
+                Write-Host 'Granite model downloaded successfully!' -ForegroundColor Green
                 return 0
             }
             2 {
                 Write-Host ''
                 Write-Host 'Model access denied.' -ForegroundColor Red
-                Write-Host 'Possible causes:' -ForegroundColor Yellow
-                Write-Host '  - The token belongs to a different account than the one that' -ForegroundColor Yellow
-                Write-Host '    accepted the license (must be the same HuggingFace account)' -ForegroundColor Yellow
-                Write-Host '  - Invalid, expired, or revoked token' -ForegroundColor Yellow
-                Write-Host '  - You have not yet accepted the license at:' -ForegroundColor Yellow
-                Write-Host '    https://huggingface.co/CohereLabs/cohere-transcribe-03-2026' -ForegroundColor Green
+                Write-Host 'Verify your token and access to:' -ForegroundColor Yellow
+                Write-Host '  https://huggingface.co/ibm-granite/granite-speech-4.1-2b' -ForegroundColor Green
                 Write-Host ''
                 Write-Host 'Would you like to try again?' -ForegroundColor White
             }
@@ -154,8 +137,6 @@ function Start-Download {
         }
     }
 }
-
-# ── Main ─────────────────────────────────────────────────────────────────────
 
 Write-Banner
 Write-Instructions

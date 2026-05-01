@@ -4,8 +4,8 @@
 
 .DESCRIPTION
     Copies the local SpeakEasy AI source tree to the install directory, installs
-    Python 3.11 and uv via winget, syncs all dependencies, downloads the Cohere
-    Transcribe model, and creates a desktop shortcut.
+    Python 3.11 and uv via winget, syncs all dependencies, downloads the IBM
+    Granite Speech model, and creates a desktop shortcut.
 
     Use -Variant to select the installation type:
       GPU  â€” full install with CUDA-accelerated PyTorch (requires NVIDIA GPU)
@@ -13,8 +13,8 @@
 
     If -Variant is not specified, the installer prompts interactively.
 
-    Installs everything to C:\Program Files\SpeakEasy AI\ (binaries, venv).
-    Mutable data (models, config, temp) is stored under C:\ProgramData\SpeakEasy AI\
+    Installs everything to C:\Program Files\SpeakEasy AI Granite\ (binaries, venv).
+    Mutable data (models, config, temp) is stored under C:\ProgramData\SpeakEasy AI Granite\
     so the Program Files tree remains read-only for non-admin users.
 
 .PARAMETER Variant
@@ -27,7 +27,7 @@
         .\installer\Install-SpeakEasy-Source.ps1 -Variant CPU
 #>
 param(
-    [ValidateSet('GPU', 'CPU')]
+    [ValidateSet("GPU", "CPU")]
     [string]$Variant
 )
 
@@ -35,13 +35,13 @@ param(
 #Requires -Version 5.1
 
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = "Stop"
 
-$InstallDir = "C:\Program Files\SpeakEasy AI"
-$DataDir   = "$env:PROGRAMDATA\SpeakEasy AI"
+$InstallDir = "C:\Program Files\SpeakEasy AI Granite"
+$DataDir   = "$env:PROGRAMDATA\SpeakEasy AI Granite"
 $ModelsDir = "$DataDir\models"
 $ConfigDir = "$DataDir\config"
-$LogsDir   = "$env:LOCALAPPDATA\SpeakEasy AI\logs"
+$LogsDir   = "$env:LOCALAPPDATA\SpeakEasy AI Granite\logs"
 $TempDir   = "$DataDir\temp"
 $RepoName = Split-Path -Leaf $PWD.Path
 
@@ -54,7 +54,7 @@ function Invoke-NativeCommand {
     <# Run a native command, print indented output, and throw on failure. #>
     param([string]$Label, [scriptblock]$Command)
     $prevPref = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
+    $ErrorActionPreference = "Continue"
     try {
         $output = & $Command 2>&1
         foreach ($line in $output) { Write-Host "  $line" }
@@ -68,7 +68,7 @@ function Invoke-StreamingCommand {
     <# Run a native command, streaming output line-by-line for real-time progress. #>
     param([string]$Label, [scriptblock]$Command)
     $prevPref = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
+    $ErrorActionPreference = "Continue"
     try {
         & $Command 2>&1 | ForEach-Object { Write-Host "  $_" }
     } finally {
@@ -83,14 +83,14 @@ function Update-OutdatedFiles {
     param(
         [Parameter(Mandatory)] [string]$SourceDir,
         [Parameter(Mandatory)] [string]$DestDir,
-        [string[]]$ExcludeDirs = @('.git', '__pycache__', '.venv'),
-        [string[]]$ExcludeExts = @('.pyc')
+        [string[]]$ExcludeDirs = @(".git", "__pycache__", ".venv"),
+        [string[]]$ExcludeExts = @(".pyc")
     )
 
     $updated = 0
     $srcItems = Get-ChildItem -Path $SourceDir -File -Recurse -Force
     foreach ($srcFile in $srcItems) {
-        $rel = $srcFile.FullName.Substring($SourceDir.TrimEnd('\').Length + 1)
+        $rel = $srcFile.FullName.Substring($SourceDir.TrimEnd("\").Length + 1)
 
         $skip = $false
         foreach ($exDir in $ExcludeDirs) {
@@ -134,7 +134,7 @@ function Sync-SourceTree {
     }
 
     $prevPref = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
+    $ErrorActionPreference = "Continue"
     try {
         robocopy $SourceDir $DestinationDir /MIR /XD .git __pycache__ .venv models config logs temp installer /XF "*.pyc" /NFL /NDL /NJH /NJS /NC /NS /NP 2>&1 | Out-Null
     } finally {
@@ -179,16 +179,16 @@ if (-not $Variant) {
     Write-Host ""
     do {
         $choice = Read-Host "  Enter 1 for GPU or 2 for CPU (default: 1)"
-        if ([string]::IsNullOrWhiteSpace($choice)) { $choice = '1' }
-    } while ($choice -notin @('1', '2'))
-    $Variant = if ($choice -eq '2') { 'CPU' } else { 'GPU' }
+        if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "1" }
+    } while ($choice -notin @("1", "2"))
+    $Variant = if ($choice -eq "2") { "CPU" } else { "GPU" }
 }
 Write-Host ""
 Write-Host "  Installation variant: $Variant" -ForegroundColor Cyan
 Write-Host ""
 
 # â”€â”€ WIN-01: Check NVIDIA GPU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-if ($Variant -eq 'GPU') {
+if ($Variant -eq "GPU") {
 Write-Step "Checking for NVIDIA GPU..."
 try {
     $gpu = nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>$null
@@ -204,21 +204,14 @@ try {
 
 # â”€â”€ Antimalware notice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Host ""
-Write-Host "  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”" -ForegroundColor Yellow
-Write-Host "  â”‚  ANTIMALWARE NOTICE                                            â”‚" -ForegroundColor Yellow
-Write-Host "  â”‚                                                                â”‚" -ForegroundColor Yellow
-Write-Host "  â”‚  This installer uses uv.exe (by Astral) to manage Python      â”‚" -ForegroundColor Yellow
-Write-Host "  â”‚  packages. Some antimalware tools (e.g. Malwarebytes) may      â”‚" -ForegroundColor Yellow
-Write-Host "  â”‚  flag or quarantine uv.exe as a false positive.                â”‚" -ForegroundColor Yellow
-Write-Host "  â”‚                                                                â”‚" -ForegroundColor Yellow
-Write-Host "  â”‚  If this happens, add uv.exe to your antimalware allow-list   â”‚" -ForegroundColor Yellow
-Write-Host "  â”‚  before continuing. uv is an open-source Python package       â”‚" -ForegroundColor Yellow
-Write-Host "  â”‚  manager (https://github.com/astral-sh/uv) installed via      â”‚" -ForegroundColor Yellow
-Write-Host "  â”‚  winget and is required to resolve and sync dependencies.      â”‚" -ForegroundColor Yellow
-Write-Host "  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜" -ForegroundColor Yellow
+Write-Host "  ANTIMALWARE NOTICE" -ForegroundColor Yellow
+Write-Host "  This installer uses uv.exe by Astral to manage Python packages." -ForegroundColor Yellow
+Write-Host "  Some antimalware tools may flag uv.exe as a false positive." -ForegroundColor Yellow
+Write-Host "  If that happens, restore uv.exe and add it to your allow list." -ForegroundColor Yellow
+Write-Host "  uv is open source: https://github.com/astral-sh/uv" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  The Cohere Transcribe model will be downloaded during installation."
-Write-Host "  A HuggingFace account with access to the gated model is required."
+Write-Host "  The IBM Granite Speech model will be downloaded during installation."
+Write-Host "  A HuggingFace token is optional unless access is denied anonymously."
 Write-Host "  Get your token at: https://huggingface.co/settings/tokens"
 Write-Host ""
 $HfTokenSecure = Read-Host -AsSecureString "  Enter your HuggingFace API token (or press Enter to skip model download)"
@@ -230,16 +223,16 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "  Installing uv via winget..."
     winget install --id astral-sh.uv --exact --accept-package-agreements --accept-source-agreements
-    $machPath = [Environment]::GetEnvironmentVariable('PATH', 'Machine')
-    $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+    $machPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
     $env:PATH = "$userPath;$machPath"
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        throw "uv installation succeeded but 'uv' is not on PATH. Restart your terminal and re-run."
+        throw "uv installation succeeded but uv is not on PATH. Restart your terminal and re-run."
     }
     Write-Ok "uv installed: $(uv --version)"
 }
 
-$env:UV_PYTHON_PREFERENCE = 'only-system'
+$env:UV_PYTHON_PREFERENCE = "only-system"
 
 # â”€â”€ Install Python 3.11 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking for Python 3.11..."
@@ -252,8 +245,8 @@ if ($py311) {
 } else {
     Write-Host "  Installing Python 3.11 via winget..."
     winget install --id Python.Python.3.11 --exact --accept-package-agreements --accept-source-agreements
-    $machPath = [Environment]::GetEnvironmentVariable('PATH', 'Machine')
-    $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+    $machPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
     $env:PATH = "$userPath;$machPath"
     $py311 = (Get-Command python3.11 -ErrorAction SilentlyContinue).Source
     if (-not $py311) {
@@ -280,15 +273,15 @@ if (-not (Test-Path (Join-Path $RepoRoot "pyproject.toml"))) {
 }
 
 if ($RepoRoot -eq $InstallDir) {
-    Write-Already "Running from install directory â€” skipping copy"
+    Write-Already "Running from install directory - skipping copy"
 } elseif (Test-Path (Join-Path $InstallDir ".git")) {
-    Write-Warn "$InstallDir contains an old git clone â€” replacing with local source..."
+    Write-Warn "$InstallDir contains an old git clone - replacing with local source..."
     Remove-Item -Recurse -Force $InstallDir
     Write-Host "  Syncing local source contents from $RepoRoot..."
     Sync-SourceTree -SourceDir $RepoRoot -DestinationDir $InstallDir
     Write-Ok "Source installed to $InstallDir from local tree"
 } elseif (Test-Path $InstallDir) {
-    Write-Warn "$InstallDir exists â€” updating with local source..."
+    Write-Warn "$InstallDir exists - updating with local source..."
     if (Test-Path $NestedRepoDir) {
         Write-Warn "Removing stale nested repo copy at $NestedRepoDir..."
         Remove-Item -Recurse -Force $NestedRepoDir
@@ -319,7 +312,7 @@ if ($RepoRoot -ne $InstallDir) {
 Write-Step "Syncing dependencies..."
 Write-Host "  Running uv sync (will skip already-installed packages)..."
 Push-Location $InstallDir
-Invoke-NativeCommand 'uv sync' ([scriptblock]::Create("uv sync --python `"$py311`" --extra dev"))
+Invoke-NativeCommand "uv sync" ([scriptblock]::Create("uv sync --python `"$py311`" --extra dev"))
 Pop-Location
 Write-Ok "Dependencies synced"
 
@@ -335,22 +328,22 @@ $pyVer = & $venvPython --version 2>&1
 Write-Ok "venv Python: $pyVer"
 
 Write-Step "Verifying core Python imports..."
-$coreImportScript = @'
-import sys, importlib
-failed = []
-for mod in ['PySide6', 'sounddevice', 'soundfile', 'numpy', 'keyboard']:
-    try:
-        importlib.import_module(mod)
-    except ImportError as e:
-        failed.append(f'{mod}: {e}')
-if failed:
-    for f in failed: print(f'FAIL: {f}')
-    sys.exit(1)
-else:
-    print('All core imports OK')
-'@
+$coreImportScript = @(
+    "import sys, importlib",
+    "failed = []",
+    "for mod in [`"PySide6`", `"sounddevice`", `"soundfile`", `"numpy`", `"keyboard`"]:",
+    "    try:",
+    "        importlib.import_module(mod)",
+    "    except ImportError as e:",
+    "        failed.append(mod + `": `" + str(e))",
+    "if failed:",
+    "    for f in failed: print(`"FAIL: `" + f)",
+    "    sys.exit(1)",
+    "else:",
+    "    print(`"All core imports OK`")"
+) -join "`n"
 $prevPref = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = "Continue"
 try {
     $importResult = & $venvPython -c $coreImportScript 2>&1
     foreach ($line in $importResult) { Write-Host "  $line" }
@@ -359,7 +352,7 @@ try {
 }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  ERROR: Core dependencies are missing. Try:" -ForegroundColor Red
-    Write-Host "    cd '$InstallDir'; uv sync --extra dev" -ForegroundColor Yellow
+    Write-Host ("    cd " + $InstallDir + "; uv sync --extra dev") -ForegroundColor Yellow
     exit 1
 }
 Write-Ok "Core imports verified"
@@ -367,35 +360,35 @@ Write-Ok "Core imports verified"
 # â”€â”€ Verify transformers + torch imports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Verifying engine dependencies..."
 $prevPref = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-try { & $venvPython -c "import transformers; print(f'transformers {transformers.__version__}')" 2>&1 | ForEach-Object { Write-Host "  $_" } }
+$ErrorActionPreference = "Continue"
+try { & $venvPython -c "import transformers; print(`"transformers `" + transformers.__version__)" 2>&1 | ForEach-Object { Write-Host "  $_" } }
 finally { $ErrorActionPreference = $prevPref }
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "transformers import failed. Try: cd '$InstallDir'; uv pip install --upgrade 'transformers>=5.4.0'"
+    Write-Warn ("transformers import failed. Try: cd " + $InstallDir + "; uv pip install --upgrade transformers>=5.4.0")
 } else {
     Write-Ok "transformers import OK"
 }
 
 $prevPref = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-try { & $venvPython -c "import torch; print(f'torch {torch.__version__}')" 2>&1 | ForEach-Object { Write-Host "  $_" } }
+$ErrorActionPreference = "Continue"
+try { & $venvPython -c "import torch; print(`"torch `" + torch.__version__)" 2>&1 | ForEach-Object { Write-Host "  $_" } }
 finally { $ErrorActionPreference = $prevPref }
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "torch import failed. The Cohere engine requires PyTorch."
-    if ($Variant -eq 'GPU') {
-        Write-Host "  Try: cd '$InstallDir'; uv pip install --index-url https://download.pytorch.org/whl/cu128 torch" -ForegroundColor Yellow
+    Write-Warn "torch import failed. The Granite engine requires PyTorch."
+    if ($Variant -eq "GPU") {
+        Write-Host ("  Try: cd " + $InstallDir + "; uv pip install --index-url https://download.pytorch.org/whl/cu128 torch") -ForegroundColor Yellow
     } else {
-        Write-Host "  Try: cd '$InstallDir'; uv pip install --index-url https://download.pytorch.org/whl/cpu torch" -ForegroundColor Yellow
+        Write-Host ("  Try: cd " + $InstallDir + "; uv pip install --index-url https://download.pytorch.org/whl/cpu torch") -ForegroundColor Yellow
     }
 } else {
     Write-Ok "torch import OK"
 }
 
 # â”€â”€ CPU variant: replace CUDA torch with CPU-only torch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-if ($Variant -eq 'CPU') {
+if ($Variant -eq "CPU") {
     Write-Step "Installing CPU-only PyTorch (replacing CUDA build)..."
     Push-Location $InstallDir
-    Invoke-NativeCommand 'Install CPU-only torch' {
+    Invoke-NativeCommand "Install CPU-only torch" {
         uv pip install --python .venv\Scripts\python.exe --index-url https://download.pytorch.org/whl/cpu --upgrade --force-reinstall torch
     }
     Pop-Location
@@ -403,16 +396,16 @@ if ($Variant -eq 'CPU') {
 }
 
 # â”€â”€ Ensure PyTorch has CUDA support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-if ($Variant -eq 'GPU') {
+if ($Variant -eq "GPU") {
 Write-Step "Verifying PyTorch CUDA support..."
 $prevPref = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = "Continue"
 try { & $venvPython -c "import torch; assert torch.cuda.is_available()" 2>&1 | Out-Null }
 finally { $ErrorActionPreference = $prevPref }
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "PyTorch does not have CUDA support â€” reinstalling with CUDA 12.8..."
+    Write-Warn "PyTorch does not have CUDA support - reinstalling with CUDA 12.8..."
     Push-Location $InstallDir
-    Invoke-NativeCommand 'Install torch+CUDA' {
+    Invoke-NativeCommand "Install torch+CUDA" {
         uv pip install --python .venv\Scripts\python.exe --index-url https://download.pytorch.org/whl/cu128 --upgrade --force-reinstall torch
     }
     Pop-Location
@@ -424,23 +417,24 @@ if ($LASTEXITCODE -ne 0) {
 # Verify GPU kernels actually work (catches arch mismatch, e.g. Blackwell + cu124)
 Write-Step "Verifying PyTorch GPU kernel compatibility..."
 $prevPref = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-try { & $venvPython -c "import torch; torch.zeros(1, device='cuda')" 2>&1 | Out-Null }
+$ErrorActionPreference = "Continue"
+$cudaSmokeScript = "import torch"
+try { & $venvPython -c $cudaSmokeScript 2>&1 | Out-Null }
 finally { $ErrorActionPreference = $prevPref }
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "PyTorch CUDA kernels failed â€” GPU arch may require a newer CUDA toolkit"
+    Write-Warn "PyTorch CUDA kernels failed - GPU arch may require a newer CUDA toolkit"
     Write-Host "  Reinstalling torch from cu128 index (includes Blackwell/sm_120 support)..."
     Push-Location $InstallDir
-    Invoke-NativeCommand 'Upgrade torch for GPU arch' {
+    Invoke-NativeCommand "Upgrade torch for GPU arch" {
         uv pip install --python .venv\Scripts\python.exe --index-url https://download.pytorch.org/whl/cu128 --upgrade --force-reinstall torch
     }
     Pop-Location
     $prevPref2 = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try { & $venvPython -c "import torch; torch.zeros(1, device='cuda')" 2>&1 | Out-Null }
+    $ErrorActionPreference = "Continue"
+    try { & $venvPython -c $cudaSmokeScript 2>&1 | Out-Null }
     finally { $ErrorActionPreference = $prevPref2 }
     if ($LASTEXITCODE -ne 0) {
-        Write-Warn "GPU kernel test still fails after torch reinstall â€” engines will fall back to CPU"
+        Write-Warn "GPU kernel test still fails after torch reinstall - engines will fall back to CPU"
     } else {
         Write-Ok "PyTorch GPU kernels working after reinstall"
     }
@@ -455,7 +449,7 @@ $hfVer = & $venvPython -c "import huggingface_hub; print(huggingface_hub.__versi
 if (-not $hfVer) {
     Write-Host "  huggingface-hub not found, installing..."
     Push-Location $InstallDir
-    Invoke-NativeCommand 'Install huggingface-hub' { uv pip install --python .venv\Scripts\python.exe "huggingface-hub>=0.34.0" }
+    Invoke-NativeCommand "Install huggingface-hub" { uv pip install --python .venv\Scripts\python.exe `"huggingface-hub>=0.34.0`" }
     Pop-Location
     Write-Ok "huggingface-hub installed"
 } else {
@@ -463,40 +457,18 @@ if (-not $hfVer) {
 }
 
 # â”€â”€ Verify CUDA DLLs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-if ($Variant -eq 'GPU') {
-Write-Step "Verifying CUDA runtime libraries..."
-try {
-    $pyScript = @'
-import os, sys, importlib.util
-spec = importlib.util.find_spec('nvidia')
-if spec is None:
-    print('SKIP: nvidia pip packages not installed')
-    sys.exit(0)
-found = []
-for sp in spec.submodule_search_locations:
-    if not os.path.isdir(sp): continue
-    for child in os.listdir(sp):
-        bdir = os.path.join(sp, child, 'bin')
-        if os.path.isdir(bdir):
-            dlls = [f for f in os.listdir(bdir) if f.endswith('.dll')]
-            if dlls: found.extend(dlls)
-if not found:
-    print('WARN: No NVIDIA DLLs found in pip packages')
-    sys.exit(1)
-cublas = [f for f in found if 'cublas' in f.lower()]
-if cublas: print(f'OK: cuBLAS DLLs: {cublas}')
-else: print('WARN: cublas DLL not found'); sys.exit(1)
-'@
-    $cudaCheck = & "$InstallDir\.venv\Scripts\python.exe" -c $pyScript 2>&1
-    foreach ($line in $cudaCheck) { Write-Host "  $line" }
-    if ($LASTEXITCODE -eq 0) {
-        Write-Ok "CUDA runtime libraries verified"
-    } else {
-        Write-Warn "CUDA DLLs missing â€” GPU acceleration may fall back to CPU"
+if ($Variant -eq "GPU") {
+    Write-Step "Verifying CUDA runtime libraries..."
+    try {
+        & "$InstallDir\.venv\Scripts\python.exe" -c "import nvidia, torch; print(`"CUDA package imports OK`")" 2>&1 | ForEach-Object { Write-Host "  $_" }
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "CUDA runtime libraries verified"
+        } else {
+            Write-Warn "CUDA package import failed; GPU acceleration may fall back to CPU"
+        }
+    } catch {
+        Write-Warn "Could not verify CUDA DLLs: $_"
     }
-} catch {
-    Write-Warn "Could not verify CUDA DLLs: $_"
-}
 } # end GPU-only CUDA DLL verification
 
 # â”€â”€ Download models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -544,41 +516,43 @@ foreach ($logFile in @("speakeasy.log", "speakeasy.log.1", "speakeasy.log.2")) {
     }
 }
 
-# â”€â”€ Download Cohere model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-Write-Step "Checking Cohere model (Cohere Transcribe 03-2026)..."
-$cohereDir = Join-Path $ModelsDir "cohere"
-if ((Test-Path (Join-Path $cohereDir "config.json"))) {
-    Write-Already "Cohere model already present in $cohereDir"
+# â”€â”€ Download Granite model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+Write-Step "Checking Granite model (IBM Granite Speech 4.1 2B)..."
+$graniteDir = Join-Path $ModelsDir "granite"
+if ((Test-Path (Join-Path $graniteDir "config.json"))) {
+    Write-Already "Granite model already present in $graniteDir"
 } elseif ($HfTokenSecure.Length -eq 0) {
-    Write-Warn "No HuggingFace token provided — skipping Cohere model download"
-    Write-Host "  Run later: cd '$InstallDir'; `$env:HF_TOKEN = 'your_token'; uv run speakeasy download-model --target-dir $ModelsDir" -ForegroundColor Yellow
+    Write-Warn "No HuggingFace token provided — trying anonymous Granite model download"
+    Push-Location $InstallDir
+    Invoke-StreamingCommand "Granite model download" { uv run speakeasy download-model --target-dir $ModelsDir }
+    Pop-Location
 } else {
     # Extract token to plain text only for child process inheritance, then clear.
     $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($HfTokenSecure)
     $env:HF_TOKEN = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
     [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
     try {
-        Write-Host "  Downloading Cohere model (CohereLabs/cohere-transcribe-03-2026)..."
+        Write-Host "  Downloading Granite model (ibm-granite/granite-speech-4.1-2b)..."
         Push-Location $InstallDir
-        Invoke-StreamingCommand 'Cohere model download' { uv run speakeasy download-model --target-dir $ModelsDir }
+        Invoke-StreamingCommand "Granite model download" { uv run speakeasy download-model --target-dir $ModelsDir }
         Pop-Location
-        Write-Ok "Cohere model downloaded to $cohereDir"
+        Write-Ok "Granite model downloaded to $graniteDir"
     } finally {
         $env:HF_TOKEN = $null
     }
 }
 
 # â”€â”€ Patch build variant for CPU source installs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-if ($Variant -eq 'CPU') {
+if ($Variant -eq "CPU") {
     Write-Step "Patching build variant to CPU..."
     $variantFile = Join-Path $InstallDir "speakeasy\_build_variant.py"
     if (Test-Path $variantFile) {
         $content = Get-Content $variantFile -Raw
-        $patched = $content -replace 'VARIANT\s*=\s*"gpu"', 'VARIANT = "cpu"'
+        $patched = $content -replace "VARIANT\s*=\s*`"gpu`"", "VARIANT = `"cpu`""
         [System.IO.File]::WriteAllText($variantFile, $patched, (New-Object System.Text.UTF8Encoding $false))
-        Write-Ok "Build variant set to 'cpu' in $variantFile"
+        Write-Ok "Build variant set to cpu in $variantFile"
     } else {
-        Write-Warn "_build_variant.py not found at $variantFile â€” device defaults may use GPU"
+        Write-Warn "_build_variant.py not found at $variantFile - device defaults may use GPU"
     }
 }
 
@@ -586,8 +560,8 @@ if ($Variant -eq 'CPU') {
 Write-Step "Configuring default engine..."
 $settingsFile = Join-Path $ConfigDir "settings.json"
 $cfg = $null
-$defaultEngine = 'cohere'
-$defaultDevice = if ($Variant -eq 'CPU') { 'cpu' } else { 'cuda' }
+$defaultEngine = "granite"
+$defaultDevice = if ($Variant -eq "CPU") { "cpu" } else { "cuda" }
 if (Test-Path $settingsFile) {
     $rawSettings = Get-Content $settingsFile -Raw
     if (-not [string]::IsNullOrWhiteSpace($rawSettings)) {
@@ -597,19 +571,19 @@ if (Test-Path $settingsFile) {
 if (-not $cfg) {
     $cfg = [pscustomobject]@{}
 }
-if ($cfg.PSObject.Properties.Match('engine').Count -eq 0) {
-    $cfg | Add-Member -NotePropertyName 'engine' -NotePropertyValue $defaultEngine
+if ($cfg.PSObject.Properties.Match("engine").Count -eq 0) {
+    $cfg | Add-Member -NotePropertyName "engine" -NotePropertyValue $defaultEngine
 } else {
     $cfg.engine = $defaultEngine
 }
-if ($cfg.PSObject.Properties.Match('device').Count -eq 0) {
-    $cfg | Add-Member -NotePropertyName 'device' -NotePropertyValue $defaultDevice
+if ($cfg.PSObject.Properties.Match("device").Count -eq 0) {
+    $cfg | Add-Member -NotePropertyName "device" -NotePropertyValue $defaultDevice
 } else {
     $cfg.device = $defaultDevice
 }
 $jsonText = $cfg | ConvertTo-Json -Depth 10
 [System.IO.File]::WriteAllText($settingsFile, $jsonText, (New-Object System.Text.UTF8Encoding $false))
-Write-Ok "Default engine set to '$defaultEngine', device set to '$defaultDevice' in $settingsFile"
+Write-Ok "Default engine set to $defaultEngine, device set to $defaultDevice in $settingsFile"
 
 # â”€â”€ Set permissions (current user gets Modify on install dir) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking directory permissions..."
@@ -627,8 +601,8 @@ foreach ($dir in @($ModelsDir, $ConfigDir, $LogsDir, $TempDir)) {
 
 # â”€â”€ Create desktop shortcut â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Creating desktop shortcut..."
-$desktopPath = [Environment]::GetFolderPath('Desktop')
-$shortcutPath = Join-Path $desktopPath "SpeakEasy AI.lnk"
+$desktopPath = [Environment]::GetFolderPath("Desktop")
+$shortcutPath = Join-Path $desktopPath "SpeakEasy AI Granite.lnk"
 if (Test-Path $shortcutPath) {
     Write-Already "Desktop shortcut already exists"
 } else {
@@ -637,7 +611,7 @@ if (Test-Path $shortcutPath) {
     $shortcut.TargetPath = "$InstallDir\.venv\Scripts\pythonw.exe"
     $shortcut.Arguments = "-m speakeasy"
     $shortcut.WorkingDirectory = $InstallDir
-    $shortcut.Description = "SpeakEasy AI â€” Voice to Text"
+    $shortcut.Description = "SpeakEasy AI Granite - Voice to Text"
     $shortcut.Save()
     [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null
     Write-Ok "Desktop shortcut created at $shortcutPath"
@@ -654,10 +628,10 @@ try {
 }
 
 # â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-$variantLabel = if ($Variant -eq 'CPU') { 'CPU-only (no GPU required)' } else { 'GPU (CUDA-accelerated)' }
+$variantLabel = if ($Variant -eq "CPU") { "CPU-only (no GPU required)" } else { "GPU (CUDA-accelerated)" }
 Write-Host ""
 Write-Host "  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•" -ForegroundColor Green
-Write-Host "  SpeakEasy AI has been installed successfully!" -ForegroundColor Green
+Write-Host "  SpeakEasy AI Granite has been installed successfully!" -ForegroundColor Green
 Write-Host "  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Variant:        $variantLabel"
@@ -666,11 +640,11 @@ Write-Host "  Models:         $ModelsDir"
 Write-Host "  Config:         $ConfigDir"
 Write-Host "  Logs:           $LogsDir"
 Write-Host ""
-Write-Host "  Engine:         Cohere Transcribe"
+Write-Host "  Engine:         IBM Granite Speech"
 Write-Host "  Device:         $defaultDevice"
 Write-Host ""
 Write-Host "  To launch:      Double-click the desktop shortcut or run:"
-Write-Host "    cd '$InstallDir'; uv run speakeasy"
+Write-Host ("    cd " + $InstallDir + "; uv run speakeasy")
 Write-Host ""
 Write-Host "  Default hotkeys:"
 Write-Host "    Ctrl+Alt+P   Start recording"

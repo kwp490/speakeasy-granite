@@ -269,7 +269,7 @@ class StatusPillBar(QWidget):
         dot_color = _model_dot_color(status, fallback)
         device_label = device.upper()
         device_color = Color.WARNING if fallback else None
-        model_name = name.strip() or "Cohere"
+        model_name = name.strip() or "Granite"
         self._ai_card.set_values(
             [(model_name, None), (device_label, device_color)],
             state_text,

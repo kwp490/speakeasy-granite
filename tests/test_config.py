@@ -14,9 +14,12 @@ class SettingsConfigTests(unittest.TestCase):
             models_dir.mkdir()
 
             settings = Settings(
-                engine="cohere",
+                engine="granite",
                 model_path=str(models_dir),
                 device="cpu",
+                speech_task="translate",
+                translation_target_language="French",
+                keyword_bias="Granite, PX-42",
                 auto_copy=False,
                 punctuation=False,
             )
@@ -24,7 +27,10 @@ class SettingsConfigTests(unittest.TestCase):
 
             loaded = Settings.load(config_path)
 
-            self.assertEqual(loaded.engine, "cohere")
+            self.assertEqual(loaded.engine, "granite")
+            self.assertEqual(loaded.speech_task, "translate")
+            self.assertEqual(loaded.translation_target_language, "French")
+            self.assertEqual(loaded.keyword_bias, "Granite, PX-42")
             self.assertFalse(loaded.punctuation)
             self.assertEqual(loaded.model_path, str(models_dir))
             self.assertEqual(loaded.device, "cpu")
@@ -36,7 +42,7 @@ class SettingsConfigTests(unittest.TestCase):
             config_path.write_text(
                 json.dumps(
                     {
-                        "engine": "cohere",
+                        "engine": "granite",
                         "language": "en",
                         "unexpected": "ignore-me",
                     }
@@ -46,13 +52,16 @@ class SettingsConfigTests(unittest.TestCase):
 
             loaded = Settings.load(config_path)
 
-            self.assertEqual(loaded.engine, "cohere")
+            self.assertEqual(loaded.engine, "granite")
             self.assertEqual(loaded.language, "en")
             self.assertFalse(hasattr(loaded, "unexpected"))
 
     def test_defaults(self):
         s = Settings()
-        self.assertEqual(s.engine, "cohere")
+        self.assertEqual(s.engine, "granite")
+        self.assertEqual(s.speech_task, "transcribe")
+        self.assertEqual(s.translation_target_language, "English")
+        self.assertEqual(s.keyword_bias, "")
         self.assertEqual(s.device, "cuda")
         self.assertEqual(s.sample_rate, 16000)
         self.assertTrue(s.auto_copy)
@@ -76,14 +85,14 @@ class SettingsConfigTests(unittest.TestCase):
 
     def test_load_missing_file_returns_defaults(self):
         loaded = Settings.load(Path("/nonexistent/path/settings.json"))
-        self.assertEqual(loaded.engine, "cohere")
+        self.assertEqual(loaded.engine, "granite")
 
     def test_load_corrupt_json_returns_defaults(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "settings.json"
             config_path.write_text("not valid json {{{", encoding="utf-8")
             loaded = Settings.load(config_path)
-            self.assertEqual(loaded.engine, "cohere")
+            self.assertEqual(loaded.engine, "granite")
 
     def test_professional_mode_round_trip(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -130,13 +139,13 @@ if __name__ == "__main__":
 class SettingsValidationTests(unittest.TestCase):
     """Tests for Settings.validate() correcting invalid values."""
 
-    def test_invalid_engine_falls_back_to_cohere(self):
+    def test_invalid_engine_falls_back_to_granite(self):
         s = Settings(engine="nonexistent")
         s.validate()
-        self.assertEqual(s.engine, "cohere")
+        self.assertEqual(s.engine, "granite")
 
     def test_valid_engines_accepted(self):
-        for engine in ("cohere",):
+        for engine in ("granite",):
             s = Settings(engine=engine)
             s.validate()
             self.assertEqual(s.engine, engine)
@@ -184,5 +193,10 @@ class SettingsValidationTests(unittest.TestCase):
             p = Path(td) / "settings.json"
             p.write_text(json.dumps({"engine": "invalid_eng"}), encoding="utf-8")
             s = Settings.load(p)
-            self.assertEqual(s.engine, "cohere")
+            self.assertEqual(s.engine, "granite")
+
+    def test_invalid_speech_task_falls_back_to_transcribe(self):
+        s = Settings(speech_task="summarize")
+        s.validate()
+        self.assertEqual(s.speech_task, "transcribe")
 

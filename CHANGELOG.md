@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Responsive Status Pill Bar** (`status_pills.py`): new three-card status widget (AI Model, Dictation, Professional Mode) that adapts between card and compact pill layouts based on window width; cards are clickable and display animated pulsing dots during recording/processing
 - **SVG icon system**: vector icons (brain, microphone, sparkles) for status cards with `load_icon()` helper in `theme.py` using `QSvgRenderer`; icons shipped in `speakeasy/assets/icons/`
-- **GPU fallback detection**: `CohereTranscribeEngine.actual_device` property reports device after model load; main window warns via status pill when GPU was requested but CPU was used
+- **GPU fallback detection**: `GraniteTranscribeEngine.actual_device` property reports device after model load; main window warns via status pill when GPU was requested but CPU was used
 - **Theme helpers**: `status_card_style()`, `status_card_hover_style()`, `make_toggle_row()`, `PANEL_HOVER` color, `Spacing.SECTION`, `Size.STATUS_ICON_CARD/PILL`, `Size.STATUS_CARD/PILL_MIN_HEIGHT`, `Size.STATUS_LAYOUT_THRESHOLD`
 - **Test audio isolation**: `_FakeAudioRecorder` mock in `conftest.py` prevents parallel xdist workers from opening real microphone streams
 
@@ -40,9 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.6.1] - ASR Throughput Instrumentation & Sparkline Enhancements
 
 ### Added
-- **ASR throughput section** in Developer Panel Realtime tab: displays realtime factor, decoder token rate, total tokens, and total audio processed from the Cohere engine
+- **ASR throughput section** in Developer Panel Realtime tab: displays realtime factor, decoder token rate, total tokens, and total audio processed from the Granite engine
 - **ASR sparkline**: plots realtime factor over time with a 1.0x reference line; uses sticky-max scaling to prevent visual creep during CUDA warm-up
-- **Engine instrumentation** (`CohereTranscribeEngine`): tracks per-chunk throughput counters (`token_stats` property) including inference sequence number for sparkline deduplication
+- **Engine instrumentation** (`GraniteTranscribeEngine`): tracks per-chunk throughput counters (`token_stats` property) including inference sequence number for sparkline deduplication
 - **LLM call sequence tracking** (`TextProcessor`): `token_stats` now returns a monotonic `call_seq` counter for consistent sparkline updates
 - **Parallel test execution**: added `pytest-xdist` dev dependency; build script now runs `pytest -n auto`
 - **Session-scoped QApplication fixture** in `conftest.py` for xdist worker isolation
@@ -82,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.1] - Per-User Logs & Hardening
 
 ### Changed
-- **Per-user log directory**: Logs now write to `%LOCALAPPDATA%\SpeakEasy AI\logs`
+- **Per-user log directory**: Logs now write to `%LOCALAPPDATA%\SpeakEasy AI Granite\logs`
   instead of the shared `%ProgramData%` path, preventing cross-user log access
   on shared machines. Dev/source mode (`SPEAKEASY_HOME`) is unchanged.
 - **Audio resampling**: Replaced manual linear-interpolation resampler with
@@ -103,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Installer no longer creates or manages a shared `logs/` directory under
-  `%ProgramData%\SpeakEasy AI` — log storage is now per-user.
+  `%ProgramData%\SpeakEasy AI Granite` — log storage is now per-user.
 
 ---
 
@@ -119,7 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `streaming_partials_enabled` setting (default on; toggle in Settings)
 - **`SpeechEngine` partial-callback contract**: `transcribe()` / `_transcribe_impl()`
   accept an optional `partial_callback(text, chunk_index, total_chunks)` which
-  the Cohere engine invokes after each chunk of a multi-chunk transcription;
+  the Granite engine invokes after each chunk of a multi-chunk transcription;
   callback exceptions are logged and swallowed
 - **`WorkerSignals.partial(str, int, int)`** signal for routing per-chunk
   updates from the engine worker to the UI thread via `Qt.QueuedConnection`

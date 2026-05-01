@@ -63,19 +63,19 @@ class TestAvailableEnginesReflectsModelPresence(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             self.assertEqual(get_available_engines(d), [])
 
-    def test_cohere_listed_when_present(self):
+    def test_granite_listed_when_present(self):
         with tempfile.TemporaryDirectory() as d:
-            cohere_dir = os.path.join(d, "cohere")
-            os.makedirs(cohere_dir)
-            with open(os.path.join(cohere_dir, "config.json"), "w") as f:
+            granite_dir = os.path.join(d, "granite")
+            os.makedirs(granite_dir)
+            with open(os.path.join(granite_dir, "config.json"), "w") as f:
                 f.write("{}")
             available = get_available_engines(d)
-            self.assertIn("cohere", available)
+            self.assertIn("granite", available)
 
-    def test_cohere_missing_when_no_config(self):
+    def test_granite_missing_when_no_config(self):
         with tempfile.TemporaryDirectory() as d:
-            os.makedirs(os.path.join(d, "cohere"))
-            self.assertNotIn("cohere", get_available_engines(d))
+            os.makedirs(os.path.join(d, "granite"))
+            self.assertNotIn("granite", get_available_engines(d))
 
 
 class TestModelPathResolution(unittest.TestCase):
@@ -108,7 +108,7 @@ class TestModelPathResolution(unittest.TestCase):
                 try:
                     programdata = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
                     expected = str(
-                        Path(programdata) / "SpeakEasy AI" / "models"
+                        Path(programdata) / "SpeakEasy AI Granite" / "models"
                     )
                     self.assertEqual(cfg.DEFAULT_MODELS_DIR, expected)
                 finally:
@@ -119,7 +119,7 @@ class TestEngineRuntimeDependencies(unittest.TestCase):
     """Runtime dependencies required by the engine must be importable."""
 
     def test_librosa_importable(self):
-        """librosa is required by CohereAsrFeatureExtractor."""
+        """librosa is required by the shared resampling path."""
         import importlib
         mod = importlib.import_module("librosa")
         self.assertTrue(hasattr(mod, "__version__"))
@@ -131,7 +131,7 @@ class TestEngineRuntimeDependencies(unittest.TestCase):
         self.assertTrue(hasattr(mod, "__version__"))
 
     def test_safetensors_importable(self):
-        """safetensors.torch is used by processing_cohere_asr.py."""
+        """safetensors.torch is used by Transformers model weight loading."""
         from safetensors.torch import load_file
         self.assertTrue(callable(load_file))
 
@@ -146,69 +146,9 @@ class TestEngineRuntimeDependencies(unittest.TestCase):
             ctx = mp.get_context("spawn")
             self.assertIsNotNone(ctx)
 
-    def test_cohere_feature_extractor_runs_without_sklearn(self):
-        """The active Cohere feature-extractor path must not require sklearn."""
-        import gc
-        blocked_names: list[str] = []
-        real_import = builtins.__import__
-
-        # Only flush sklearn and the extractor module itself.
-        # Do NOT evict librosa from sys.modules: a fresh librosa import inside
-        # a guarded builtins.__import__ context creates a per-module _ModuleLock
-        # that can outlive the test (kept alive by lazy-loader weakrefs) and
-        # causes test_librosa_importable to deadlock on the same xdist worker.
-        # librosa does not import sklearn, so keeping it cached is safe.
-        saved_modules = {
-            name: module
-            for name, module in list(sys.modules.items())
-            if name == "sklearn"
-            or name.startswith("sklearn.")
-            or name == "transformers.models.cohere_asr.feature_extraction_cohere_asr"
-        }
-
-        for name in saved_modules:
-            sys.modules.pop(name, None)
-
-        def guarded_import(name, *args, **kwargs):
-            if name == "sklearn" or name.startswith("sklearn."):
-                blocked_names.append(name)
-                raise ImportError("blocked sklearn for test")
-            return real_import(name, *args, **kwargs)
-
-        extractor = None
-        output = None
-        module = None
-        try:
-            builtins.__import__ = guarded_import
-            module = importlib.import_module(
-                "transformers.models.cohere_asr.feature_extraction_cohere_asr"
-            )
-            extractor = module.CohereAsrFeatureExtractor()
-            output = extractor(
-                np.zeros(16000, dtype=np.float32),
-                sampling_rate=16000,
-                return_tensors="pt",
-            )
-            self.assertIn("input_features", output)
-        finally:
-            builtins.__import__ = real_import
-            extractor = None
-            output = None
-            module = None
-            # Purge sklearn + cohere-extractor entries then restore pre-test state.
-            for name in list(sys.modules.keys()):
-                if name == "sklearn" or name.startswith("sklearn.") or (
-                    name == "transformers.models.cohere_asr.feature_extraction_cohere_asr"
-                ):
-                    del sys.modules[name]
-            sys.modules.update(saved_modules)
-            gc.collect()
-
-        self.assertEqual(
-            blocked_names,
-            [],
-            "Cohere feature extraction should not attempt to import sklearn.",
-        )
+    def test_transformers_speech_seq2seq_auto_model_importable(self):
+        from transformers import AutoModelForSpeechSeq2Seq
+        self.assertIsNotNone(AutoModelForSpeechSeq2Seq)
 
 
 class TestAllRegisteredEnginesHaveRepoMapping(unittest.TestCase):
@@ -234,7 +174,7 @@ class TestStartupModelSetup(unittest.TestCase):
 
         with mock.patch.object(app_main.sys, "frozen", False, create=True):
             with mock.patch("speakeasy.model_downloader.model_ready", return_value=False):
-                with mock.patch("speakeasy.model_downloader.launch_cohere_setup_script") as launch:
+                with mock.patch("speakeasy.model_downloader.launch_granite_setup_script") as launch:
                     self.assertTrue(app_main._ensure_startup_model_ready(settings))
 
         launch.assert_not_called()
@@ -251,7 +191,7 @@ class TestStartupModelSetup(unittest.TestCase):
                 side_effect=[False, True],
             ):
                 with mock.patch(
-                    "speakeasy.model_downloader.launch_cohere_setup_script",
+                    "speakeasy.model_downloader.launch_granite_setup_script",
                     return_value=33,
                 ) as launch:
                     with mock.patch(
@@ -275,14 +215,14 @@ class TestStartupModelSetup(unittest.TestCase):
         with mock.patch.object(app_main.sys, "frozen", True, create=True):
             with mock.patch("speakeasy.model_downloader.model_ready", return_value=False):
                 with mock.patch(
-                    "speakeasy.model_downloader.launch_cohere_setup_script",
+                    "speakeasy.model_downloader.launch_granite_setup_script",
                     side_effect=FileNotFoundError,
                 ):
                     with mock.patch(
-                        "speakeasy.model_downloader.get_cohere_setup_script_candidates",
+                        "speakeasy.model_downloader.get_granite_setup_script_candidates",
                         return_value=(
-                            Path(r"C:\Program Files\SpeakEasy AI\cohere-model-setup.ps1"),
-                            Path(r"C:\Coding_Projects\speakeasy\installer\cohere-model-setup.ps1"),
+                            Path(r"C:\Program Files\SpeakEasy AI Granite\granite-model-setup.ps1"),
+                            Path(r"C:\Coding_Projects\speakeasy-granite\installer\granite-model-setup.ps1"),
                         ),
                     ):
                         with mock.patch("PySide6.QtWidgets.QMessageBox.critical") as critical:

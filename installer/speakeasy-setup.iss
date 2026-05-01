@@ -1,9 +1,9 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 ; SpeakEasy AI v3 Inno Setup Installer Script
 ;
-; Produces a single SpeakEasy-AI-Setup-0.5.0.exe that handles:
+; Produces a single SpeakEasy-AI-Granite-Setup-0.5.0.exe that handles:
 ;   - File extraction (from PyInstaller dist/speakeasy/ output)
-;   - HuggingFace token prompt + Cohere Transcribe model download
+;   - HuggingFace token prompt + IBM Granite Speech model download
 ;   - Desktop + Start Menu shortcuts
 ;   - Data migration from previous installs
 ;   - Windows Defender process exclusion (exe only — not the whole directory)
@@ -16,26 +16,26 @@
 ; Requires Inno Setup 6.x — https://jrsoftware.org/isdl.php
 ; ─────────────────────────────────────────────────────────────────────────────
 
-#define MyAppName "SpeakEasy AI"
+#define MyAppName "SpeakEasy AI Granite"
 #define MyAppVersion "0.7.3"
 #define MyAppPublisher "kwp490"
-#define MyAppURL "https://github.com/kwp490/SpeakEasyAI"
+#define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"
 
 [Setup]
-AppId={{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}
+AppId={{7B99C492-7E14-4E3A-A8F2-71F8B23D9A42}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}/issues
-DefaultDirName={autopf}\SpeakEasy AI
+DefaultDirName={autopf}\SpeakEasy AI Granite
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE
 OutputDir=Output
-OutputBaseFilename=SpeakEasy-AI-Setup-{#MyAppVersion}
+OutputBaseFilename=SpeakEasy-AI-Granite-Setup-{#MyAppVersion}
 #ifdef FastCompress
 Compression=lzma2/fast
 SolidCompression=no
@@ -58,17 +58,17 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-WelcomeLabel2=SpeakEasy AI delivers clean, accurate transcription on Windows — powered by the Cohere Transcribe model. Publicly reported benchmarks show Cohere Transcribe achieves a lower word error rate than Whisper Large v3, meaning fewer corrections and cleaner output.%n%nSetup will install the application, download the Cohere Transcribe speech model (~5 GB), and configure everything automatically. This takes just a few minutes.
+WelcomeLabel2=SpeakEasy AI Granite delivers local transcription and speech translation on Windows — powered by IBM Granite Speech 4.1 2B.%n%nSetup will install the application, download the Granite speech model, and configure everything automatically. This takes several minutes depending on your connection.
 
 [Files]
 Source: "..\dist\speakeasy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "cohere-model-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "granite-model-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
-Name: "{commonappdata}\SpeakEasy AI";              Permissions: users-modify
-Name: "{commonappdata}\SpeakEasy AI\models";       Permissions: users-modify
-Name: "{commonappdata}\SpeakEasy AI\config";       Permissions: users-modify
-Name: "{commonappdata}\SpeakEasy AI\temp";         Permissions: users-modify
+Name: "{commonappdata}\SpeakEasy AI Granite";              Permissions: users-modify
+Name: "{commonappdata}\SpeakEasy AI Granite\models";       Permissions: users-modify
+Name: "{commonappdata}\SpeakEasy AI Granite\config";       Permissions: users-modify
+Name: "{commonappdata}\SpeakEasy AI Granite\temp";         Permissions: users-modify
 
 [Icons]
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
@@ -86,8 +86,8 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; \
     Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI\temp"
-Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI\config"
+Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI Granite\temp"
+Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI Granite\config"
 
 [UninstallRun]
 Filename: "powershell.exe"; \
@@ -211,7 +211,7 @@ var
 begin
   TokenPage := CreateCustomPage(wpSelectDir,
     'HuggingFace Authentication',
-    'A HuggingFace account and access token are required to download the Cohere Transcribe model.');
+    'A HuggingFace account may be required to download the IBM Granite Speech model.');
 
   DetectedGPU := DetectGPU;
   TopPos := 0;
@@ -251,13 +251,13 @@ begin
     Lbl.Parent := TokenPage.Surface;
     Lbl.Left := ScaleX(16);  Lbl.Top := TopPos;
     Lbl.Width := TokenPage.SurfaceWidth - ScaleX(16);
-    if DetectedVRAM_MB >= 5120 then
+    if DetectedVRAM_MB >= 6144 then
     begin
-      Lbl.Caption := #$2713 + '  Cohere Transcribe needs ~5 GB — your GPU has enough';
+      Lbl.Caption := #$2713 + '  IBM Granite Speech GPU mode selected — your GPU appears to have enough VRAM';
       Lbl.Font.Color := clGreen;
     end else
     begin
-      Lbl.Caption := #$2717 + '  Cohere Transcribe needs ~5 GB — your GPU may not have enough (CPU fallback available)';
+      Lbl.Caption := #$2717 + '  IBM Granite Speech may need more VRAM than detected (CPU fallback available)';
       Lbl.Font.Color := $0000C0;
     end;
     TopPos := TopPos + ScaleY(18);
@@ -284,7 +284,7 @@ begin
   TokenLblSteps.AutoSize := False;  TokenLblSteps.WordWrap := True;  TokenLblSteps.Height := ScaleY(56);
   TokenLblSteps.Caption := 'To download the model you need a free HuggingFace account:' + #13#10 +
                  '  1. Sign up at https://huggingface.co/join' + #13#10 +
-                 '  2. Accept the license at https://huggingface.co/CohereLabs/cohere-transcribe-03-2026' + #13#10 +
+                 '  2. Review the model page at https://huggingface.co/ibm-granite/granite-speech-4.1-2b' + #13#10 +
                  '  3. Create a Read token at https://huggingface.co/settings/tokens';
   TokenLblSteps.Font.Color := $808080;
   TopPos := TopPos + ScaleY(60);
@@ -319,7 +319,7 @@ begin
   ModelFoundHeader.Parent := TokenPage.Surface;
   ModelFoundHeader.Left := 0;  ModelFoundHeader.Top := TopPos;
   ModelFoundHeader.Width := TokenPage.SurfaceWidth;
-  ModelFoundHeader.Caption := #$2713 + '  Cohere Transcribe model already installed';
+  ModelFoundHeader.Caption := #$2713 + '  IBM Granite Speech model already installed';
   ModelFoundHeader.Font.Style := [fsBold];  ModelFoundHeader.Font.Size := 10;
   ModelFoundHeader.Font.Color := clGreen;
   ModelFoundHeader.Visible := False;
@@ -330,7 +330,7 @@ begin
   ModelFoundNote.Left := ScaleX(8);  ModelFoundNote.Top := TopPos;
   ModelFoundNote.Width := TokenPage.SurfaceWidth - ScaleX(16);
   ModelFoundNote.AutoSize := False;  ModelFoundNote.WordWrap := True;  ModelFoundNote.Height := ScaleY(72);
-  ModelFoundNote.Caption := 'The Cohere Transcribe model was found in your existing installation.' + #13#10 + #13#10 +
+  ModelFoundNote.Caption := 'The IBM Granite Speech model was found in your existing installation.' + #13#10 + #13#10 +
                  'The model will be preserved during this upgrade — no download is needed.' + #13#10 +
                  'Click Next to continue.';
   ModelFoundNote.Font.Color := $808080;
@@ -345,17 +345,17 @@ begin
   HFToken := Trim(TokenEdit.Text);
   Info := '';
   Info := Info + 'Application:' + NewLine;
-  Info := Info + Space + 'SpeakEasy AI {#MyAppVersion} — Native Windows Voice-to-Text' + NewLine + NewLine;
+  Info := Info + Space + 'SpeakEasy AI Granite {#MyAppVersion} — Native Windows Voice-to-Text' + NewLine + NewLine;
   if MemoDirInfo <> '' then
     Info := Info + MemoDirInfo + NewLine + NewLine;
   Info := Info + 'Speech engine:' + NewLine;
-  Info := Info + Space + 'Cohere Transcribe 03-2026  (~5 GB VRAM, 14 languages)' + NewLine + NewLine;
+  Info := Info + Space + 'IBM Granite Speech 4.1 2B  (ASR, translation, keyword biasing)' + NewLine + NewLine;
   Info := Info + 'The installer will:' + NewLine;
   Info := Info + Space + '1. Extract SpeakEasy AI application files' + NewLine;
   if ModelExists then
-    Info := Info + Space + '2. Cohere Transcribe model \u2014 already installed (skip download)' + NewLine
+    Info := Info + Space + '2. IBM Granite Speech model — already installed (skip download)' + NewLine
   else
-    Info := Info + Space + '2. Download Cohere Transcribe model from HuggingFace' + NewLine;
+    Info := Info + Space + '2. Download IBM Granite Speech model from HuggingFace' + NewLine;
   Info := Info + Space + '3. Create desktop and Start Menu shortcuts' + NewLine;
   Info := Info + Space + '4. Configure Windows Defender exclusions' + NewLine + NewLine;
   if DetectedGPU <> '' then
@@ -466,10 +466,10 @@ var
   SettingsFile, Json: String;
   ResultCode: Integer;
 begin
-  SettingsFile := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\config\settings.json';
+  SettingsFile := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\config\settings.json';
   if not FileExists(SettingsFile) then
   begin
-    Json := '{' + #13#10 + '  "engine": "cohere"' + #13#10 + '}';
+    Json := '{' + #13#10 + '  "engine": "granite"' + #13#10 + '}';
     SaveStringToFile(SettingsFile, Json, False);
   end;
   { Grant regular users write (Modify) access so the app can save settings without
@@ -498,12 +498,12 @@ var
   ResultCode: Integer;
 begin
   ExePath := ExpandConstant('{app}\{#MyAppExeName}');
-  ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models';
+  ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models';
   DownloadPage := CreateOutputProgressPage('Downloading Model',
-    'Downloading the Cohere Transcribe speech model — the high-accuracy engine that powers SpeakEasy AI. This may take several minutes.');  
+    'Downloading the IBM Granite Speech model that powers SpeakEasy AI Granite. This may take several minutes.');
   DownloadPage.Show;
-  DownloadPage.SetText('Downloading Cohere Transcribe (CohereLabs/cohere-transcribe-03-2026)...',
-    'Source: huggingface.co/CohereLabs/cohere-transcribe-03-2026');
+  DownloadPage.SetText('Downloading IBM Granite Speech (ibm-granite/granite-speech-4.1-2b)...',
+    'Source: huggingface.co/ibm-granite/granite-speech-4.1-2b');
   DownloadPage.SetProgress(0, 1);
   { download_model exit codes: 0 = success, 1 = failure, 2 = auth required }
   { Pass the token via environment variable to avoid exposing it in the process list }
@@ -516,16 +516,16 @@ begin
       MsgBox('Authentication failed. Make sure you have:' + #13#10 + #13#10 +
              '  1. Accepted the model license on HuggingFace' + #13#10 +
              '  2. Provided a valid access token' + #13#10 + #13#10 +
-             'You can retry later by running cohere-model-setup.ps1.',
+             'You can retry later by running granite-model-setup.ps1.',
              mbError, MB_OK)
     else if ResultCode <> 0 then
       MsgBox('Model download failed (exit code ' + IntToStr(ResultCode) + ').' + #13#10 + #13#10 +
-             'You can download it later using cohere-model-setup.ps1' + #13#10 +
+             'You can download it later using granite-model-setup.ps1' + #13#10 +
              'or the model will be downloaded on first launch.',
              mbError, MB_OK);
   except
     MsgBox('Could not start model download.' + #13#10 +
-           'You can download the model later using cohere-model-setup.ps1.',
+           'You can download the model later using granite-model-setup.ps1.',
            mbError, MB_OK);
   end;
   SetEnvironmentVariable('HF_TOKEN', '');
@@ -546,17 +546,17 @@ begin
     if not ModelExists then
       DownloadModel;
     InstDir := ExpandConstant('{app}');
-    ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models';
+    ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models';
     Summary := 'SpeakEasy AI {#MyAppVersion} is ready.' + #13#10;
     Summary := Summary + 'Press Ctrl+Alt+P from any application to start recording.' + #13#10;
-    Summary := Summary + 'Powered by Cohere Transcribe — benchmarked at lower word error rate than Whisper Large v3.' + #13#10 + #13#10;
+    Summary := Summary + 'Powered by IBM Granite Speech 4.1 2B.' + #13#10 + #13#10;
     Summary := Summary + 'INSTALL LOCATION' + #13#10;
     Summary := Summary + '  ' + InstDir + #13#10 + #13#10;
     Summary := Summary + 'MODEL STATUS' + #13#10;
-    if DirExists(ModelsDir + '\cohere') then
-      Summary := Summary + '  [OK] Cohere Transcribe — ready' + #13#10
+    if DirExists(ModelsDir + '\granite') then
+      Summary := Summary + '  [OK] IBM Granite Speech — ready' + #13#10
     else
-      Summary := Summary + '  [!!] Cohere Transcribe — download failed (run cohere-model-setup.ps1)' + #13#10;
+      Summary := Summary + '  [!!] IBM Granite Speech — download failed (run granite-model-setup.ps1)' + #13#10;
     Summary := Summary + #13#10;
     Summary := Summary + 'SHORTCUTS' + #13#10;
     Summary := Summary + '  Desktop shortcut created' + #13#10;
@@ -614,31 +614,31 @@ end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
-  CohereDir: String;
+  GraniteDir: String;
 begin
   Result := True;
   if CurPageID = wpSelectDir then
   begin
-    CohereDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models\cohere';
-    ModelExists := DirExists(CohereDir) and FileExists(CohereDir + '\config.json');
+    GraniteDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models\granite';
+    ModelExists := DirExists(GraniteDir) and FileExists(GraniteDir + '\config.json');
   end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  AppDir, ModelsDir, CohereDir: String;
+  AppDir, ModelsDir, GraniteDir: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
-    AppDir    := ExpandConstant('{commonappdata}') + '\SpeakEasy AI';
+    AppDir    := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite';
     ModelsDir := AppDir + '\models';
-    CohereDir := ModelsDir + '\cohere';
-    if DirExists(CohereDir) then
+    GraniteDir := ModelsDir + '\granite';
+    if DirExists(GraniteDir) then
       if not UninstallSilent then
-        if MsgBox('Delete the Cohere Transcribe model (~5 GB)?' + #13#10 + #13#10 +
+        if MsgBox('Delete the IBM Granite Speech model?' + #13#10 + #13#10 +
                    'Click Yes to remove, or No to keep for reinstall.',
                    mbConfirmation, MB_YESNO) = IDYES then
-          DelTree(CohereDir, True, True, True);
+          DelTree(GraniteDir, True, True, True);
     if DirExists(ModelsDir) then RemoveDir(ModelsDir);
     if DirExists(AppDir) then RemoveDir(AppDir);
   end;

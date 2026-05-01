@@ -31,7 +31,7 @@ if sys.stderr is None:
 
 # ── Single-instance mutex (Windows) ──────────────────────────────────────────
 
-_MUTEX_NAME = "Global\\SpeakEasyAIMutex"
+_MUTEX_NAME = "Global\\SpeakEasyAIGraniteMutex"
 _mutex_handle = None
 
 
@@ -112,7 +112,7 @@ def _setup_logging() -> None:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="speakeasy",
-        description="SpeakEasy AI — Native Windows Voice-to-Text",
+        description="SpeakEasy AI Granite — Native Windows Voice-to-Text",
     )
     parser.add_argument(
         "--version", action="store_true", help="Print version and exit"
@@ -120,7 +120,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub = parser.add_subparsers(dest="command")
 
-    dl = sub.add_parser("download-model", help="Download Cohere Transcribe model")
+    dl = sub.add_parser("download-model", help="Download IBM Granite Speech model")
     dl.add_argument(
         "--target-dir",
         default=None,
@@ -143,70 +143,70 @@ def _cmd_download_model(args: argparse.Namespace) -> int:
     target_dir = args.target_dir or DEFAULT_MODELS_DIR
     os.makedirs(target_dir, exist_ok=True)
 
-    return download_model("cohere", target_dir, token=args.token)
+    return download_model("granite", target_dir, token=args.token)
 
 
 def _ensure_startup_model_ready(settings) -> bool:
-    """Ensure the Cohere model is available before opening the main window."""
+    """Ensure the Granite model is available before opening the main window."""
     from PySide6.QtWidgets import QMessageBox
     from speakeasy.model_downloader import (
-        get_cohere_setup_script_candidates,
-        launch_cohere_setup_script,
+        get_granite_setup_script_candidates,
+        launch_granite_setup_script,
         model_ready,
     )
 
-    if model_ready("cohere", settings.model_path):
+    if model_ready("granite", settings.model_path):
         return True
 
     log = logging.getLogger("speakeasy")
     if not getattr(sys, "frozen", False):
         log.warning(
-            "Cohere model not found at %s — the app will prompt for setup",
+            "Granite model not found at %s; the app will prompt for setup",
             settings.model_path,
         )
         return True
 
-    model_dir = os.path.join(settings.model_path, "cohere")
-    log.error("Cohere model not found at %s (frozen build)", settings.model_path)
+    model_dir = os.path.join(settings.model_path, "granite")
+    log.error("Granite model not found at %s (frozen build)", settings.model_path)
 
     try:
-        launch_result = launch_cohere_setup_script(target_dir=settings.model_path)
+        launch_result = launch_granite_setup_script(target_dir=settings.model_path)
     except FileNotFoundError:
-        install_script, repo_script = get_cohere_setup_script_candidates()
+        install_script, repo_script = get_granite_setup_script_candidates()
         QMessageBox.critical(
             None,
-            "SpeakEasy AI — Setup Script Missing",
-            "Could not find cohere-model-setup.ps1 in:\n"
+            "SpeakEasy AI Granite — Setup Script Missing",
+            "Could not find granite-model-setup.ps1 in:\n"
             f"  {install_script}\n"
             f"  {repo_script}\n\n"
-            "Please reinstall SpeakEasy AI or run the Cohere setup manually.",
+            "Please reinstall SpeakEasy AI Granite or run the Granite setup manually.",
         )
         return False
     except Exception as exc:
-        log.exception("Failed to launch Cohere model setup")
+        log.exception("Failed to launch Granite model setup")
         QMessageBox.critical(
             None,
-            "SpeakEasy AI — Setup Launch Failed",
-            "The Cohere model setup could not be launched.\n\n"
+            "SpeakEasy AI Granite — Setup Launch Failed",
+            "The Granite model setup could not be launched.\n\n"
             f"{exc}",
         )
         return False
 
     if launch_result <= 32:
-        log.error("Cohere setup launch returned ShellExecute code %s", launch_result)
+        log.error("Granite setup launch returned ShellExecute code %s", launch_result)
         QMessageBox.warning(
             None,
-            "SpeakEasy AI — Model Setup",
-            "The Cohere model setup was cancelled or could not be started.\n\n"
-            "Run SpeakEasy AI again and accept the elevation prompt, or use the "
+            "SpeakEasy AI Granite — Model Setup",
+            "The Granite model setup was cancelled or could not be started.\n\n"
+            "Run SpeakEasy AI Granite again and accept the elevation prompt, or use the "
             "Start Menu setup entry to install the model.",
         )
         return False
 
     confirm = QMessageBox.question(
         None,
-        "Cohere Setup",
-        "The Cohere model setup wizard has been launched in a\n"
+        "Granite Setup",
+        "The Granite model setup wizard has been launched in a\n"
         "separate window. Click OK once it has finished.",
         QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
         QMessageBox.StandardButton.Ok,
@@ -214,14 +214,14 @@ def _ensure_startup_model_ready(settings) -> bool:
     if confirm == QMessageBox.StandardButton.Cancel:
         return False
 
-    if model_ready("cohere", settings.model_path):
-        log.info("Cohere model detected after startup setup")
+    if model_ready("granite", settings.model_path):
+        log.info("Granite model detected after startup setup")
         return True
 
     QMessageBox.warning(
         None,
-        "SpeakEasy AI — Model Missing",
-        "The Cohere model was not detected after setup.\n\n"
+        "SpeakEasy AI Granite — Model Missing",
+        "The Granite model was not detected after setup.\n\n"
         f"Expected model directory:\n  {model_dir}\n\n"
         "You can rerun the setup from the Start Menu or the install directory.",
     )

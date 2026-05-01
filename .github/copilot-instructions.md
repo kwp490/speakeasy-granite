@@ -3,7 +3,7 @@
 ## Project overview
 
 Windows-only desktop speech-to-text application. Python 3.11+, PySide6 (Qt6),
-HuggingFace Transformers (Cohere ASR engine), PyInstaller frozen builds, Inno
+HuggingFace Transformers (IBM Granite Speech engine), PyInstaller frozen builds, Inno
 Setup installer. Two build variants: GPU (CUDA via torch+cu128) and CPU.
 
 Package manager: **uv** (not pip). All commands use `uv run` / `uv sync`.
@@ -36,12 +36,12 @@ speakeasy/               # Application source package
   engine/
     __init__.py         # Engine registry (ENGINES dict, availability check)
     base.py             # ABC SpeechEngine — load/transcribe/unload interface
-    cohere_transcribe.py# CohereTranscribeEngine implementation
+    granite_transcribe.py# GraniteTranscribeEngine implementation
     audio_utils.py      # Resampling (ensure_16khz), audio preprocessing
 installer/
   Build-Installer.ps1   # Build/install/source-run tool (modes: Build, Release, Source, Install)
   Install-SpeakEasy-Source.ps1 # Automated source install (admin); supports -Variant GPU|CPU
-  cohere-model-setup.ps1# HF model download helper invoked by Inno Setup post-install
+  granite-model-setup.ps1# HF model download helper invoked by Inno Setup post-install
   speakeasy-setup.iss    # Inno Setup script (GPU)
   speakeasy-cpu-setup.iss# Inno Setup script (CPU)
 tests/                  # pytest suite
@@ -67,7 +67,7 @@ uv run python -m speakeasy                                # Run from source (nee
 
 ### Threading
 - **Clipboard writes** (`set_clipboard_text`) must only happen on the **main Qt thread**. Workers emit signals; connected slots run on the main thread.
-- **Engine load/transcribe/unload** must run on **Python-managed threads** (DedicatedWorkerPool), NOT QThreadPool. QThreadPool causes hangs with Cohere on Windows.
+- **Engine load/transcribe/unload** must run on **Python-managed threads** (DedicatedWorkerPool), NOT QThreadPool. QThreadPool can hang with CUDA speech models on Windows.
 - Generic background tasks use `Worker(QRunnable)` via `QThreadPool`.
 
 ### Audio pipeline
@@ -75,17 +75,18 @@ uv run python -m speakeasy                                # Run from source (nee
 - Recording sample rate may differ; `ensure_16khz()` handles conversion.
 
 ### Engine pattern
-- Single engine registry in `engine/__init__.py` — currently only `"cohere"`.
+- Single engine registry in `engine/__init__.py` — currently only `"granite"`.
 - Availability gated on both importability AND model files on disk (`config.json` present).
 - `unload()` must: `del` model → `gc.collect()` → `torch.cuda.empty_cache()`.
 
-### Cohere engine gotchas
-- **Cast processor outputs to model dtype** before `generate()` — otherwise conv2d fails (float32 vs float16).
-- Processor `decode()` may return a one-item list; normalize to first item.
+### Granite engine gotchas
+- Granite prompts must include `<|audio|>` and be formatted with the tokenizer chat template.
+- Decode only tokens generated after the prompt input IDs.
+- Cast floating processor outputs to model dtype before `generate()`.
 - Use Python threads, never QThreadPool.
 
 ### Streaming partials (live-draft transcription)
-- Long recordings are chunked inside `CohereTranscribeEngine._transcribe_impl`. When the
+- Long recordings are chunked inside `GraniteTranscribeEngine._transcribe_impl`. When the
   caller passes `partial_callback=<fn>`, the engine invokes it after each chunk with
   `(running_stitched_text, chunk_index_1based, total_chunks)` and **swallows any exception**
   the callback raises (logged, never propagated). Single-chunk audio does NOT fire the callback.
@@ -99,15 +100,14 @@ uv run python -m speakeasy                                # Run from source (nee
   are gated on the final-result path **only** — they never fire per chunk.
 - Partials are disabled when `settings.streaming_partials_enabled` is False (Settings
   dialog checkbox; default True). Behavior then matches the pre-streaming flow.
-- `DedicatedWorkerPool` remains single-worker. Do not make the engine pool concurrent;
-  Cohere is not thread-safe on Windows.
+- `DedicatedWorkerPool` remains single-worker. Do not make the engine pool concurrent.
 
 ### Security
 - **OpenAI API key** is stored in Windows **keyring** (not settings.json). Never log, print, or serialize `_api_key` to disk.
 - Use `_sanitize_error()` from `text_processor.py` when surfacing API errors.
 
 ### Config
-- `INSTALL_DIR` = `SPEAKEASY_HOME` env var (default: `C:\Program Files\SpeakEasy AI`).
+- `INSTALL_DIR` = `SPEAKEASY_HOME` env var (default: `C:\Program Files\SpeakEasy AI Granite`).
 - Source mode uses `dev-temp/` via `SPEAKEASY_HOME=dev-temp`.
 - Settings file: `config/settings.json`. User presets: `config/presets/*.json`.
 - Five built-in presets are always available and cannot be deleted.
@@ -116,7 +116,7 @@ uv run python -m speakeasy                                # Run from source (nee
 - `HotkeyManager.re_register()` is called on `WM_POWERBROADCAST` / `PBT_APMRESUMEAUTOMATIC` to restore keyboard hooks.
 
 ### Single-instance
-- Win32 named mutex `Global\SpeakEasyAIMutex` prevents duplicate processes.
+- Win32 named mutex `Global\SpeakEasyAIGraniteMutex` prevents duplicate processes.
 
 ### Build variants
 - **GPU**: `speakeasy.spec` + `speakeasy-setup.iss` (CUDA, includes torchaudio)

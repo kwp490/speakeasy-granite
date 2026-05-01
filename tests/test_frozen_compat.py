@@ -104,9 +104,7 @@ class TestStdioSafetyPatches(unittest.TestCase):
 class TestAllModulesImportable(unittest.TestCase):
     """Every .py file in speakeasy/ must be importable via absolute paths."""
 
-    _SKIP_MODULES = frozenset({
-        "speakeasy.engine.cohere_transcribe",
-    })
+    _SKIP_MODULES = frozenset()
 
     def test_import_all_modules(self):
         failures = []
@@ -257,7 +255,7 @@ class TestTransitiveDependenciesInSpec(unittest.TestCase):
         self.assertIn("torch", hidden)
 
     def test_librosa_in_hiddenimports(self):
-        """librosa is required by CohereAsrFeatureExtractor and uses lazy loading."""
+        """librosa is required by the shared 16 kHz resampling path."""
         hidden = self._parse_hidden_imports()
         self.assertIn("librosa", hidden)
 
@@ -269,7 +267,7 @@ class TestTransitiveDependenciesInSpec(unittest.TestCase):
         self.assertIn("include_py_files': True", spec)
 
     def test_safetensors_in_hiddenimports(self):
-        """safetensors is used by processing_cohere_asr.py for model weight loading."""
+        """safetensors is used by Transformers model weight loading."""
         hidden = self._parse_hidden_imports()
         self.assertIn("safetensors", hidden)
 
@@ -478,26 +476,15 @@ class TestSpecStripPatterns(unittest.TestCase):
             )
 
 
-class TestWindowsMultiprocessingCompat(unittest.TestCase):
-    """Cohere model uses mp.get_context('fork') which is Windows-incompatible.
+class TestGraniteEngineCompat(unittest.TestCase):
+    """Granite engine must use the generic Transformers speech seq2seq API."""
 
-    The engine must patch this to 'spawn' before model.generate() is called."""
-
-    def test_cohere_engine_patches_fork_context(self):
-        """cohere_transcribe.py must contain the fork -> spawn patch."""
-        source = (_REPO_ROOT / "speakeasy" / "engine" / "cohere_transcribe.py").read_text(
+    def test_granite_engine_uses_speech_seq2seq_auto_model(self):
+        source = (_REPO_ROOT / "speakeasy" / "engine" / "granite_transcribe.py").read_text(
             encoding="utf-8"
         )
-        self.assertIn(
-            '"spawn"',
-            source,
-            "cohere_transcribe.py must patch 'fork' to 'spawn' for Windows",
-        )
-        self.assertIn(
-            "_ensure_decode_pool",
-            source,
-            "cohere_transcribe.py must patch _ensure_decode_pool",
-        )
+        self.assertIn("AutoModelForSpeechSeq2Seq", source)
+        self.assertIn("apply_chat_template", source)
 
 
 class TestDistOutputEssentials(unittest.TestCase):

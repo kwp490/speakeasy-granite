@@ -1,10 +1,10 @@
 r"""
 Configuration persistence for SpeakEasy AI.
 
-App binaries live under the install directory (default C:\Program Files\SpeakEasy AI).
-Mutable data (config, models, temp) lives under %ProgramData%\SpeakEasy AI so
+App binaries live under the install directory (default C:\Program Files\SpeakEasy AI Granite).
+Mutable data (config, models, temp) lives under %ProgramData%\SpeakEasy AI Granite so
 that Program Files binaries stay read-only.  Logs are stored per-user under
-%LOCALAPPDATA%\SpeakEasy AI\logs to prevent cross-user access on shared machines.
+%LOCALAPPDATA%\SpeakEasy AI Granite\logs to prevent cross-user access on shared machines.
 In dev/source mode (SPEAKEASY_HOME set), all data is kept under INSTALL_DIR for a
 self-contained dev environment.
 """
@@ -21,16 +21,16 @@ from ._build_variant import VARIANT
 
 log = logging.getLogger(__name__)
 
-INSTALL_DIR = Path(os.environ.get("SPEAKEASY_HOME", r"C:\Program Files\SpeakEasy AI"))
+INSTALL_DIR = Path(os.environ.get("SPEAKEASY_HOME", r"C:\Program Files\SpeakEasy AI Granite"))
 
 # In dev mode (SPEAKEASY_HOME set) keep all mutable data under INSTALL_DIR so
 # everything stays self-contained in dev-temp/.  In a production install
-# (SPEAKEASY_HOME not set) mutable data goes to %ProgramData%\SpeakEasy AI so
+# (SPEAKEASY_HOME not set) mutable data goes to %ProgramData%\SpeakEasy AI Granite so
 # the binaries in Program Files remain read-only and require no Defender exclusion.
 _DATA_DIR = (
     INSTALL_DIR
     if "SPEAKEASY_HOME" in os.environ
-    else Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "SpeakEasy AI"
+    else Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "SpeakEasy AI Granite"
 )
 
 DEFAULT_CONFIG_DIR = _DATA_DIR / "config"
@@ -38,13 +38,13 @@ DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / "settings.json"
 DEFAULT_PRESETS_DIR = DEFAULT_CONFIG_DIR / "presets"
 DEFAULT_MODELS_DIR = str(_DATA_DIR / "models")
 
-# Logs go to a per-user directory (%LOCALAPPDATA%\SpeakEasy AI\logs) in production
+# Logs go to a per-user directory (%LOCALAPPDATA%\SpeakEasy AI Granite\logs) in production
 # to prevent cross-user log access on shared machines.  In dev mode (SPEAKEASY_HOME)
 # logs stay under INSTALL_DIR for a self-contained dev environment.
 DEFAULT_LOG_DIR = (
     _DATA_DIR / "logs"
     if "SPEAKEASY_HOME" in os.environ
-    else Path(os.environ.get("LOCALAPPDATA", "")) / "SpeakEasy AI" / "logs"
+    else Path(os.environ.get("LOCALAPPDATA", "")) / "SpeakEasy AI Granite" / "logs"
 )
 
 
@@ -53,10 +53,13 @@ class Settings:
     """All user-configurable settings with sensible defaults."""
 
     # ── Model Engine ──────────────────────────────────────────────────────────
-    engine: str = "cohere"
+    engine: str = "granite"
     model_path: str = DEFAULT_MODELS_DIR
     device: str = "cpu" if VARIANT == "cpu" else "cuda"
     language: str = "en"
+    speech_task: str = "transcribe"
+    translation_target_language: str = "English"
+    keyword_bias: str = ""
     inference_timeout: int = 30
     punctuation: bool = True
 
@@ -94,14 +97,21 @@ class Settings:
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    _VALID_ENGINES = {"cohere"}
+    _VALID_ENGINES = {"granite"}
     _VALID_DEVICES = {"cpu"} if VARIANT == "cpu" else {"cuda", "cpu"}
+    _VALID_SPEECH_TASKS = {"transcribe", "translate"}
 
     def validate(self) -> None:
         """Clamp/correct invalid field values to safe defaults."""
         if self.engine not in self._VALID_ENGINES:
-            log.warning("Unknown engine '%s'; falling back to 'cohere'", self.engine)
-            self.engine = "cohere"
+            log.warning("Unknown engine '%s'; falling back to 'granite'", self.engine)
+            self.engine = "granite"
+        if self.speech_task not in self._VALID_SPEECH_TASKS:
+            log.warning("Unknown speech_task '%s'; falling back to 'transcribe'", self.speech_task)
+            self.speech_task = "transcribe"
+        if not self.translation_target_language:
+            self.translation_target_language = "English"
+        self.keyword_bias = str(self.keyword_bias or "").strip()
         if self.model_path != DEFAULT_MODELS_DIR and not os.path.isdir(self.model_path):
             log.warning("model_path '%s' does not exist; resetting to default", self.model_path)
             self.model_path = DEFAULT_MODELS_DIR
