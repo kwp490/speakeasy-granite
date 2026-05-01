@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        variant: [gpu, cpu]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
+        with:
+          version: "0.11.7"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Build binary with PyInstaller
+        run: |
+          $spec = if ("${{ matrix.variant }}" -eq "cpu") { "speakeasy-cpu.spec" } else { "speakeasy.spec" }
+          uv run pyinstaller $spec
+
+      - name: Verify binary exists
+        run: |
+          $distDir = if ("${{ matrix.variant }}" -eq "cpu") { "dist\speakeasy-cpu" } else { "dist\speakeasy" }
+          $exePath = "$distDir\speakeasy.exe"
+          if (!(Test-Path $exePath)) {
+            Write-Error "speakeasy.exe not found in $distDir"
+            exit 1
+          }
+          Write-Host "Binary built successfully: $exePath"
+          (Get-Item $exePath).Length / 1MB | ForEach-Object { "Size: {0:N1} MB" -f $_ }
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: speakeasy-binary-${{ matrix.variant }}
+          path: dist/${{ matrix.variant == 'cpu' && 'speakeasy-cpu' || 'speakeasy' }}/
+          retention-days: 7

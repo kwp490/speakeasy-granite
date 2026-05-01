@@ -1,0 +1,61 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test cache
+.pytest_cache/
+.coverage
+
+# Test output dumps
+test_*.txt
+sd_diff.txt
+
+# Internal planning docs (not for release)
+plan-*.prompt.md
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# PyInstaller
+*.spec.bak
+
+# Inno Setup output
+installer/Output/
+
+# VS Code workspace files
+*.code-workspace
+
+# Models (user downloads)
+models/
+
+# App/runtime temp files
+temp/
+
+# Dev test environment
+dev-temp/
+
+# UV
+uv.lock
