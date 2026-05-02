@@ -38,6 +38,7 @@ TAB_SETTINGS = "settings"
 TAB_REALTIME = "realtime"
 TAB_LOGS = "logs"
 TAB_PRO = "pro"
+TAB_HISTORY = "history"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -606,6 +607,12 @@ class DeveloperPanel(QWidget):
         pro_scroll.setWidget(self.pro_mode_widget)
         self._tabs.addTab(pro_scroll, "\U0001f4bc  Pro Mode")
 
+        # Tab 4: History
+        from .history_widget import HistoryWidget
+
+        self.history_widget = HistoryWidget(self)
+        self._tabs.addTab(self.history_widget, "\U0001f552  History")
+
         # Restore last active tab
         self._tabs.setCurrentIndex(self._tab_key_to_index(self.settings.dev_panel_active_tab))
         self._tabs.currentChanged.connect(self._on_tab_changed)
@@ -623,6 +630,8 @@ class DeveloperPanel(QWidget):
         # Pro Mode tab
         self.pro_mode_widget.settings_applied.connect(self._main_window._on_pro_mode_applied)
         self.pro_mode_widget.presets_changed.connect(self._main_window._populate_pro_preset_combo)
+        # History tab
+        self.history_widget.clear_requested.connect(self._main_window._on_clear_history)
 
     def _show_pro_disclosure(self) -> bool:
         """Show data-privacy disclosure; return True if the user accepts."""
@@ -685,11 +694,11 @@ class DeveloperPanel(QWidget):
 
     @staticmethod
     def _tab_key_to_index(key: str) -> int:
-        return {TAB_SETTINGS: 0, TAB_REALTIME: 1, TAB_LOGS: 2, TAB_PRO: 3}.get(key, 0)
+        return {TAB_SETTINGS: 0, TAB_REALTIME: 1, TAB_LOGS: 2, TAB_PRO: 3, TAB_HISTORY: 4}.get(key, 0)
 
     @staticmethod
     def _index_to_tab_key(idx: int) -> str:
-        return [TAB_SETTINGS, TAB_REALTIME, TAB_LOGS, TAB_PRO][idx] if 0 <= idx < 4 else TAB_SETTINGS
+        return [TAB_SETTINGS, TAB_REALTIME, TAB_LOGS, TAB_PRO, TAB_HISTORY][idx] if 0 <= idx < 5 else TAB_SETTINGS
 
     def _on_tab_changed(self, idx: int) -> None:
         self.settings.dev_panel_active_tab = self._index_to_tab_key(idx)

@@ -238,205 +238,6 @@ class ToggleSwitch(QAbstractButton):
         p.end()
 
 
-# ── History entry ─────────────────────────────────────────────────────────────
-
-
-class _WordWrapLabel(QLabel):
-    """QLabel that correctly grows its row when word-wrap causes multiple lines.
-
-    A plain QLabel with ``setWordWrap(True)`` inside a QHBoxLayout inside a
-    QScrollArea frequently fails to propagate its height-for-width requirement,
-    leaving the row clipped.  This subclass updates its own ``minimumHeight``
-    whenever its width changes, which the parent layout then respects.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setWordWrap(True)
-
-    def resizeEvent(self, event) -> None:  # noqa: N802
-        super().resizeEvent(event)
-        if self.width() > 0:
-            self.setMinimumHeight(self.sizeHint().height())
-
-
-class _HistoryEntry(QWidget):
-    """Single row in the transcription history.
-
-    Supports two modes:
-
-    * Final entry (default): fixed timestamp, ✅/❌ status icon, displayed text,
-      optional original/cleaned labels for Professional Mode.
-    * Live draft (``is_draft=True``): the same row in a provisional state while
-      the engine is still transcribing chunks. The text label is greyed and
-      italic, the status cell shows ``"chunk i/n"``, and the copy button is
-      disabled. Call :meth:`set_text` / :meth:`set_progress` to update the
-      draft in place, then :meth:`mark_final` (or :meth:`mark_error`) when the
-      final transcription — or an error — arrives.
-    """
-
-    _DRAFT_ICON = "\u23f3"   # hourglass
-    _SUCCESS_ICON = "\u2705"
-    _ERROR_ICON = "\u274c"
-
-    def __init__(
-        self,
-        timestamp: str,
-        text: str,
-        success: bool,
-        parent: Optional[QWidget] = None,
-        original_text: Optional[str] = None,
-        is_draft: bool = False,
-    ):
-        super().__init__(parent)
-        from .theme import Color, Spacing
-        self._text = text
-        self._is_draft = is_draft
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-
-        row_widget = QWidget()
-        row = QHBoxLayout(row_widget)
-        row.setContentsMargins(Spacing.XS, Spacing.XS, Spacing.XS, Spacing.XS)
-
-        self._time_label = QLabel(f"<b>{timestamp}</b>")
-        self._time_label.setFixedWidth(70)
-        self._status_label = QLabel(self._status_text(success))
-        # Widen so "chunk i/n" fits while still aligning with final-entry icons.
-        self._status_label.setFixedWidth(60)
-
-        self._text_widget = self._build_text_widget(text, original_text)
-
-        self._copy_btn = QPushButton("Copy")
-        self._copy_btn.setMinimumWidth(70)
-        self._copy_btn.setFixedHeight(28)
-        self._copy_btn.clicked.connect(self._copy)
-        if is_draft:
-            self._copy_btn.setEnabled(False)
-
-        row.addWidget(self._time_label)
-        row.addWidget(self._status_label)
-        row.addWidget(self._text_widget)
-        row.addWidget(self._copy_btn)
-
-        outer.addWidget(row_widget)
-
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Plain)
-        separator.setStyleSheet(f"color: {Color.BORDER};")
-        separator.setFixedHeight(1)
-        outer.addWidget(separator)
-
-        if is_draft:
-            self._apply_draft_style()
-
-    # ── Public API for draft updates ─────────────────────────────────────────
-
-    @property
-    def is_draft(self) -> bool:
-        return self._is_draft
-
-    @property
-    def text(self) -> str:
-        """The currently-displayed transcription text (stripped)."""
-        return self._text
-
-    def set_text(self, text: str) -> None:
-        """Replace the displayed text. Used during draft updates."""
-        self._text = text
-        self._set_text_widget_text(text)
-
-    def set_progress(self, chunk_index: int, total_chunks: int) -> None:
-        """Update the status cell to ``"chunk i/n"`` while draft."""
-        if self._is_draft:
-            self._status_label.setText(f"{chunk_index}/{total_chunks}")
-
-    def mark_final(self, text: str, success: bool = True,
-                   original_text: Optional[str] = None) -> None:
-        """Finalize a draft entry with the authoritative transcription."""
-        self._is_draft = False
-        self._text = text
-        self._status_label.setText(self._status_text(success))
-        # Rebuild text widget to pick up original/cleaned layout if needed.
-        row_widget = self.layout().itemAt(0).widget()
-        layout = row_widget.layout()
-        layout.removeWidget(self._text_widget)
-        self._text_widget.deleteLater()
-        self._text_widget = self._build_text_widget(text, original_text)
-        # Re-insert in slot 2 (after time + status, before copy).
-        layout.insertWidget(2, self._text_widget)
-        self._copy_btn.setEnabled(True)
-        self._clear_draft_style()
-
-    def mark_error(self, message: str) -> None:
-        """Finalize a draft entry in an error state."""
-        self.mark_final(f"Error: {message}", success=False)
-
-    # ── Internals ────────────────────────────────────────────────────────────
-
-    def _status_text(self, success: bool) -> str:
-        if self._is_draft:
-            return self._DRAFT_ICON
-        return self._SUCCESS_ICON if success else self._ERROR_ICON
-
-    def _build_text_widget(self, text: str, original_text: Optional[str]) -> QWidget:
-        from .theme import Color
-        # Build text column — one or two labels depending on professional mode
-        if original_text is not None:
-            text_col = QVBoxLayout()
-            text_col.setContentsMargins(0, 0, 0, 0)
-            text_col.setSpacing(1)
-
-            orig_display = original_text if len(original_text) <= 120 else original_text[:117] + "…"
-            orig_label = _WordWrapLabel(f'<span style="color:{Color.TEXT_MUTED}">Original: {orig_display}</span>')
-            orig_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-            orig_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            text_col.addWidget(orig_label)
-
-            clean_display = text if len(text) <= 120 else text[:117] + "…"
-            clean_label = _WordWrapLabel(f"Cleaned: {clean_display}")
-            clean_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-            clean_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            text_col.addWidget(clean_label)
-
-            text_widget = QWidget()
-            text_widget.setLayout(text_col)
-            text_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-            return text_widget
-
-        display = text if len(text) <= 120 else text[:117] + "…"
-        label = _WordWrapLabel(display)
-        label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        return label
-
-    def _set_text_widget_text(self, text: str) -> None:
-        """Update the text in the simple (single-label) widget path."""
-        if isinstance(self._text_widget, QLabel):
-            display = text if len(text) <= 120 else text[:117] + "…"
-            self._text_widget.setText(display)
-
-    def _apply_draft_style(self) -> None:
-        from .theme import Color
-        style = f'color:{Color.TEXT_MUTED}; font-style:italic;'
-        if isinstance(self._text_widget, QLabel):
-            display = self._text if len(self._text) <= 120 else self._text[:117] + "…"
-            self._text_widget.setText(
-                f'<span style="{style}">{display}</span>' if display else
-                f'<span style="{style}">(listening…)</span>'
-            )
-
-    def _clear_draft_style(self) -> None:
-        # Rebuilt widget in mark_final has no draft styling; nothing to undo.
-        pass
-
-    def _copy(self) -> None:
-        set_clipboard_text(self._text)
-
-
 # ═════════════════════════════════════════════════════════════════════════════
 # Main Window
 # ═════════════════════════════════════════════════════════════════════════════
@@ -479,7 +280,9 @@ class MainWindow(QMainWindow):
         self._mic_suspended_for_processing = False
         # Live-draft history entry updated while the engine transcribes a
         # multi-chunk recording; None outside of transcription.
-        self._active_draft_entry: Optional[_HistoryEntry] = None
+        self._active_draft_entry = None
+        # Buffer for history entries added before the Developer Panel exists.
+        self._history_buffer: list[tuple] = []
 
         # ── Resource monitor ─────────────────────────────────────────────────
         self._res_monitor = ResourceMonitor(
@@ -552,8 +355,8 @@ class MainWindow(QMainWindow):
             Size,
             Spacing,
             gear_button_style,
+            ghost_button_style,
             load_icon,
-            make_action_row,
             make_bounded_content,
             make_section_panel,
             make_setting_row,
@@ -675,37 +478,6 @@ class MainWindow(QMainWindow):
         transcription_layout.addWidget(profile_row)
         root.addWidget(transcription_section)
 
-        # ── History ──────────────────────────────────────────────────────────
-        history_section, history_layout = make_section_panel("History", central, icon_name="clock")
-        self._history_toggle_row = make_action_row("Show Transcription History", ">", history_section)
-        self._history_toggle_row.clicked.connect(self._on_toggle_history)
-        history_layout.addWidget(self._history_toggle_row)
-
-        self._btn_clear_history = QPushButton("Clear History")
-        self._btn_clear_history.setMinimumHeight(Size.BUTTON_HEIGHT)
-        self._btn_clear_history.clicked.connect(self._on_clear_history)
-
-        history_actions = QHBoxLayout()
-        history_actions.setContentsMargins(0, 0, 0, 0)
-        history_actions.addStretch()
-        history_actions.addWidget(self._btn_clear_history)
-
-        self._history_widget = QWidget()
-        self._history_layout = QVBoxLayout(self._history_widget)
-        self._history_layout.setContentsMargins(0, 0, 0, 0)
-        self._history_layout.setSpacing(Spacing.XS)
-        self._history_layout.addStretch()
-
-        self._history_scroll = QScrollArea()
-        self._history_scroll.setWidgetResizable(True)
-        self._history_scroll.setWidget(self._history_widget)
-        self._history_scroll.setMinimumHeight(120)
-        self._history_scroll.setVisible(False)
-        self._btn_clear_history.setVisible(False)
-        history_layout.addLayout(history_actions)
-        history_layout.addWidget(self._history_scroll)
-        root.addWidget(history_section)
-
         # ── Hidden metric labels (updated by _on_metrics_result / _set_model_status,
         #    forwarded to the Developer Panel when open) ──────────────────────
         self._lbl_engine = QLabel()
@@ -724,10 +496,15 @@ class MainWindow(QMainWindow):
         bottom_row_widget = QWidget(bottom_content)
         bottom_row = QHBoxLayout(bottom_row_widget)
         bottom_row.setContentsMargins(0, 0, 0, 0)
+        btn_history = QPushButton("History")
+        btn_history.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_history.setStyleSheet(ghost_button_style())
+        btn_history.clicked.connect(self._on_show_history)
         btn_quit = QPushButton("Quit")
         btn_quit.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_quit.setStyleSheet(subtle_danger_button_style())
         btn_quit.clicked.connect(self.close)
+        bottom_row.addWidget(btn_history)
         bottom_row.addStretch()
         bottom_row.addWidget(btn_quit)
         bottom_content_layout.addWidget(bottom_row_widget)
@@ -1233,25 +1010,24 @@ class MainWindow(QMainWindow):
 
     @Slot(str, int, int)
     def _on_transcription_partial(self, text: str, chunk_index: int, total_chunks: int) -> None:
-        """Engine emitted a per-chunk partial transcription — show as draft.
+        """Engine emitted a per-chunk partial transcription — show as draft."""
+        from .history_widget import _HistoryEntry
 
-        Runs on the MAIN THREAD via QueuedConnection. Creates the draft
-        entry on the first partial and updates it in place for subsequent
-        chunks. Clipboard and paste are NOT triggered here; they fire only
-        from the final ``_on_transcription_result``.
-        """
         text = str(text).strip()
+        self._ensure_dev_panel()
+        hw = self._dev_panel.history_widget
         if self._active_draft_entry is None:
             ts = datetime.datetime.now().strftime("%H:%M:%S")
             draft = _HistoryEntry(
-                ts, text, success=True, parent=self._history_widget,
+                ts, text, success=True, parent=hw.history_content,
                 is_draft=True,
             )
-            count = self._history_layout.count()
-            self._history_layout.insertWidget(max(0, count - 1), draft)
+            count = hw.history_layout.count()
+            hw.history_layout.insertWidget(max(0, count - 1), draft)
             self._active_draft_entry = draft
         else:
             self._active_draft_entry.set_text(text)
+        self._active_draft_entry.set_progress(chunk_index, total_chunks)
         self._active_draft_entry.set_progress(chunk_index, total_chunks)
 
     @Slot(object)
@@ -1498,32 +1274,25 @@ class MainWindow(QMainWindow):
         success: bool,
         original_text: Optional[str] = None,
     ) -> None:
-        # If a live-draft entry is currently in-flight (created by the
-        # streaming partial signal), finalize it in place instead of
-        # appending a new row. This keeps the final Professional-Mode
-        # two-line layout on the same row the user was watching grow.
+        from .history_widget import _HistoryEntry
+
         if self._active_draft_entry is not None:
             draft = self._active_draft_entry
             self._active_draft_entry = None
             draft.mark_final(text, success=success, original_text=original_text)
             return
 
+        if self._dev_panel is None:
+            self._history_buffer.append((timestamp, text, success, original_text))
+            return
+
+        hw = self._dev_panel.history_widget
         entry = _HistoryEntry(
-            timestamp, text, success, parent=self._history_widget,
+            timestamp, text, success, parent=hw.history_content,
             original_text=original_text,
         )
-        count = self._history_layout.count()
-        self._history_layout.insertWidget(max(0, count - 1), entry)
-
-    @Slot()
-    def _on_toggle_history(self) -> None:
-        """Show or hide the compact in-window transcription history panel."""
-        visible = not self._history_scroll.isVisible()
-        self._history_scroll.setVisible(visible)
-        self._btn_clear_history.setVisible(visible)
-        self._history_toggle_row.setText(
-            "Hide Transcription History" if visible else "Show Transcription History"
-        )
+        count = hw.history_layout.count()
+        hw.history_layout.insertWidget(max(0, count - 1), entry)
 
     # ═════════════════════════════════════════════════════════════════════════
     # CLEAR LOGS & HISTORY
@@ -1532,10 +1301,13 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_clear_history(self) -> None:
         """Clear the in-memory transcription history."""
-        while self._history_layout.count() > 1:
-            item = self._history_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        self._history_buffer.clear()
+        if self._dev_panel is not None:
+            layout = self._dev_panel.history_widget.history_layout
+            while layout.count() > 1:
+                item = layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
         self._log_ui("History cleared")
 
     @Slot()
@@ -1625,16 +1397,57 @@ class MainWindow(QMainWindow):
             self._dev_panel.show_snapped()
             self._dev_panel.activate_tab(TAB_SETTINGS)
 
-    def _on_toggle_dev_panel(self) -> None:
-        """Show or hide the Developer Panel; create it lazily."""
+    def _ensure_dev_panel(self) -> None:
+        """Create the Developer Panel if it doesn't exist yet (without showing it)."""
         from .developer_panel import DeveloperPanel
+
         if self._dev_panel is None:
             self._dev_panel = DeveloperPanel(self.settings, self)
             self._dev_panel.closed.connect(self._on_dev_panel_closed)
             self._flush_log_buffer()
-            # Push current engine/device/status into the freshly built panel
-            # so the Realtime Data tab reflects state from before it existed.
+            self._flush_history_buffer()
             self._set_model_status(self._model_status)
+
+    def _on_toggle_dev_panel(self) -> None:
+        """Show or hide the Developer Panel; create it lazily."""
+        self._ensure_dev_panel()
+        if self._dev_panel.isVisible():
+            self._dev_panel.hide()
+            self._btn_dev_panel.setChecked(False)
+            self.settings.dev_panel_open = False
+        else:
+            self._dev_panel.show_snapped()
+            self._btn_dev_panel.setChecked(True)
+            self.settings.dev_panel_open = True
+        self.settings.save()
+
+    def _on_show_history(self) -> None:
+        """Open the Developer Panel to the History tab."""
+        from .developer_panel import TAB_HISTORY
+
+        self._ensure_dev_panel()
+        if not self._dev_panel.isVisible():
+            self._dev_panel.show_snapped()
+            self._btn_dev_panel.setChecked(True)
+            self.settings.dev_panel_open = True
+            self.settings.save()
+        self._dev_panel.activate_tab(TAB_HISTORY)
+
+    def _flush_history_buffer(self) -> None:
+        """Replay buffered history entries into the Developer Panel's History tab."""
+        from .history_widget import _HistoryEntry
+
+        if not self._history_buffer or self._dev_panel is None:
+            return
+        hw = self._dev_panel.history_widget
+        for timestamp, text, success, original_text in self._history_buffer:
+            entry = _HistoryEntry(
+                timestamp, text, success, parent=hw.history_content,
+                original_text=original_text,
+            )
+            count = hw.history_layout.count()
+            hw.history_layout.insertWidget(max(0, count - 1), entry)
+        self._history_buffer.clear()
         if self._dev_panel.isVisible():
             self._dev_panel.hide()
             self._btn_dev_panel.setChecked(False)

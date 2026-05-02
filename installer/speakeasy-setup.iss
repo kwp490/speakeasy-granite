@@ -17,7 +17,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.8.4"
+#define MyAppVersion "0.9.0"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"

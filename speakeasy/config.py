@@ -126,7 +126,7 @@ class Settings:
             self.inference_timeout = 30
         if self.silence_threshold <= 0:
             self.silence_threshold = 0.0015
-        valid_tabs = {"settings", "realtime", "logs", "pro"}
+        valid_tabs = {"settings", "realtime", "logs", "pro", "history"}
         if self.dev_panel_active_tab not in valid_tabs:
             self.dev_panel_active_tab = "settings"
         if self.dev_panel_width < 540:

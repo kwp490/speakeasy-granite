@@ -5,6 +5,24 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - History Moved to Developer Panel Tab
+
+### Added
+- **`speakeasy/history_widget.py`**: new module containing `_WordWrapLabel`, `_HistoryEntry`, and `HistoryWidget`; `HistoryWidget` is a self-contained tab with a scroll area, Clear button, and `clear_requested` signal
+- **Developer Panel History tab**: `DeveloperPanel` gains a fifth tab (🕒 History) backed by `HistoryWidget`; `TAB_HISTORY = "history"` constant added; tab index maps updated to support 5 tabs
+- **`"history"` added to valid `dev_panel_active_tab` values** in `config.py`
+- **History button** in the main window bottom row opens the Developer Panel directly to the History tab via `_on_show_history()`
+- **`_ensure_dev_panel()`** extracted from `_on_toggle_dev_panel()` so panel creation can happen without immediately showing the panel (used when history entries arrive before the panel is opened)
+- **`_history_buffer`**: pre-panel history entries are buffered and flushed into the History tab on first panel creation via `_flush_history_buffer()`
+
+### Changed
+- **`_HistoryEntry` and `_WordWrapLabel`** moved from `main_window.py` into `history_widget.py`; `main_window.py` imports them from there at call sites
+- **Inline history section removed** from `_build_ui()`: the `History` `SectionPanel`, scroll area, toggle row, and Clear button inside the main window are gone; history lives exclusively in the Developer Panel tab
+- **`_on_toggle_dev_panel()`** refactored to call `_ensure_dev_panel()` then toggle visibility, removing duplicated panel-creation code
+- **`_active_draft_entry`** type annotation relaxed to bare `None` (no longer `Optional[_HistoryEntry]`) since the type is now imported lazily
+- History entries are inserted into `hw.history_layout` / `hw.history_content` (Developer Panel) rather than `self._history_layout` / `self._history_widget`
+- `_on_clear_history()` clears `_history_buffer` and delegates layout clearing to the panel's `HistoryWidget` if the panel exists
+
 ## [0.8.4] - Window Size & Layout Spacer Fix
 
 ### Changed
