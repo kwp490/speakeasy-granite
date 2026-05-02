@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import QFormLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFormLayout, QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 
 ICON_DIR = Path(__file__).parent / "assets" / "icons"
@@ -22,13 +22,13 @@ ICON_DIR = Path(__file__).parent / "assets" / "icons"
 
 class Color:
     # Surfaces
-    BACKGROUND = "#0F172A"       # app background (slate-900)
-    PANEL = "#111827"            # cards, group boxes (gray-900)
-    PANEL_ELEVATED = "#1F2937"   # hover/active surfaces (gray-800)
-    PANEL_HOVER = "#252F3E"      # clickable status cards
-    BORDER = "#1F2937"           # default border
-    BORDER_SUBTLE = "#374151"    # tab borders, subtle dividers
-    INPUT_BG = "#1F2937"         # text inputs, dropdowns (gray-800, per spec)
+    BACKGROUND = "#0B1624"       # app background (deep navy)
+    PANEL = "#0F1E2E"            # cards, group boxes
+    PANEL_ELEVATED = "#16283A"   # hover/active surfaces
+    PANEL_HOVER = "#1B3147"      # clickable status cards
+    BORDER = "#1D3145"           # default border
+    BORDER_SUBTLE = "#31455B"    # tab borders, subtle dividers
+    INPUT_BG = "#152638"         # text inputs, dropdowns
 
     # Brand / actions
     PRIMARY = "#2563EB"          # primary buttons, active tabs (blue-600)
@@ -43,8 +43,8 @@ class Color:
     INFO = "#3B82F6"             # informational accents (blue-500)
 
     # Text
-    TEXT_PRIMARY = "#FFFFFF"     # app title, emphasis
-    TEXT_HEADING = "#E5E7EB"     # section headers (gray-200)
+    TEXT_PRIMARY = "#F8FAFC"     # app title, emphasis
+    TEXT_HEADING = "#E5EAF2"     # section headers
     TEXT_BODY = "#D1D5DB"        # body text (gray-300)
     TEXT_MUTED = "#9CA3AF"       # labels, secondary text (gray-400)
     TEXT_DISABLED = "#6B7280"    # disabled state (gray-500)
@@ -88,17 +88,20 @@ class Font:
 
 class Size:
     BUTTON_HEIGHT = 36
-    BUTTON_HEIGHT_PRIMARY = 48     # Start Recording, prominent CTAs
-    GEAR_BUTTON = 60               # square gear button to right of record
+    BUTTON_HEIGHT_PRIMARY = 58     # Start Recording, prominent CTAs
+    GEAR_BUTTON = 76               # settings button to right of record
     INPUT_HEIGHT = 36
     TAB_HEIGHT = 40
     PROGRESS_BAR_HEIGHT = 6        # thin bars in Realtime Data
     STATUS_DOT = 8                 # colored dots in status row
     STATUS_ICON_CARD = 24
     STATUS_ICON_PILL = 18
-    STATUS_CARD_MIN_HEIGHT = 64
-    STATUS_PILL_MIN_HEIGHT = 32
+    STATUS_CARD_MIN_HEIGHT = 52
+    STATUS_PILL_MIN_HEIGHT = 28
     STATUS_LAYOUT_THRESHOLD = 640
+    SETTING_ROW_MAX_WIDTH = 560
+    SETTING_ROW_HEIGHT = 28
+    SETTING_ROW_STACKED_HEIGHT = 64
     BORDER_RADIUS_SM = 6
     BORDER_RADIUS_MD = 8
     BORDER_RADIUS_LG = 10          # primary buttons
@@ -158,8 +161,16 @@ def app_stylesheet() -> str:
     """Global QSS applied at QApplication level. Sets baseline for every
     QWidget; specific widgets override as needed."""
     return f"""
-        QMainWindow, QWidget {{
-            background-color: {Color.BACKGROUND};
+        QMainWindow, QWidget#MainContent {{
+            background-color: qradialgradient(
+                cx: 0.28, cy: 0.18, radius: 1.2,
+                fx: 0.28, fy: 0.18,
+                stop: 0 {Color.PANEL_ELEVATED},
+                stop: 0.45 {Color.PANEL},
+                stop: 1 {Color.BACKGROUND}
+            );
+        }}
+        QWidget {{
             color: {Color.TEXT_BODY};
             font-family: '{Font.FAMILY}', sans-serif;
             font-size: {Font.BODY[0]}pt;
@@ -169,8 +180,8 @@ def app_stylesheet() -> str:
             background-color: {Color.PANEL};
             border: 1px solid {Color.BORDER};
             border-radius: {Size.BORDER_RADIUS_MD}px;
-            margin-top: {Spacing.MD}px;
-            padding: {Spacing.LG}px;
+            margin-top: {Spacing.SM}px;
+            padding: {Spacing.MD}px;
             color: {Color.TEXT_HEADING};
             font-weight: 600;
         }}
@@ -181,6 +192,12 @@ def app_stylesheet() -> str:
         }}
 
         QLabel {{ background: transparent; }}
+        QWidget#MainContent,
+        QWidget#SectionContent,
+        QWidget#RecordButtonContent,
+        QWidget#RecordButtonText {{
+            background: transparent;
+        }}
 
         QPushButton {{
             background-color: {Color.PANEL_ELEVATED};
@@ -287,15 +304,28 @@ def primary_button_style() -> str:
     """For the Start Recording button and any other prominent CTAs."""
     return f"""
         QPushButton {{
-            background-color: {Color.PRIMARY};
+            background-color: qlineargradient(
+                x1: 0, y1: 0, x2: 1, y2: 1,
+                stop: 0 #2563EB,
+                stop: 0.55 #1D4ED8,
+                stop: 1 #1652F0
+            );
             color: {Color.TEXT_PRIMARY};
             font-size: {Font.SECTION_HEADER[0]}pt;
             font-weight: bold;
-            border: none;
+            border: 1px solid rgba(96, 165, 250, 0.28);
             border-radius: {Size.BORDER_RADIUS_LG}px;
             min-height: {Size.BUTTON_HEIGHT_PRIMARY}px;
+            padding: {Spacing.SM}px {Spacing.LG}px;
         }}
-        QPushButton:hover {{ background-color: {Color.PRIMARY_HOVER}; }}
+        QPushButton:hover {{
+            background-color: qlineargradient(
+                x1: 0, y1: 0, x2: 1, y2: 1,
+                stop: 0 #2F6FF1,
+                stop: 0.55 #2563EB,
+                stop: 1 #1D4ED8
+            );
+        }}
         QPushButton:pressed {{ background-color: {Color.PRIMARY_PRESSED}; }}
         QPushButton:disabled {{
             background-color: {Color.PANEL_ELEVATED};
@@ -305,23 +335,24 @@ def primary_button_style() -> str:
 
 
 def gear_button_style() -> str:
-    """The square gear button next to Start Recording."""
+    """The settings button next to Start Recording."""
     return f"""
-        QPushButton {{
-            background-color: {Color.PANEL_ELEVATED};
+        QToolButton, QPushButton {{
+            background-color: transparent;
             color: {Color.TEXT_BODY};
-            font-size: 22px;
-            border: 1px solid {Color.BORDER_SUBTLE};
-            border-radius: {Size.BORDER_RADIUS_SM}px;
+            font-size: {Font.BODY[0]}pt;
+            border: 1px solid transparent;
+            border-radius: {Size.BORDER_RADIUS_LG}px;
+            padding: {Spacing.SM}px;
         }}
-        QPushButton:hover {{
-            background-color: {Color.BORDER_SUBTLE};
-            border-color: {Color.PRIMARY};
+        QToolButton:hover, QPushButton:hover {{
+            background-color: rgba(49, 69, 91, 0.35);
+            border-color: {Color.BORDER_SUBTLE};
             color: {Color.TEXT_PRIMARY};
         }}
-        QPushButton:pressed {{ background-color: {Color.BORDER}; }}
-        QPushButton:checked {{
-            background-color: {Color.PRIMARY};
+        QToolButton:pressed, QPushButton:pressed {{ background-color: {Color.BORDER}; }}
+        QToolButton:checked, QPushButton:checked {{
+            background-color: rgba(37, 99, 235, 0.22);
             border-color: {Color.PRIMARY};
             color: {Color.TEXT_PRIMARY};
         }}
@@ -413,3 +444,284 @@ def make_toggle_row(label_text: str, toggle: QWidget, parent: QWidget = None) ->
 def section_separator_spacing() -> int:
     """The vertical gap between two sections in a tab."""
     return Spacing.SECTION  # 20px (per UI correction spec)
+
+
+# ── Redesigned main-window helpers ───────────────────────────────────────────
+
+
+def section_panel_style() -> str:
+    """Subtle section container style."""
+    return f"""
+        QFrame#SectionPanel {{
+            background-color: rgba(15, 30, 46, 0.82);
+            border: 1px solid {Color.BORDER};
+            border-radius: {Size.BORDER_RADIUS_LG}px;
+        }}
+    """
+
+
+def compact_status_bar_style() -> str:
+    """Single compact status bar container style."""
+    return f"""
+        QFrame#CompactStatusBar {{
+            background-color: rgba(15, 30, 46, 0.82);
+            border: 1px solid {Color.BORDER_SUBTLE};
+            border-radius: {Size.BORDER_RADIUS_LG}px;
+        }}
+    """
+
+
+
+def primary_record_button_style(recording: bool = False, processing: bool = False) -> str:
+    """Primary Start Recording button style with state variants."""
+    if recording:
+        bg, bg_hover, bg_pressed = Color.DANGER, Color.DANGER_HOVER, Color.DANGER_HOVER
+    elif processing:
+        bg = bg_hover = bg_pressed = Color.PANEL_ELEVATED
+    else:
+        bg, bg_hover, bg_pressed = Color.PRIMARY, Color.PRIMARY_HOVER, Color.PRIMARY_PRESSED
+    return f"""
+        QPushButton {{
+            background-color: qlineargradient(
+                x1: 0, y1: 0, x2: 1, y2: 1,
+                stop: 0 {bg},
+                stop: 1 {bg_pressed}
+            );
+            color: {Color.TEXT_PRIMARY};
+            font-size: {Font.SECTION_HEADER[0]}pt;
+            font-weight: bold;
+            border: 1px solid rgba(96, 165, 250, 0.28);
+            border-radius: {Size.BORDER_RADIUS_LG}px;
+            min-height: {Size.BUTTON_HEIGHT_PRIMARY}px;
+            padding: {Spacing.SM}px {Spacing.LG}px;
+        }}
+        QPushButton:hover {{ background-color: {bg_hover}; }}
+        QPushButton:pressed {{ background-color: {bg_pressed}; }}
+        QPushButton:disabled {{
+            background-color: {Color.PANEL_ELEVATED};
+            color: {Color.TEXT_DISABLED};
+        }}
+    """
+
+
+def subtle_danger_button_style() -> str:
+    """Low-emphasis Quit button style."""
+    return f"""
+        QPushButton {{
+            background-color: transparent;
+            border: none;
+            color: {Color.DANGER};
+            padding: {Spacing.XS}px {Spacing.SM}px;
+        }}
+        QPushButton:hover {{ color: {Color.DANGER_HOVER}; }}
+    """
+
+
+def make_setting_row(
+    label_text: str,
+    control: QWidget,
+    parent: QWidget = None,
+    icon_name: str | None = None,
+    control_left: bool = False,
+    stacked: bool = False,
+    show_separator: bool = True,
+) -> QWidget:
+    """Return a settings row for use inside a bounded section content column."""
+    del control_left  # Kept for source compatibility with older call sites.
+    container = QWidget(parent)
+    container.setObjectName("SettingRow")
+    row_height = Size.SETTING_ROW_STACKED_HEIGHT if stacked else Size.SETTING_ROW_HEIGHT
+    separator_height = Spacing.SM + 1 if show_separator else 0
+    container.setFixedHeight(row_height + separator_height)
+    container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    outer = QVBoxLayout(container)
+    outer.setContentsMargins(0, 0, 0, 0)
+    outer.setSpacing(Spacing.SM)
+
+    row_inner = QWidget(container)
+    row_inner.setObjectName("SettingRowInner")
+    row_inner.setFixedHeight(row_height)
+    row_inner.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    label = QLabel(label_text)
+    label.setStyleSheet(f"color: {Color.TEXT_HEADING};")
+
+    if stacked:
+        row = QVBoxLayout(row_inner)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(Spacing.SM)
+        if icon_name:
+            label_line = QHBoxLayout()
+            label_line.setContentsMargins(0, 0, 0, 0)
+            label_line.setSpacing(Spacing.SM)
+            icon = QLabel()
+            icon_size = 20
+            icon.setPixmap(load_icon(icon_name).pixmap(icon_size, icon_size))
+            icon.setFixedSize(icon_size, icon_size)
+            label_line.addWidget(icon, 0, Qt.AlignmentFlag.AlignVCenter)
+            label_line.addWidget(label, 0, Qt.AlignmentFlag.AlignVCenter)
+            label_line.addStretch()
+            row.addLayout(label_line)
+        else:
+            row.addWidget(label, 0, Qt.AlignmentFlag.AlignLeft)
+        control.setMinimumHeight(Size.INPUT_HEIGHT)
+        row.addWidget(control)
+    else:
+        row = QHBoxLayout(row_inner)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(Spacing.SM)
+        if icon_name:
+            icon = QLabel()
+            icon_size = 20
+            icon.setPixmap(load_icon(icon_name).pixmap(icon_size, icon_size))
+            icon.setFixedSize(icon_size, icon_size)
+            row.addWidget(icon, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(label, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addStretch()
+        row.addWidget(control, 0, Qt.AlignmentFlag.AlignVCenter)
+
+    outer.addWidget(row_inner)
+
+    if show_separator:
+        separator = QFrame(container)
+        separator.setObjectName("SettingSeparator")
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        separator.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        separator.setFixedHeight(1)
+        separator.setStyleSheet(f"color: {Color.BORDER}; background: transparent;")
+        outer.addWidget(separator)
+
+    return container
+
+
+def make_section_panel(
+    title: str,
+    parent: QWidget = None,
+    icon_name: str | None = None,
+) -> tuple[QFrame, QVBoxLayout]:
+    """Return (frame, content_layout) for a titled section with subtle border."""
+    frame = QFrame(parent)
+    frame.setObjectName("SectionPanel")
+    frame.setStyleSheet(section_panel_style())
+    outer = QVBoxLayout(frame)
+    outer.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+    outer.setSpacing(Spacing.MD)
+    header = QHBoxLayout()
+    header.setContentsMargins(0, 0, 0, 0)
+    header.setSpacing(Spacing.SM)
+    if icon_name:
+        icon = QLabel()
+        icon_size = 20
+        icon.setPixmap(load_icon(icon_name).pixmap(icon_size, icon_size))
+        icon.setFixedSize(icon_size, icon_size)
+        header.addWidget(icon)
+    title_label = QLabel(title)
+    font = QFont(Font.FAMILY, Font.SECTION_HEADER[0])
+    font.setWeight(QFont.Weight.DemiBold)
+    title_label.setFont(font)
+    title_label.setStyleSheet(f"color: {Color.TEXT_HEADING};")
+    header.addWidget(title_label)
+    header.addStretch()
+    outer.addLayout(header)
+    content = QVBoxLayout()
+    content_widget = QWidget(frame)
+    content_widget.setObjectName("SectionContent")
+    content_widget.setMaximumWidth(Size.SETTING_ROW_MAX_WIDTH)
+    content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    content_widget.setLayout(content)
+    content.setContentsMargins(0, 0, 0, 0)
+    content.setSpacing(Spacing.MD)
+    content_row = QHBoxLayout()
+    content_row.setContentsMargins(0, 0, 0, 0)
+    content_row.setSpacing(0)
+    content_row.addStretch()
+    content_row.addWidget(content_widget, 100)
+    content_row.addStretch()
+    outer.addLayout(content_row)
+    return frame, content
+
+
+def make_action_row(
+    label_text: str,
+    trailing_text: str = "›",
+    parent: QWidget = None,
+    icon_name: str | None = None,
+) -> QWidget:
+    """Return a clickable-looking row with label on left and trailing indicator on right.
+
+    The returned widget exposes a ``clicked`` Signal via its ``clicked`` attribute
+    and a ``setText(label)`` method for updating the label at runtime.
+    """
+    from PySide6.QtCore import Signal as _Signal
+    from PySide6.QtWidgets import QHBoxLayout
+
+    class _ActionRow(QWidget):
+        clicked = _Signal()
+
+        def __init__(self, label: str, trailing: str, p: QWidget) -> None:
+            super().__init__(p)
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.setFixedHeight(36)
+            self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            self.setObjectName("ActionRow")
+            self.setStyleSheet(f"""
+                QWidget#ActionRow {{
+                    background-color: rgba(21, 38, 56, 0.72);
+                    border: 1px solid {Color.BORDER};
+                    border-radius: {Size.BORDER_RADIUS_MD}px;
+                }}
+                QWidget#ActionRow:hover {{
+                    background-color: rgba(27, 49, 71, 0.84);
+                    border-color: {Color.BORDER_SUBTLE};
+                }}
+            """)
+            h = QHBoxLayout(self)
+            h.setContentsMargins(0, 0, 0, 0)
+            h.setSpacing(Spacing.SM)
+            if icon_name:
+                self._icon = QLabel()
+                icon_size = 20
+                self._icon.setPixmap(load_icon(icon_name).pixmap(icon_size, icon_size))
+                self._icon.setFixedSize(icon_size, icon_size)
+                h.addWidget(self._icon)
+            self._lbl = QLabel(label)
+            self._lbl.setStyleSheet(f"color: {Color.TEXT_BODY}; background: transparent;")
+            self._trail = QLabel(trailing)
+            trail_font = QFont(Font.FAMILY, Font.SECTION_HEADER[0])
+            trail_font.setWeight(QFont.Weight.DemiBold)
+            self._trail.setFont(trail_font)
+            self._trail.setStyleSheet(f"color: {Color.TEXT_BODY}; background: transparent;")
+            h.addWidget(self._lbl)
+            h.addStretch()
+            h.addWidget(self._trail)
+
+        def setText(self, text: str) -> None:  # noqa: N802
+            self._lbl.setText(text)
+
+        def mousePressEvent(self, event) -> None:  # noqa: N802
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.clicked.emit()
+                event.accept()
+                return
+            super().mousePressEvent(event)
+
+        def keyPressEvent(self, event) -> None:  # noqa: N802
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+                self.clicked.emit()
+                event.accept()
+                return
+            super().keyPressEvent(event)
+
+        def enterEvent(self, event) -> None:  # noqa: N802
+            self._lbl.setStyleSheet(f"color: {Color.TEXT_PRIMARY}; background: transparent;")
+            self._trail.setStyleSheet(f"color: {Color.PRIMARY}; background: transparent;")
+            super().enterEvent(event)
+
+        def leaveEvent(self, event) -> None:  # noqa: N802
+            self._lbl.setStyleSheet(f"color: {Color.TEXT_BODY}; background: transparent;")
+            self._trail.setStyleSheet(f"color: {Color.TEXT_BODY}; background: transparent;")
+            super().leaveEvent(event)
+
+    return _ActionRow(label_text, trailing_text, parent)

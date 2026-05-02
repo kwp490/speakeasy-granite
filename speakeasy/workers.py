@@ -144,5 +144,17 @@ class DedicatedWorkerPool(QObject):
             except BaseException:
                 continue
 
+    def warmup(self) -> None:
+        """Submit a no-op task and block until the worker thread has been created.
+
+        Call this *before* loading CUDA DLLs (i.e. before importing torch) to
+        ensure the engine thread already exists when those DLLs load.  On
+        Windows, CUDA registers DllMain(DLL_THREAD_ATTACH) callbacks that fire
+        for every thread created *after* the DLLs load; if the engine thread is
+        new at that point the callback can corrupt its stack, causing access
+        violations in otherwise-innocent code.
+        """
+        self._executor.submit(lambda: None).result()
+
     def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
         self._executor.shutdown(wait=wait, cancel_futures=cancel_futures)

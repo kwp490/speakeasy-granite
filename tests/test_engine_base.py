@@ -115,3 +115,13 @@ class TestEngineRegistryHasEngines(unittest.TestCase):
         from speakeasy.engine.base import SpeechEngine
         self.assertTrue(issubclass(ENGINES["granite"], SpeechEngine))
 
+    def test_granite_engine_name(self):
+        from speakeasy.engine import ENGINES
+        engine = ENGINES["granite"]()
+        self.assertEqual(engine.name, "granite")
+
+    def test_granite_vram_estimate_positive(self):
+        from speakeasy.engine import ENGINES
+        engine = ENGINES["granite"]()
+        self.assertGreater(engine.vram_estimate_gb, 0)
+

@@ -613,11 +613,12 @@ if ($Mode -eq 'Release') {
 if ($SkipTests) {
     Write-Warn "Test suite skipped (-SkipTests)"
 } else {
-    Write-Step "Running test suite (uv run pytest tests/ -v -n auto)..."
+    Write-Step "Running test suite (uv run pytest tests/ -v)..."
     $prevPref = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
+    $env:PYTHONUNBUFFERED = "1"
     try {
-        uv run pytest tests/ -v -n auto 2>&1 | ForEach-Object { Write-Host "  $_" }
+        uv run pytest tests/ -v 2>&1 | ForEach-Object { Write-Host "  $_" }
     } finally {
         $ErrorActionPreference = $prevPref
     }
@@ -930,9 +931,9 @@ if ($Mode -eq 'Release') {
     # -- Silent uninstall ------------------------------------------------------
     Write-Step "Checking for existing SpeakEasy AI installation..."
 
-    $uninstallKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}_is1'
+    $uninstallKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7B99C492-7E14-4E3A-A8F2-71F8B23D9A42}_is1'
     # Also check WOW6432Node for 32-bit Inno Setup entries
-    $uninstallKeyWow = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}_is1'
+    $uninstallKeyWow = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{7B99C492-7E14-4E3A-A8F2-71F8B23D9A42}_is1'
 
     $uninstallString = $null
     foreach ($key in @($uninstallKey, $uninstallKeyWow)) {
@@ -1137,8 +1138,8 @@ if ($Mode -eq 'Install') {
     # -- Silent uninstall ------------------------------------------------------
     Write-Step "Checking for existing SpeakEasy AI installation..."
 
-    $uninstallKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}_is1'
-    $uninstallKeyWow = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}_is1'
+    $uninstallKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7B99C492-7E14-4E3A-A8F2-71F8B23D9A42}_is1'
+    $uninstallKeyWow = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{7B99C492-7E14-4E3A-A8F2-71F8B23D9A42}_is1'
 
     $uninstallString = $null
     foreach ($key in @($uninstallKey, $uninstallKeyWow)) {
@@ -1311,7 +1312,7 @@ if ($Mode -eq 'Source') {
         Write-Warn "Granite model NOT found at $devModels\granite\config.json"
         Write-Info "The app will prompt for model setup on launch."
         Write-Info "To download manually:"
-        Write-Info "  uv run python -m speakeasy download-model --token <HF_TOKEN>"
+        Write-Info "  uv run python -m speakeasy download-model"
     }
 
     # -- Launch from source ----------------------------------------------------

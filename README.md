@@ -21,8 +21,9 @@ The model is downloaded from Hugging Face into the app's local model directory. 
 - Windows 10/11 64-bit
 - Python 3.11+
 - `uv` package manager
-- NVIDIA GPU recommended for usable performance
-- CPU mode is available but may be slow for a 2B speech-language model
+- **Disk space**: ~5 GB (4.6 GB model + application files)
+- **GPU mode**: NVIDIA GPU with 6 GB VRAM minimum, 8 GB recommended
+- **CPU mode**: 8 GB RAM minimum, 16 GB recommended (inference will be slow)
 
 ## Install From Source
 

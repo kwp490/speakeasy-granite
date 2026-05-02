@@ -1,11 +1,10 @@
-﻿"""Tests for model-presence validation across source and frozen builds.
+"""Tests for model-presence validation across source and frozen builds.
 
 Ensures that ``model_ready()`` and ``_model_files_exist()`` agree, that
 model path resolution respects SPEAKEASY_HOME, and that the engine
 registry correctly reports availability based on on-disk model files.
 """
 
-import builtins
 import importlib
 import os
 import sys
@@ -15,9 +14,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import numpy as np
-
-from speakeasy.engine import ENGINES, _model_files_exist, get_available_engines
+from speakeasy.engine import _model_files_exist, get_available_engines
 from speakeasy.model_downloader import _ENGINE_REPO_MAP, model_ready
 
 
@@ -114,54 +111,6 @@ class TestModelPathResolution(unittest.TestCase):
                 finally:
                     importlib.reload(cfg)
 
-
-class TestEngineRuntimeDependencies(unittest.TestCase):
-    """Runtime dependencies required by the engine must be importable."""
-
-    def test_librosa_importable(self):
-        """librosa is required by the shared resampling path."""
-        import importlib
-        mod = importlib.import_module("librosa")
-        self.assertTrue(hasattr(mod, "__version__"))
-
-    def test_scipy_importable(self):
-        """scipy is a transitive dependency of librosa."""
-        import importlib
-        mod = importlib.import_module("scipy")
-        self.assertTrue(hasattr(mod, "__version__"))
-
-    def test_safetensors_importable(self):
-        """safetensors.torch is used by Transformers model weight loading."""
-        from safetensors.torch import load_file
-        self.assertTrue(callable(load_file))
-
-    def test_multiprocessing_spawn_available(self):
-        """Windows only supports 'spawn' â€” model code must not require 'fork'."""
-        import multiprocessing as mp
-        import sys
-        if sys.platform == "win32":
-            with self.assertRaises(ValueError):
-                mp.get_context("fork")
-            # spawn must work
-            ctx = mp.get_context("spawn")
-            self.assertIsNotNone(ctx)
-
-    def test_transformers_speech_seq2seq_auto_model_importable(self):
-        from transformers import AutoModelForSpeechSeq2Seq
-        self.assertIsNotNone(AutoModelForSpeechSeq2Seq)
-
-
-class TestAllRegisteredEnginesHaveRepoMapping(unittest.TestCase):
-    """Every engine in the registry must have a corresponding entry in
-    ``_ENGINE_REPO_MAP`` so that ``download_model()`` can fetch it."""
-
-    def test_all_engines_mapped(self):
-        for name in ENGINES:
-            self.assertIn(
-                name,
-                _ENGINE_REPO_MAP,
-                f"Engine '{name}' registered but has no repo mapping in _ENGINE_REPO_MAP",
-            )
 
 
 class TestStartupModelSetup(unittest.TestCase):

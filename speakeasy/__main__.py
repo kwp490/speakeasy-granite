@@ -129,7 +129,7 @@ def _build_parser() -> argparse.ArgumentParser:
     dl.add_argument(
         "--token",
         default=None,
-        help="HuggingFace access token for gated model download",
+        help="HuggingFace access token (not required for Granite — public model)",
     )
 
     return parser
@@ -263,8 +263,8 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication
     from PySide6.QtGui import QIcon
     from speakeasy.config import Settings
-    from speakeasy.main_window import MainWindow
     from speakeasy.theme import app_stylesheet
+    from speakeasy.workers import DedicatedWorkerPool
 
     app = QApplication(sys.argv)
     app.setApplicationName("SpeakEasy AI")
@@ -284,7 +284,24 @@ def main() -> int:
     if not _ensure_startup_model_ready(settings):
         return 1
 
-    window = MainWindow(settings)
+    # Pre-create the engine worker thread BEFORE torch / CUDA DLLs are loaded.
+    #
+    # On Windows, CUDA registers DllMain(DLL_THREAD_ATTACH) callbacks that
+    # fire for every thread created *after* those DLLs load.  A known bug in
+    # certain CUDA builds corrupts the stack of any newly created thread via
+    # this callback, causing access violations in otherwise-innocent code (even
+    # os.path.isdir).  Creating and warming up the engine pool thread here —
+    # before the MainWindow import below pulls in torch/CUDA — ensures the
+    # thread already exists when the DLLs load and is therefore immune.
+    _engine_pool = DedicatedWorkerPool()
+    _engine_pool.warmup()
+
+    # Import MainWindow now; this transitively imports granite_transcribe
+    # which imports torch and transformers at module level, loading CUDA DLLs.
+    # The engine thread is already alive at this point, so its stack is safe.
+    from speakeasy.main_window import MainWindow
+
+    window = MainWindow(settings, engine_pool=_engine_pool)
     window.show()
 
     return app.exec()

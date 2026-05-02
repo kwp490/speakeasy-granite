@@ -7,7 +7,7 @@ packages = ["speakeasy"]
 
 [project]
 name = "speakeasy-granite"
-version = "0.7.3"
+version = "0.8.0"
 description = "SpeakEasy AI Granite — Native Windows speech-to-text and speech translation with IBM Granite Speech"
 readme = "README.md"
 license = "MIT"
@@ -41,6 +41,7 @@ dev = [
     "pytest-cov>=4.0",
     "pytest-mock>=3.10",
     "pytest-xdist>=3.0",
+    "pytest-timeout>=2.2",
     "pip-audit>=2.7",
 ]
 
@@ -49,6 +50,7 @@ speakeasy = "speakeasy.__main__:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--timeout=120"
 
 [tool.uv]
 required-environments = ["sys_platform == 'win32' and platform_machine == 'AMD64'"]

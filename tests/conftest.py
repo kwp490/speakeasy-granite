@@ -7,7 +7,9 @@ mocked so the suite runs headlessly in CI without special resources.
 from __future__ import annotations
 
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -16,6 +18,10 @@ import pytest
 
 # Force Qt offscreen rendering for headless CI
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+# Prevent PyTorch CUDA runtime initialization in xdist workers.  Tests use
+# CPU-only fakes; CUDA daemon threads on Windows prevent clean worker exit.
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 
 # ── QApplication for xdist workers ────────────────────────────────────────────
@@ -36,7 +42,21 @@ def _ensure_qapp():
     yield app
 
 
-# ── Settings isolation ────────────────────────────────────────────────────────
+# ── tmp_path override ─────────────────────────────────────────────────────────
+# pytest's default tmp_path uses %TEMP%\pytest-of-{user}\ as its base, which
+# can be inaccessible when a prior elevated process owns that directory.
+# This override uses tempfile.mkdtemp() directly, bypassing pytest's basetemp
+# cleanup entirely and ensuring tests always get a writable temp directory.
+
+@pytest.fixture
+def tmp_path(request):
+    """Provide a fresh writable temp directory, bypassing pytest's basetemp."""
+    d = Path(tempfile.mkdtemp(prefix=f"speakeasy_test_{request.node.name[:40]}_"))
+    yield d
+    shutil.rmtree(d, ignore_errors=True)
+
+
+
 
 @pytest.fixture
 def temp_settings_dir(tmp_path, monkeypatch):
@@ -107,3 +127,17 @@ class _FakeAudioRecorder:
 def _mock_main_window_audio(monkeypatch):
     """Patch only MainWindow's recorder binding; audio.py unit tests stay real."""
     monkeypatch.setattr("speakeasy.main_window.AudioRecorder", _FakeAudioRecorder)
+
+
+@pytest.fixture(autouse=True)
+def _suppress_model_setup_dialog(monkeypatch):
+    """Prevent MainWindow from opening a modal 'model not found' dialog.
+
+    When the granite model is absent from disk, MainWindow schedules a
+    QTimer.singleShot that opens a blocking QMessageBox.  pytest-qt's
+    processEvents() fires this timer between tests, hanging the suite.
+    """
+    monkeypatch.setattr(
+        "speakeasy.main_window.MainWindow._prompt_model_setup_on_start",
+        lambda self: None,
+    )

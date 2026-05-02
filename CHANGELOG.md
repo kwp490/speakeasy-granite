@@ -5,6 +5,31 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - UI Redesign, CUDA Thread Fix & Public Model Download
+
+### Added
+- **Compact status bar** (`status_pills.py`): replaced responsive card/pill layout with a single fixed-height bar containing three segments (Model, Mic, Mode) separated by vertical dividers; always compact, no layout switching
+- **New theme helpers** (`theme.py`): `compact_status_bar_style()`, `section_panel_style()`, `primary_record_button_style()`, `subtle_danger_button_style()`, `make_setting_row()`, `make_section_panel()`, `make_action_row()` for a unified design system
+- **New SVG icons**: clipboard, clock, document, history-document, keyboard, log-out, microphone-white, settings — shipped in `speakeasy/assets/icons/`
+- **CUDA thread pre-creation fix** (`workers.py`, `__main__.py`): `DedicatedWorkerPool.warmup()` creates and parks the engine worker thread *before* torch/CUDA DLLs load, avoiding a Windows CUDA `DllMain(DLL_THREAD_ATTACH)` stack-corruption bug that caused access violations in innocent code
+- **Engine cleanup improvements** (`engine/base.py`): calls `accelerate.hooks.remove_hook_from_submodules()` before model deletion; double `gc.collect()`; `torch.cuda.reset_peak_memory_stats()` on unload
+- **pytest timeout** (`pyproject.toml`): added `pytest-timeout` dev dependency; global 120 s per-test timeout via `addopts`
+- **Custom `tmp_path` fixture** (`conftest.py`): bypasses pytest's basetemp to avoid permission errors when a prior elevated process owns `%TEMP%\pytest-of-{user}\`
+
+### Changed
+- **Model download no longer requires a HuggingFace token**: `ibm-granite/granite-speech-4.1-2b` is a public model; all token prompts, password fields, and `HF_TOKEN` injection removed from installer scripts, Inno Setup pages, and `download-model` CLI help text
+- **Installer GUID corrected**: uninstall registry keys in `Build-Installer.ps1` updated to match the actual Inno Setup `AppId` `{7B99C492-7E14-4E3A-A8F2-71F8B23D9A42}`
+- **Installer welcome messages** updated with concrete system requirements (disk space, VRAM, RAM)
+- **`engine_pool` parameter** added to `MainWindow.__init__` so the pre-warmed pool from `__main__.py` is reused rather than creating a second pool
+- **`GraniteTranscribeEngine`**: top-level `import torch` and `transformers` imports (moved out of `load()`/`_transcribe_impl()` for clarity); `unload()` resets `_actual_device` to `"cpu"`; trailing newline added to file
+- **Build script test runner**: removed `-n auto` (xdist) flag; added `PYTHONUNBUFFERED=1` for live output
+- **README requirements**: added concrete disk/VRAM/RAM minimums
+- **`test_build_naming.py`**: torch/torchaudio version tests now run in a subprocess to avoid CUDA daemon thread interference with pytest worker exit
+- **`test_model_presence.py`**: removed slow/flaky runtime-dependency import tests (librosa, scipy, transformers) that triggered CUDA initialization in test workers
+
+### Fixed
+- `test_pro_mode_widget.py`: monkeypatched `DEFAULT_PRESETS_DIR` in `pro_mode_widget` module to fix preset-loading test isolation
+
 ## [0.7.1] - Hotkey Registration Fix for Frozen Builds
 
 ### Fixed

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_build_naming.py::TestInstallerHandlesModelDownload::test_exit_code_constants_match_python -x)",
+      "Bash(.venv/Scripts/pip show *)"
+    ]
+  }
+}

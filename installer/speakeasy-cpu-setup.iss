@@ -1,9 +1,9 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 ; SpeakEasy AI v3 Inno Setup Installer Script — CPU-Only Variant
 ;
-; Produces a single SpeakEasy-AI-Granite-CPU-Setup-0.5.0.exe that handles:
+; Produces a single SpeakEasy-AI-Granite-CPU-Setup-0.8.0.exe that handles:
 ;   - File extraction (from PyInstaller dist/speakeasy-cpu/ output)
-;   - HuggingFace token prompt + IBM Granite Speech model download
+;   - IBM Granite Speech model download (public — no token required)
 ;   - Desktop + Start Menu shortcuts
 ;   - Data migration from previous installs
 ;   - Windows Defender process exclusion (exe only — not the whole directory)
@@ -21,7 +21,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.7.3"
+#define MyAppVersion "0.8.0"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"
@@ -63,7 +63,7 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-WelcomeLabel2=SpeakEasy AI Granite delivers local transcription and speech translation on Windows — powered by IBM Granite Speech 4.1 2B.%n%nThis is the CPU-only build: it works without a dedicated GPU, though inference may be slow. Setup will install the application, download the Granite speech model, and configure everything automatically.
+WelcomeLabel2=SpeakEasy AI Granite delivers local transcription and speech translation on Windows — powered by IBM Granite Speech 4.1 2B.%n%nThis is the CPU-only build: it works without a dedicated GPU, though inference will be slow. Setup will install the application, download the Granite speech model (~4.6 GB), and configure everything automatically.%n%nRequirements: ~5 GB free disk space, 8 GB RAM minimum (16 GB recommended).
 
 [Files]
 Source: "..\dist\speakeasy-cpu\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -102,17 +102,13 @@ Filename: "powershell.exe"; \
 [Code]
 var
   TokenPage: TWizardPage;
-  TokenEdit: TNewEdit;
   TokenLblHeader: TNewStaticText;
   TokenLblSteps: TNewStaticText;
-  TokenLblPaste: TNewStaticText;
-  TokenLblDisclaimer: TNewStaticText;
   ModelFoundHeader: TNewStaticText;
   ModelFoundNote: TNewStaticText;
   DownloadPage: TOutputProgressWizardPage;
   SummaryPage: TWizardPage;
   SummaryMemo: TNewMemo;
-  HFToken: String;
   CleanInstall: Boolean;
   ModelExists: Boolean;
 
@@ -166,8 +162,8 @@ var
   TopPos, TokenTop: Integer;
 begin
   TokenPage := CreateCustomPage(wpSelectDir,
-    'HuggingFace Authentication',
-    'A HuggingFace account may be required to download the IBM Granite Speech model.');
+    'Model Download',
+    'The IBM Granite Speech model will be downloaded automatically after installation.');
 
   TopPos := 0;
 
@@ -193,12 +189,12 @@ begin
   { Remember where the swappable section starts }
   TokenTop := TopPos;
 
-  { -- Token section (hidden when model exists) -- }
+  { -- Download-info section (hidden when model exists) -- }
   TokenLblHeader := TNewStaticText.Create(TokenPage);
   TokenLblHeader.Parent := TokenPage.Surface;
   TokenLblHeader.Left := 0;  TokenLblHeader.Top := TopPos;
   TokenLblHeader.Width := TokenPage.SurfaceWidth;
-  TokenLblHeader.Caption := 'HuggingFace Access Token';
+  TokenLblHeader.Caption := 'IBM Granite Speech Model';
   TokenLblHeader.Font.Style := [fsBold];  TokenLblHeader.Font.Size := 9;
   TopPos := TopPos + ScaleY(22);
 
@@ -207,35 +203,10 @@ begin
   TokenLblSteps.Left := ScaleX(8);  TokenLblSteps.Top := TopPos;
   TokenLblSteps.Width := TokenPage.SurfaceWidth - ScaleX(8);
   TokenLblSteps.AutoSize := False;  TokenLblSteps.WordWrap := True;  TokenLblSteps.Height := ScaleY(56);
-  TokenLblSteps.Caption := 'To download the model you need a free HuggingFace account:' + #13#10 +
-                 '  1. Sign up at https://huggingface.co/join' + #13#10 +
-                 '  2. Review the model page at https://huggingface.co/ibm-granite/granite-speech-4.1-2b' + #13#10 +
-                 '  3. Create a Read token at https://huggingface.co/settings/tokens';
+  TokenLblSteps.Caption := 'The IBM Granite Speech model is public and will be downloaded automatically.' + #13#10 +
+                 'No HuggingFace account or access token is required.' + #13#10 + #13#10 +
+                 'Model page: https://huggingface.co/ibm-granite/granite-speech-4.1-2b';
   TokenLblSteps.Font.Color := $808080;
-  TopPos := TopPos + ScaleY(60);
-
-  TokenLblPaste := TNewStaticText.Create(TokenPage);
-  TokenLblPaste.Parent := TokenPage.Surface;
-  TokenLblPaste.Left := ScaleX(8);  TokenLblPaste.Top := TopPos;
-  TokenLblPaste.Width := TokenPage.SurfaceWidth - ScaleX(8);
-  TokenLblPaste.Caption := 'Paste your HuggingFace token below (starts with hf_):';
-  TopPos := TopPos + ScaleY(18);
-
-  TokenEdit := TNewEdit.Create(TokenPage);
-  TokenEdit.Parent := TokenPage.Surface;
-  TokenEdit.Left := ScaleX(8);  TokenEdit.Top := TopPos;
-  TokenEdit.Width := TokenPage.SurfaceWidth - ScaleX(16);
-  TokenEdit.PasswordChar := '*';
-  TokenEdit.Text := '';
-  TopPos := TopPos + ScaleY(28);
-
-  TokenLblDisclaimer := TNewStaticText.Create(TokenPage);
-  TokenLblDisclaimer.Parent := TokenPage.Surface;
-  TokenLblDisclaimer.Left := ScaleX(8);  TokenLblDisclaimer.Top := TopPos;
-  TokenLblDisclaimer.Width := TokenPage.SurfaceWidth - ScaleX(8);
-  TokenLblDisclaimer.AutoSize := False;  TokenLblDisclaimer.WordWrap := True;  TokenLblDisclaimer.Height := ScaleY(28);
-  TokenLblDisclaimer.Caption := 'Your token is used only during setup to download the model. It is not stored.';
-  TokenLblDisclaimer.Font.Color := $808080;
 
   { -- Model-found section (hidden when model does not exist) -- }
   TopPos := TokenTop;
@@ -267,7 +238,6 @@ function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
 var
   Info: String;
 begin
-  HFToken := Trim(TokenEdit.Text);
   Info := '';
   Info := Info + 'Application:' + NewLine;
   Info := Info + Space + 'SpeakEasy AI Granite {#MyAppVersion} (CPU) — Native Windows Voice-to-Text' + NewLine + NewLine;
@@ -427,20 +397,10 @@ begin
   DownloadPage.SetText('Downloading IBM Granite Speech (ibm-granite/granite-speech-4.1-2b)...',
     'Source: huggingface.co/ibm-granite/granite-speech-4.1-2b');
   DownloadPage.SetProgress(0, 1);
-  { download_model exit codes: 0 = success, 1 = failure, 2 = auth required }
-  { Pass the token via environment variable to avoid exposing it in the process list }
-  if HFToken <> '' then
-    SetEnvironmentVariable('HF_TOKEN', HFToken);
   try
     Exec(ExePath, 'download-model --target-dir "' + ModelsDir + '"',
          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    if ResultCode = 2 then
-      MsgBox('Authentication failed. Make sure you have:' + #13#10 + #13#10 +
-             '  1. Accepted the model license on HuggingFace' + #13#10 +
-             '  2. Provided a valid access token' + #13#10 + #13#10 +
-             'You can retry later by running granite-model-setup.ps1.',
-             mbError, MB_OK)
-    else if ResultCode <> 0 then
+    if ResultCode <> 0 then
       MsgBox('Model download failed (exit code ' + IntToStr(ResultCode) + ').' + #13#10 + #13#10 +
              'You can download it later using granite-model-setup.ps1' + #13#10 +
              'or the model will be downloaded on first launch.',
@@ -450,7 +410,6 @@ begin
            'You can download the model later using granite-model-setup.ps1.',
            mbError, MB_OK);
   end;
-  SetEnvironmentVariable('HF_TOKEN', '');
   DownloadPage.SetProgress(1, 1);
   DownloadPage.Hide;
 end;

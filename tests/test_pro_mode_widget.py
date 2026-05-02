@@ -95,6 +95,7 @@ class TestProModeWidgetLive:
         monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_DIR", config_dir)
         monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_FILE", config_dir / "settings.json")
         monkeypatch.setattr("speakeasy.config.DEFAULT_PRESETS_DIR", presets_dir)
+        monkeypatch.setattr("speakeasy.pro_mode_widget.DEFAULT_PRESETS_DIR", presets_dir)
         # Mock keyring to avoid OS credential store access
         monkeypatch.setattr("speakeasy.pro_mode_widget.load_api_key_from_keyring", lambda: "")
         monkeypatch.setattr("speakeasy.pro_mode_widget.save_api_key_to_keyring", lambda k: None)

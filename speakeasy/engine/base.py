@@ -90,6 +90,11 @@ class SpeechEngine(ABC):
     def _release_model(self) -> None:
         """Delete model reference and free GPU memory."""
         if self._model is not None:
+            try:
+                from accelerate.hooks import remove_hook_from_submodules
+                remove_hook_from_submodules(self._model)
+            except (ImportError, Exception):
+                pass
             del self._model
             self._model = None
         _cleanup_gpu_memory()
@@ -99,9 +104,11 @@ class SpeechEngine(ABC):
 def _cleanup_gpu_memory() -> None:
     """Best-effort GPU memory cleanup."""
     gc.collect()
+    gc.collect()
     try:
         import torch
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
     except ImportError:
         pass

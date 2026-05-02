@@ -211,10 +211,8 @@ Write-Host "  If that happens, restore uv.exe and add it to your allow list." -F
 Write-Host "  uv is open source: https://github.com/astral-sh/uv" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  The IBM Granite Speech model will be downloaded during installation."
-Write-Host "  A HuggingFace token is optional unless access is denied anonymously."
-Write-Host "  Get your token at: https://huggingface.co/settings/tokens"
+Write-Host "  No HuggingFace account or token is required — it is a public model."
 Write-Host ""
-$HfTokenSecure = Read-Host -AsSecureString "  Enter your HuggingFace API token (or press Enter to skip model download)"
 
 # â”€â”€ Install uv â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking for uv package manager..."
@@ -521,25 +519,12 @@ Write-Step "Checking Granite model (IBM Granite Speech 4.1 2B)..."
 $graniteDir = Join-Path $ModelsDir "granite"
 if ((Test-Path (Join-Path $graniteDir "config.json"))) {
     Write-Already "Granite model already present in $graniteDir"
-} elseif ($HfTokenSecure.Length -eq 0) {
-    Write-Warn "No HuggingFace token provided — trying anonymous Granite model download"
+} else {
+    Write-Host "  Downloading Granite model (ibm-granite/granite-speech-4.1-2b)..."
     Push-Location $InstallDir
     Invoke-StreamingCommand "Granite model download" { uv run speakeasy download-model --target-dir $ModelsDir }
     Pop-Location
-} else {
-    # Extract token to plain text only for child process inheritance, then clear.
-    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($HfTokenSecure)
-    $env:HF_TOKEN = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    try {
-        Write-Host "  Downloading Granite model (ibm-granite/granite-speech-4.1-2b)..."
-        Push-Location $InstallDir
-        Invoke-StreamingCommand "Granite model download" { uv run speakeasy download-model --target-dir $ModelsDir }
-        Pop-Location
-        Write-Ok "Granite model downloaded to $graniteDir"
-    } finally {
-        $env:HF_TOKEN = $null
-    }
+    Write-Ok "Granite model downloaded to $graniteDir"
 }
 
 # â”€â”€ Patch build variant for CPU source installs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

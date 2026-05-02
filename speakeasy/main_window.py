@@ -441,13 +441,13 @@ class _HistoryEntry(QWidget):
 class MainWindow(QMainWindow):
     """Primary application window."""
 
-    def __init__(self, settings: Settings, engine=None):
+    def __init__(self, settings: Settings, engine=None, engine_pool=None):
         super().__init__()
         self.settings = settings
         self._dev_panel: Optional["DeveloperPanel"] = None
         self._log_buffer: list[str] = []  # holds lines until panel exists
         self._pool = QThreadPool.globalInstance()
-        self._engine_pool = DedicatedWorkerPool(self)
+        self._engine_pool = engine_pool if engine_pool is not None else DedicatedWorkerPool(self)
         self._engine_pool.setMaxThreadCount(1)
         self._engine_pool.setExpiryTimeout(-1)
 

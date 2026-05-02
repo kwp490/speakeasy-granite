@@ -13,6 +13,12 @@ import logging
 import os
 
 import numpy as np
+import torch
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
+from transformers.generation.stopping_criteria import (
+    MaxTimeCriteria,
+    StoppingCriteriaList,
+)
 
 from .base import SpeechEngine
 
@@ -65,9 +71,6 @@ class GraniteTranscribeEngine(SpeechEngine):
         self._keyword_bias = keyword_bias.strip()
 
     def load(self, model_path: str, device: str = "cuda") -> None:
-        import torch
-        from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
-
         self._device = device
         granite_dir = os.path.join(model_path, "granite")
 
@@ -237,12 +240,6 @@ class GraniteTranscribeEngine(SpeechEngine):
     ) -> str:
         import time as _time
 
-        import torch
-        from transformers.generation.stopping_criteria import (
-            MaxTimeCriteria,
-            StoppingCriteriaList,
-        )
-
         user_prompt = f"<|audio|>{self._build_user_prompt(language, punctuation)}"
         chat = [{"role": "user", "content": user_prompt}]
         prompt = self._tokenizer.apply_chat_template(
@@ -289,8 +286,6 @@ class GraniteTranscribeEngine(SpeechEngine):
         return str(text).strip()
 
     def _move_inputs_to_model(self, inputs):
-        import torch
-
         if hasattr(inputs, "to"):
             try:
                 return inputs.to(self._actual_device)
@@ -319,3 +314,4 @@ class GraniteTranscribeEngine(SpeechEngine):
         self._processor = None
         self._tokenizer = None
         self._release_model()
+        self._actual_device = "cpu"

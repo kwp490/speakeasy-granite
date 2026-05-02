@@ -1,4 +1,4 @@
-﻿"""Tests for build/installer naming consistency.
+"""Tests for build/installer naming consistency.
 
 These tests catch stale names and broken cross-file references that prevent
 Build-Installer.ps1 from working.  They parse the build scripts statically
@@ -12,13 +12,13 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# â”€â”€ Helper: read a file as text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Helper: read a file as text â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 def _read(relpath: str) -> str:
     return (_REPO_ROOT / relpath).read_text(encoding="utf-8")
 
 
-# â”€â”€ Helpers: extract values from Inno Setup (.iss) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Helpers: extract values from Inno Setup (.iss) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 def _iss_define(text: str, name: str) -> str | None:
     """Return the value of ``#define <name> "value"`` from an .iss file."""
@@ -243,42 +243,40 @@ class TestTorchTorchaudioCompatibility(unittest.TestCase):
 
     def test_installed_torch_torchaudio_major_versions_match(self):
         """Installed torch and torchaudio must share the same major.minor version."""
-        import torch
-        try:
-            import torchaudio
-        except OSError:
-            self.fail(
-                "torchaudio failed to import (likely DLL mismatch with torch). "
-                "Reinstall with: uv sync"
-            )
-
-        # Strip build metadata like +cu128
-        torch_ver = torch.__version__.split("+")[0]
-        ta_ver = torchaudio.__version__.split("+")[0]
-
-        torch_major = torch_ver.split(".")[:2]
-        ta_major = ta_ver.split(".")[:2]
+        import subprocess, sys
+        result = subprocess.run(
+            [sys.executable, "-c", (
+                "import torch, torchaudio; "
+                "tv = torch.__version__.split('+')[0].split('.')[:2]; "
+                "av = torchaudio.__version__.split('+')[0].split('.')[:2]; "
+                "assert tv == av, "
+                "f'torch {torch.__version__} / torchaudio {torchaudio.__version__} major mismatch'"
+            )],
+            capture_output=True, text=True, timeout=60,
+            stdin=subprocess.DEVNULL,
+        )
         self.assertEqual(
-            torch_major, ta_major,
-            f"torch {torch.__version__} and torchaudio {torchaudio.__version__} "
-            f"have mismatched major versions â€” this causes DLL load failures. "
-            f"Pin both to the same index in pyproject.toml [tool.uv.sources].",
+            result.returncode, 0,
+            f"torch/torchaudio version mismatch:\n{result.stderr}",
         )
 
     def test_installed_torch_torchaudio_build_tags_match(self):
         """Both packages must have the same build tag (e.g. +cu128 or both CPU)."""
-        import torch
-        try:
-            import torchaudio
-        except OSError:
-            self.fail("torchaudio failed to import (DLL mismatch)")
-
-        torch_tag = torch.__version__.partition("+")[2]  # e.g. "cu128" or ""
-        ta_tag = torchaudio.__version__.partition("+")[2]
+        import subprocess, sys
+        result = subprocess.run(
+            [sys.executable, "-c", (
+                "import torch, torchaudio; "
+                "tt = torch.__version__.partition('+')[2]; "
+                "at = torchaudio.__version__.partition('+')[2]; "
+                "assert tt == at, "
+                "f'torch +{tt} / torchaudio +{at} build tag mismatch'"
+            )],
+            capture_output=True, text=True, timeout=60,
+            stdin=subprocess.DEVNULL,
+        )
         self.assertEqual(
-            torch_tag, ta_tag,
-            f"torch build tag '+{torch_tag}' != torchaudio build tag '+{ta_tag}'. "
-            f"Mixing CUDA/CPU builds causes WinError 127.",
+            result.returncode, 0,
+            f"torch/torchaudio build tag mismatch:\n{result.stderr}",
         )
 
 
