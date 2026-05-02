@@ -5,6 +5,15 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - Record Button & Status Bar Refinements
+
+### Changed
+- **Record button layout** (`main_window.py`): icon size increased 20 → 30 px; title uses explicit 13 pt DemiBold font; status text uses 10 pt DemiBold; spacing between elements increased SM → MD
+- **Record row** no longer wraps in `make_bounded_content()`; row widget is full-width with 5:1 stretch ratio between record button and settings button; settings button is now responsive (expands) rather than fixed-width
+- `BUTTON_HEIGHT_PRIMARY` increased 52 → 64 px for more visual weight
+- **Status bar separators** (`status_pills.py`): width 1 → 2 px, height 30 → 34 px; style changed from `color:` to `background-color:` so the separator actually renders as a filled line
+- History section icon changed from `history-document` to `clock`
+
 ## [0.8.1] - Record Button State Machine & UI Polish
 
 ### Changed

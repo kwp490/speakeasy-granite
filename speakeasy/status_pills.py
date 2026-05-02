@@ -272,9 +272,9 @@ class StatusPillBar(QWidget):
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.VLine)
         sep.setFrameShadow(QFrame.Shadow.Plain)
-        sep.setStyleSheet(f"color: {Color.BORDER_SUBTLE}; background: transparent;")
-        sep.setFixedWidth(1)
-        sep.setFixedHeight(30)
+        sep.setStyleSheet(f"background-color: {Color.BORDER_SUBTLE}; border: none;")
+        sep.setFixedWidth(2)
+        sep.setFixedHeight(34)
         return sep
 
     def set_ai_model(self, name: str, device: str, status: Any, fallback: bool) -> None:

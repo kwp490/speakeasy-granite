@@ -577,33 +577,39 @@ class MainWindow(QMainWindow):
 
         record_button_layout = QHBoxLayout(self._btn_record)
         record_button_layout.setContentsMargins(Spacing.LG, 0, Spacing.LG, 0)
-        record_button_layout.setSpacing(Spacing.SM)
+        record_button_layout.setSpacing(Spacing.MD)
         record_button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._record_icon = QLabel()
-        icon_size = 20
+        icon_size = 30
         self._record_icon.setPixmap(load_icon("microphone-white").pixmap(QSize(icon_size, icon_size)))
         self._record_icon.setFixedSize(icon_size, icon_size)
         self._record_icon.setStyleSheet("background: transparent;")
         self._record_title = QLabel("Start Recording")
+        title_font = QFont(Font.FAMILY, 13)
+        title_font.setWeight(QFont.Weight.DemiBold)
+        self._record_title.setFont(title_font)
         self._record_title.setStyleSheet(f"color: {Color.TEXT_PRIMARY}; background: transparent; font-weight: 700;")
         self._record_dot = QLabel("●")
+        status_font = QFont(Font.FAMILY, 10)
+        status_font.setWeight(QFont.Weight.DemiBold)
+        self._record_dot.setFont(status_font)
         self._record_dot.setStyleSheet(f"color: {Color.SUCCESS}; background: transparent; font-weight: 700;")
         self._record_status = QLabel("Ready")
+        self._record_status.setFont(status_font)
         self._record_status.setStyleSheet(f"color: {Color.TEXT_PRIMARY}; background: transparent; font-weight: 600;")
         record_button_layout.addWidget(self._record_icon, 0, Qt.AlignmentFlag.AlignVCenter)
         record_button_layout.addWidget(self._record_title, 0, Qt.AlignmentFlag.AlignVCenter)
         record_button_layout.addWidget(self._record_dot, 0, Qt.AlignmentFlag.AlignVCenter)
         record_button_layout.addWidget(self._record_status, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        # Record button + Developer Panel gear button, side-by-side
-        record_content, record_content_layout, record_outer = make_bounded_content(central)
-        record_content_layout.setSpacing(0)
-        record_row_widget = QWidget(record_content)
+        # Record button + Developer Panel settings button, full-width and responsive.
+        record_row_widget = QWidget(central)
+        record_row_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         record_row = QHBoxLayout(record_row_widget)
         record_row.setContentsMargins(0, 0, 0, 0)
         record_row.setSpacing(Spacing.SM)
-        record_row.addWidget(self._btn_record, stretch=1)
+        record_row.addWidget(self._btn_record)
 
         self._btn_dev_panel = QToolButton()
         self._btn_dev_panel.setText("Settings")
@@ -613,13 +619,16 @@ class MainWindow(QMainWindow):
         self._btn_dev_panel.setToolTip("Open Developer Panel")
         self._btn_dev_panel.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_dev_panel.setFixedSize(Size.BUTTON_HEIGHT_PRIMARY, Size.BUTTON_HEIGHT_PRIMARY)
-        self._btn_dev_panel.setFixedWidth(Size.GEAR_BUTTON)
+        self._btn_dev_panel.setMinimumSize(Size.GEAR_BUTTON, Size.BUTTON_HEIGHT_PRIMARY)
+        self._btn_dev_panel.setMaximumSize(16777215, Size.BUTTON_HEIGHT_PRIMARY)
+        self._btn_dev_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._btn_dev_panel.setStyleSheet(gear_button_style())
         self._btn_dev_panel.setCheckable(True)
         self._btn_dev_panel.clicked.connect(self._on_toggle_dev_panel)
         record_row.addWidget(self._btn_dev_panel)
-        record_content_layout.addWidget(record_row_widget)
-        root.addLayout(record_outer)
+        record_row.setStretch(0, 5)
+        record_row.setStretch(1, 1)
+        root.addWidget(record_row_widget)
 
         # ── Status indicators (model + dictation + professional mode) ───────
         self._status_bar = StatusPillBar(self)
@@ -663,7 +672,7 @@ class MainWindow(QMainWindow):
         root.addWidget(transcription_section)
 
         # ── History ──────────────────────────────────────────────────────────
-        history_section, history_layout = make_section_panel("History", central, icon_name="history-document")
+        history_section, history_layout = make_section_panel("History", central, icon_name="clock")
         self._history_toggle_row = make_action_row("Show Transcription History", ">", history_section)
         self._history_toggle_row.clicked.connect(self._on_toggle_history)
         history_layout.addWidget(self._history_toggle_row)

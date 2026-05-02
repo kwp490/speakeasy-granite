@@ -88,8 +88,8 @@ class Font:
 
 class Size:
     BUTTON_HEIGHT = 36
-    BUTTON_HEIGHT_PRIMARY = 52     # Start Recording, prominent CTAs
-    GEAR_BUTTON = 76               # settings button to right of record
+    BUTTON_HEIGHT_PRIMARY = 64     # Start Recording, prominent CTAs
+    GEAR_BUTTON = 76               # settings button minimum width
     INPUT_HEIGHT = 36
     TAB_HEIGHT = 40
     PROGRESS_BAR_HEIGHT = 6        # thin bars in Realtime Data
