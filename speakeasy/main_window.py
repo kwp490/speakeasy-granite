@@ -516,8 +516,8 @@ class MainWindow(QMainWindow):
 
         # ── Build UI ─────────────────────────────────────────────────────────
         self.setWindowTitle("SpeakEasy AI Granite — Voice to Text")
-        self.setMinimumSize(640, 620)
-        self.resize(720, 720)
+        self.setMinimumSize(640, 600)
+        self.resize(720, 640)
         self._build_ui()
         self._setup_logging()
         self._setup_timers()
@@ -705,7 +705,6 @@ class MainWindow(QMainWindow):
         history_layout.addLayout(history_actions)
         history_layout.addWidget(self._history_scroll)
         root.addWidget(history_section)
-        root.addStretch()
 
         # ── Hidden metric labels (updated by _on_metrics_result / _set_model_status,
         #    forwarded to the Developer Panel when open) ──────────────────────

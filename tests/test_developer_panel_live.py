@@ -42,7 +42,7 @@ def mock_main_window(tmp_path, monkeypatch, qtbot):
     monkeypatch.setattr("speakeasy.pro_mode_widget.delete_api_key_from_keyring", lambda: None)
 
     mw = QWidget()
-    mw.resize(720, 720)
+    mw.resize(720, 640)
     mw.move(100, 100)
     # DeveloperPanel accesses these MainWindow methods:
     mw._on_reload_model = MagicMock()

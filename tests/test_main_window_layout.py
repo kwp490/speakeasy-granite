@@ -73,8 +73,13 @@ class TestLayoutStructure(unittest.TestCase):
     def test_window_target_size_is_compact(self):
         """Main window must use the compact requested default and minimum sizes."""
         src = self._get_method_source("__init__")
-        self.assertIn("setMinimumSize(640, 620)", src)
-        self.assertIn("resize(720, 720)", src)
+        self.assertIn("setMinimumSize(640, 600)", src)
+        self.assertIn("resize(720, 640)", src)
+
+    def test_no_expanding_spacer_above_quit(self):
+        """Quit should sit directly below History instead of below an expanding gap."""
+        src = self._get_method_source("_build_ui")
+        self.assertNotIn("root.addStretch()", src)
 
     def test_no_lbl_dictation_state_in_build_ui(self):
         """_lbl_dictation_state must not be created in _build_ui."""
@@ -413,9 +418,11 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             layout = win.centralWidget().layout()
             layout.activate()
             self.assertEqual(win.minimumSize().width(), 640)
-            self.assertEqual(win.minimumSize().height(), 620)
-            self.assertLessEqual(layout.minimumSize().height(), 620)
-            self.assertLessEqual(win.size().height(), 720)
+            self.assertEqual(win.minimumSize().height(), 600)
+            self.assertLessEqual(layout.minimumSize().height(), 600)
+            self.assertEqual(win.size().width(), 720)
+            self.assertLessEqual(win.size().height(), 640)
+            self.assertGreater(win.size().width(), win.size().height())
         finally:
             win.close()
 

@@ -5,6 +5,13 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] - Window Size & Layout Spacer Fix
+
+### Changed
+- **Window size** further reduced: minimum 640×620 → 640×600, default 720×720 → 720×640; window is now wider than it is tall
+- **`root.addStretch()`** removed after History section so Quit sits flush below content instead of being pushed to the bottom of an expanding gap
+- Tests updated to match new sizes and assert landscape aspect ratio
+
 ## [0.8.3] - Compact Layout Pass
 
 ### Changed
