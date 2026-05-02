@@ -51,7 +51,7 @@ class TestIntegrationMainWindowLayout:
     # ── Phase 2: Dev panel is lazily created ─────────────────────────────────
 
     def test_panel_created_lazily_on_toggle(self):
-        src = self._method_source("_on_toggle_dev_panel")
+        src = self._method_source("_ensure_dev_panel")
         assert "if self._dev_panel is None:" in src
         assert "DeveloperPanel(" in src
 
@@ -77,7 +77,7 @@ class TestIntegrationMainWindowLayout:
     # ── Phase 5: Log buffer integration ──────────────────────────────────────
 
     def test_panel_creation_flushes_log_buffer(self):
-        src = self._method_source("_on_toggle_dev_panel")
+        src = self._method_source("_ensure_dev_panel")
         assert "_flush_log_buffer()" in src
 
     # ── Phase 6: Pro mode toggle on main window ─────────────────────────────
@@ -96,8 +96,10 @@ class TestIntegrationMainWindowLayout:
         assert 'QPushButton("Quit")' in src or "Quit" in src
 
     def test_history_section_exists(self):
-        src = self._method_source("_build_ui")
-        assert "_history_layout" in src
+        """History must be accessible via the developer panel's HistoryWidget."""
+        dp_source = _DEV_PANEL_PATH.read_text(encoding="utf-8")
+        assert "HistoryWidget" in dp_source
+        assert "history_widget" in dp_source
 
     def test_engine_pool_single_thread(self):
         src = self._method_source("__init__")

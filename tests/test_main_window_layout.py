@@ -65,10 +65,10 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_build_ui")
         self.assertIn('primary_record_button_style("idle")', src)
 
-    def test_history_min_height_compact(self):
-        """History scroll area must keep a compact minimum height."""
-        src = self._get_method_source("_build_ui")
-        self.assertIn("setMinimumHeight(120)", src)
+    def test_history_widget_has_scroll_area(self):
+        """HistoryWidget must contain a scrollable area for entries."""
+        hw_source = (_REPO_ROOT / "speakeasy" / "history_widget.py").read_text(encoding="utf-8")
+        self.assertIn("QScrollArea", hw_source)
 
     def test_window_target_size_is_compact(self):
         """Main window must use the compact requested default and minimum sizes."""
@@ -165,10 +165,10 @@ class TestLayoutStructure(unittest.TestCase):
         ]
         self.assertNotIn("_on_clear_logs_and_history", method_names)
 
-    def test_clear_history_button_in_build_ui(self):
-        """_btn_clear_history must be created in _build_ui."""
-        src = self._get_method_source("_build_ui")
-        self.assertIn("_btn_clear_history", src)
+    def test_clear_history_button_in_history_widget(self):
+        """Clear History button must exist in HistoryWidget."""
+        hw_source = (_REPO_ROOT / "speakeasy" / "history_widget.py").read_text(encoding="utf-8")
+        self.assertIn("Clear History", hw_source)
 
     def test_clear_logs_method_exists(self):
         """_on_clear_logs must be defined in MainWindow."""
@@ -580,11 +580,12 @@ class TestStreamingPartials(unittest.TestCase):
 
     def _history_entries(self, win):
         """Return all _HistoryEntry widgets currently in the history pane."""
-        from speakeasy.main_window import _HistoryEntry
+        from speakeasy.history_widget import _HistoryEntry
+        layout = win._dev_panel.history_widget.history_layout
         return [
-            win._history_layout.itemAt(i).widget()
-            for i in range(win._history_layout.count())
-            if isinstance(win._history_layout.itemAt(i).widget(), _HistoryEntry)
+            layout.itemAt(i).widget()
+            for i in range(layout.count())
+            if isinstance(layout.itemAt(i).widget(), _HistoryEntry)
         ]
 
     def test_partial_signal_creates_draft_entry(self):
@@ -645,6 +646,7 @@ class TestStreamingPartials(unittest.TestCase):
         """No partial signal â†’ plain _add_history must create a normal entry."""
         win = self._make_window()
         try:
+            win._ensure_dev_panel()
             win._add_history("12:34:56", "short clip text", success=True)
             entries = self._history_entries(win)
             self.assertEqual(len(entries), 1)

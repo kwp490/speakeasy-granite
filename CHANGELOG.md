@@ -5,6 +5,23 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - Bug Fixes and Test Alignment
+
+### Fixed
+- **Duplicate `set_progress` call** in `_on_transcription_partial()` removed (called twice in v0.9.0)
+- **Stray panel-toggle code** at the end of `_flush_history_buffer()` removed — the hide/show block was accidentally left in the method after the `_on_toggle_dev_panel()` refactor in v0.9.0, causing the panel to always open/close after flushing buffered history entries
+
+### Changed
+- **Tests updated** to reflect the v0.9.0 architecture:
+  - `test_panel_has_four_tabs` → `test_panel_has_five_tabs` (both AST and live tests)
+  - `_on_toggle_dev_panel` source checks changed to `_ensure_dev_panel` in `test_integration_full_flow.py` and `test_logging_buffer.py`
+  - `test_history_section_exists` now checks `developer_panel.py` for `HistoryWidget` instead of `_build_ui` for `_history_layout`
+  - `test_history_min_height_compact` replaced by `test_history_widget_has_scroll_area` (checks `history_widget.py`)
+  - `test_clear_history_button_in_build_ui` replaced by `test_clear_history_button_in_history_widget`
+  - `_history_entries()` helper updated to import `_HistoryEntry` from `history_widget` and read from `dev_panel.history_widget.history_layout`
+  - `test_no_partial_creates_plain_entry` now calls `win._ensure_dev_panel()` first so the history layout exists
+  - `mock_main_window` fixture adds `_on_clear_history` mock
+
 ## [0.9.0] - History Moved to Developer Panel Tab
 
 ### Added

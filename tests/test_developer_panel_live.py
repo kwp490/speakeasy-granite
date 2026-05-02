@@ -52,6 +52,7 @@ def mock_main_window(tmp_path, monkeypatch, qtbot):
     mw._on_copy_logs = MagicMock()
     mw._on_pro_mode_applied = MagicMock()
     mw._populate_pro_preset_combo = MagicMock()
+    mw._on_clear_history = MagicMock()
     qtbot.addWidget(mw)
     return mw
 
@@ -71,9 +72,9 @@ class TestDeveloperPanelConstruction:
         panel, _ = dev_panel
         assert panel is not None
 
-    def test_panel_has_four_tabs(self, dev_panel):
+    def test_panel_has_five_tabs(self, dev_panel):
         panel, _ = dev_panel
-        assert panel._tabs.count() == 4
+        assert panel._tabs.count() == 5
 
     def test_panel_default_tab_is_settings(self, dev_panel):
         panel, settings = dev_panel

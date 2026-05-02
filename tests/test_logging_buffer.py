@@ -57,5 +57,5 @@ class TestLogBufferStructure:
         assert "_log_buffer.clear()" in src
 
     def test_flush_called_on_panel_creation(self):
-        src = self._method_source("_on_toggle_dev_panel")
+        src = self._method_source("_ensure_dev_panel")
         assert "_flush_log_buffer" in src

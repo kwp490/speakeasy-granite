@@ -1028,7 +1028,6 @@ class MainWindow(QMainWindow):
         else:
             self._active_draft_entry.set_text(text)
         self._active_draft_entry.set_progress(chunk_index, total_chunks)
-        self._active_draft_entry.set_progress(chunk_index, total_chunks)
 
     @Slot(object)
     def _on_transcription_result(self, text: str) -> None:
@@ -1448,15 +1447,6 @@ class MainWindow(QMainWindow):
             count = hw.history_layout.count()
             hw.history_layout.insertWidget(max(0, count - 1), entry)
         self._history_buffer.clear()
-        if self._dev_panel.isVisible():
-            self._dev_panel.hide()
-            self._btn_dev_panel.setChecked(False)
-            self.settings.dev_panel_open = False
-        else:
-            self._dev_panel.show_snapped()
-            self._btn_dev_panel.setChecked(True)
-            self.settings.dev_panel_open = True
-        self.settings.save()
 
     def _on_dev_panel_closed(self) -> None:
         self._btn_dev_panel.setChecked(False)
