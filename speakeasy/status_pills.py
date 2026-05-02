@@ -98,6 +98,16 @@ class _StatusSegment(QWidget):
         self._clickable = clickable
         self._accessible_name = accessible_name
         self.setObjectName("StatusSegment")
+        if clickable:
+            self.setStyleSheet(f"""
+                QWidget#StatusSegment {{
+                    background-color: transparent;
+                    border-radius: 6px;
+                }}
+                QWidget#StatusSegment:hover {{
+                    background-color: rgba(27, 49, 71, 0.62);
+                }}
+            """)
 
         self.setCursor(
             Qt.CursorShape.PointingHandCursor if clickable else Qt.CursorShape.ArrowCursor
@@ -105,12 +115,12 @@ class _StatusSegment(QWidget):
         self.setFocusPolicy(
             Qt.FocusPolicy.StrongFocus if clickable else Qt.FocusPolicy.NoFocus
         )
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(Spacing.XS)
-
-        layout.addStretch()
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         icon_label = QLabel()
         icon_size = 22
@@ -144,8 +154,6 @@ class _StatusSegment(QWidget):
         self._state.setStyleSheet(f"color: {Color.TEXT_PRIMARY}; background: transparent;")
         self._state.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         layout.addWidget(self._state)
-
-        layout.addStretch()
 
         self._dot_effect: Optional[QGraphicsOpacityEffect] = None
         self._dot_animation: Optional[QPropertyAnimation] = None

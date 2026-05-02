@@ -14,7 +14,7 @@ import sys
 import time
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from PySide6.QtCore import QEasingCurve, QObject, QPoint, QPropertyAnimation, QRect, QThreadPool, QTimer, Qt, Property, Signal, Slot
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
+    QToolButton,
     QWidget,
 )
 
@@ -66,6 +67,9 @@ from .text_processor import TextProcessor, load_api_key_from_keyring
 from .workers import DedicatedWorkerPool, Worker
 
 log = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .developer_panel import DeveloperPanel
 
 
 # ── Qt-compatible log handler ─────────────────────────────────────────────────
@@ -541,34 +545,81 @@ class MainWindow(QMainWindow):
     # ═════════════════════════════════════════════════════════════════════════
 
     def _build_ui(self) -> None:
-        from .theme import Color, Font, Size, Spacing, primary_button_style, gear_button_style, danger_button_style
+        from PySide6.QtCore import QSize
+        from .theme import (
+            Color,
+            Font,
+            Size,
+            Spacing,
+            gear_button_style,
+            load_icon,
+            make_action_row,
+            make_bounded_content,
+            make_section_panel,
+            make_setting_row,
+            primary_button_style,
+            primary_record_button_style,
+            subtle_danger_button_style,
+        )
 
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
         root.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-        root.setSpacing(Spacing.MD)
+        root.setSpacing(Spacing.SECTION)
 
         # ── Transcription section (dominant) ─────────────────────────────────
-        self._btn_record = QPushButton("\U0001f3a4  Start Recording  (Ctrl+Alt+P)")
+        self._btn_record = QPushButton()
         self._btn_record.setMinimumHeight(Size.BUTTON_HEIGHT_PRIMARY)
-        self._btn_record.setStyleSheet(primary_button_style())
+        self._btn_record.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_record.setStyleSheet(primary_record_button_style("idle"))
         self._btn_record.clicked.connect(self._on_toggle_recording)
 
+        record_button_layout = QHBoxLayout(self._btn_record)
+        record_button_layout.setContentsMargins(Spacing.LG, 0, Spacing.LG, 0)
+        record_button_layout.setSpacing(Spacing.SM)
+        record_button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._record_icon = QLabel()
+        icon_size = 20
+        self._record_icon.setPixmap(load_icon("microphone-white").pixmap(QSize(icon_size, icon_size)))
+        self._record_icon.setFixedSize(icon_size, icon_size)
+        self._record_icon.setStyleSheet("background: transparent;")
+        self._record_title = QLabel("Start Recording")
+        self._record_title.setStyleSheet(f"color: {Color.TEXT_PRIMARY}; background: transparent; font-weight: 700;")
+        self._record_dot = QLabel("●")
+        self._record_dot.setStyleSheet(f"color: {Color.SUCCESS}; background: transparent; font-weight: 700;")
+        self._record_status = QLabel("Ready")
+        self._record_status.setStyleSheet(f"color: {Color.TEXT_PRIMARY}; background: transparent; font-weight: 600;")
+        record_button_layout.addWidget(self._record_icon, 0, Qt.AlignmentFlag.AlignVCenter)
+        record_button_layout.addWidget(self._record_title, 0, Qt.AlignmentFlag.AlignVCenter)
+        record_button_layout.addWidget(self._record_dot, 0, Qt.AlignmentFlag.AlignVCenter)
+        record_button_layout.addWidget(self._record_status, 0, Qt.AlignmentFlag.AlignVCenter)
+
         # Record button + Developer Panel gear button, side-by-side
-        record_row = QHBoxLayout()
+        record_content, record_content_layout, record_outer = make_bounded_content(central)
+        record_content_layout.setSpacing(0)
+        record_row_widget = QWidget(record_content)
+        record_row = QHBoxLayout(record_row_widget)
         record_row.setContentsMargins(0, 0, 0, 0)
         record_row.setSpacing(Spacing.SM)
         record_row.addWidget(self._btn_record, stretch=1)
 
-        self._btn_dev_panel = QPushButton("\u2699")  # gear icon
+        self._btn_dev_panel = QToolButton()
+        self._btn_dev_panel.setText("Settings")
+        self._btn_dev_panel.setIcon(load_icon("settings"))
+        self._btn_dev_panel.setIconSize(QSize(22, 22))
+        self._btn_dev_panel.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self._btn_dev_panel.setToolTip("Open Developer Panel")
+        self._btn_dev_panel.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_dev_panel.setFixedSize(Size.BUTTON_HEIGHT_PRIMARY, Size.BUTTON_HEIGHT_PRIMARY)
+        self._btn_dev_panel.setFixedWidth(Size.GEAR_BUTTON)
         self._btn_dev_panel.setStyleSheet(gear_button_style())
         self._btn_dev_panel.setCheckable(True)
         self._btn_dev_panel.clicked.connect(self._on_toggle_dev_panel)
         record_row.addWidget(self._btn_dev_panel)
-        root.addLayout(record_row)
+        record_content_layout.addWidget(record_row_widget)
+        root.addLayout(record_outer)
 
         # ── Status indicators (model + dictation + professional mode) ───────
         self._status_bar = StatusPillBar(self)
@@ -576,55 +627,55 @@ class MainWindow(QMainWindow):
         self._status_bar.pro_mode_clicked.connect(self._on_open_pro_settings)
         root.addWidget(self._status_bar)
         self._update_global_status()
+        self._refresh_dictation_buttons()
 
-        # Row 1: output-behaviour toggles (inline, no card)
-        quick_settings_row = QHBoxLayout()
-        quick_settings_row.setContentsMargins(0, 0, 0, 0)
-        quick_settings_row.setSpacing(Spacing.LG)
-        self._chk_auto_copy = ToggleSwitch("Auto-copy to clipboard")
+        # ── Automation ───────────────────────────────────────────────────────
+        automation_section, automation_layout = make_section_panel("Automation", central, icon_name="keyboard")
+        self._chk_auto_copy = ToggleSwitch()
         self._chk_auto_copy.setChecked(self.settings.auto_copy)
-        self._chk_auto_paste = ToggleSwitch("Auto-paste (Ctrl+V)")
+        self._chk_auto_paste = ToggleSwitch()
         self._chk_auto_paste.setChecked(self.settings.auto_paste)
-        self._chk_hotkeys = ToggleSwitch("Enable global hotkeys")
+        self._chk_hotkeys = ToggleSwitch()
         self._chk_hotkeys.setChecked(self.settings.hotkeys_enabled)
         self._chk_hotkeys.toggled.connect(self._on_hotkeys_toggled)
-        quick_settings_row.addWidget(self._chk_auto_copy)
-        quick_settings_row.addWidget(self._chk_auto_paste)
-        quick_settings_row.addWidget(self._chk_hotkeys)
-        quick_settings_row.addStretch()
-        root.addLayout(quick_settings_row)
+        automation_layout.addWidget(make_setting_row("Auto-copy to clipboard", self._chk_auto_copy, automation_section))
+        automation_layout.addWidget(make_setting_row("Auto-paste (Ctrl+V)", self._chk_auto_paste, automation_section))
+        automation_layout.addWidget(make_setting_row("Global hotkeys", self._chk_hotkeys, automation_section, show_separator=False))
+        root.addWidget(automation_section)
 
-        # Row 2: Professional Mode toggle + preset selector
-        pro_mode_group = QGroupBox("Professional Mode")
-        pro_mode_layout = QHBoxLayout()
-        pro_mode_layout.setContentsMargins(Spacing.SM, Spacing.XS, Spacing.SM, Spacing.SM)
+        # ── Transcription Mode ───────────────────────────────────────────────
+        transcription_section, transcription_layout = make_section_panel("Transcription Mode", central, icon_name="sparkles")
         self._chk_professional = ToggleSwitch("Enable")
+        self._chk_professional.setFixedSize(38, 22)
         self._chk_professional.setChecked(self.settings.professional_mode)
         self._chk_professional.toggled.connect(self._on_professional_toggled)
         self._combo_pro_preset = QComboBox()
-        self._combo_pro_preset.setMaximumWidth(200)
+        self._combo_pro_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._combo_pro_preset.setEnabled(self.settings.professional_mode)
         self._populate_pro_preset_combo()
         self._combo_pro_preset.currentTextChanged.connect(self._on_pro_preset_quick_select)
-        pro_mode_layout.addWidget(self._chk_professional)
-        pro_mode_layout.addWidget(self._combo_pro_preset)
-        pro_mode_layout.addStretch()
-        pro_mode_group.setLayout(pro_mode_layout)
-        root.addWidget(pro_mode_group)
+        transcription_layout.addWidget(make_setting_row("Enable Professional Mode", self._chk_professional, transcription_section))
 
-        # History header with contextual Clear button
-        history_header = QHBoxLayout()
-        hist_label = QLabel("Transcription History")
-        _hfont = QFont(Font.FAMILY, Font.SECTION_HEADER[0])
-        _hfont.setWeight(QFont.Weight.DemiBold)
-        hist_label.setFont(_hfont)
-        hist_label.setStyleSheet(f"color: {Color.TEXT_HEADING};")
-        history_header.addWidget(hist_label)
-        history_header.addStretch()
-        self._btn_clear_history = QPushButton("\U0001f5d1  Clear History")
+        profile_label = QLabel("Profile")
+        profile_label.setStyleSheet(f"color: {Color.TEXT_HEADING}; background: transparent; font-weight: 600;")
+        transcription_layout.addWidget(profile_label)
+        transcription_layout.addWidget(self._combo_pro_preset)
+        root.addWidget(transcription_section)
+
+        # ── History ──────────────────────────────────────────────────────────
+        history_section, history_layout = make_section_panel("History", central, icon_name="history-document")
+        self._history_toggle_row = make_action_row("Show Transcription History", ">", history_section)
+        self._history_toggle_row.clicked.connect(self._on_toggle_history)
+        history_layout.addWidget(self._history_toggle_row)
+
+        self._btn_clear_history = QPushButton("Clear History")
+        self._btn_clear_history.setStyleSheet(primary_button_style())
         self._btn_clear_history.clicked.connect(self._on_clear_history)
-        history_header.addWidget(self._btn_clear_history)
-        root.addLayout(history_header)
+
+        history_actions = QHBoxLayout()
+        history_actions.setContentsMargins(0, 0, 0, 0)
+        history_actions.addStretch()
+        history_actions.addWidget(self._btn_clear_history)
 
         self._history_widget = QWidget()
         self._history_layout = QVBoxLayout(self._history_widget)
@@ -632,11 +683,16 @@ class MainWindow(QMainWindow):
         self._history_layout.setSpacing(Spacing.XS)
         self._history_layout.addStretch()
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(self._history_widget)
-        scroll.setMinimumHeight(200)
-        root.addWidget(scroll, stretch=1)
+        self._history_scroll = QScrollArea()
+        self._history_scroll.setWidgetResizable(True)
+        self._history_scroll.setWidget(self._history_widget)
+        self._history_scroll.setMinimumHeight(200)
+        self._history_scroll.setVisible(False)
+        self._btn_clear_history.setVisible(False)
+        history_layout.addLayout(history_actions)
+        history_layout.addWidget(self._history_scroll)
+        root.addWidget(history_section)
+        root.addStretch()
 
         # ── Hidden metric labels (updated by _on_metrics_result / _set_model_status,
         #    forwarded to the Developer Panel when open) ──────────────────────
@@ -651,14 +707,19 @@ class MainWindow(QMainWindow):
         self._log_text.setMaximumBlockCount(500)
 
         # ── Bottom buttons ───────────────────────────────────────────────────
-        bottom_row = QHBoxLayout()
-        bottom_row.setContentsMargins(0, Spacing.XS, 0, 0)
+        bottom_content, bottom_content_layout, bottom_outer = make_bounded_content(central)
+        bottom_content_layout.setSpacing(0)
+        bottom_row_widget = QWidget(bottom_content)
+        bottom_row = QHBoxLayout(bottom_row_widget)
+        bottom_row.setContentsMargins(0, 0, 0, 0)
         btn_quit = QPushButton("Quit")
-        btn_quit.setStyleSheet(danger_button_style())
+        btn_quit.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_quit.setStyleSheet(subtle_danger_button_style())
         btn_quit.clicked.connect(self.close)
         bottom_row.addStretch()
         bottom_row.addWidget(btn_quit)
-        root.addLayout(bottom_row)
+        bottom_content_layout.addWidget(bottom_row_widget)
+        root.addLayout(bottom_outer)
 
         # ── Global aesthetics ────────────────────────────────────────────────
         from .theme import Font
@@ -1007,13 +1068,44 @@ class MainWindow(QMainWindow):
         """Enable/disable and relabel the record toggle button based on dictation + model state."""
         is_idle = self._dictation_state == DictationState.IDLE
         is_recording = self._dictation_state == DictationState.RECORDING
+        is_processing = self._dictation_state == DictationState.PROCESSING
         model_ready = self._model_status in (ModelStatus.READY, ModelStatus.VALIDATED)
         if is_recording:
             self._btn_record.setEnabled(True)
-            self._btn_record.setText("\u23f9  Stop && Transcribe  (Ctrl+Alt+P)")
+            self._set_record_button_state("recording")
+        elif is_processing:
+            self._btn_record.setEnabled(False)
+            self._set_record_button_state("processing")
         else:
             self._btn_record.setEnabled(is_idle and model_ready)
-            self._btn_record.setText("\U0001f3a4  Start Recording  (Ctrl+Alt+P)")
+            self._set_record_button_state("idle" if model_ready else "disabled")
+
+    def _set_record_button_state(self, state: str) -> None:
+        from .theme import Color, primary_record_button_style
+
+        if state == "recording":
+            title = "Recording..."
+            status = "Recording"
+            dot_color = Color.DANGER
+        elif state == "processing":
+            title = "Transcribing..."
+            status = "Please wait"
+            dot_color = Color.INFO
+        elif state == "disabled":
+            title = "Start Recording"
+            status = "Please wait"
+            dot_color = Color.TEXT_MUTED
+        else:
+            title = "Start Recording"
+            status = "Ready"
+            dot_color = Color.SUCCESS
+
+        self._btn_record.setText("")
+        self._btn_record.setAccessibleName(f"{title}, {status}")
+        self._btn_record.setStyleSheet(primary_record_button_style(state))
+        self._record_title.setText(title)
+        self._record_dot.setStyleSheet(f"color: {dot_color}; background: transparent; font-weight: 700;")
+        self._record_status.setText(status)
 
     @Slot()
     def _on_toggle_recording(self) -> None:
@@ -1410,6 +1502,16 @@ class MainWindow(QMainWindow):
         )
         count = self._history_layout.count()
         self._history_layout.insertWidget(max(0, count - 1), entry)
+
+    @Slot()
+    def _on_toggle_history(self) -> None:
+        """Show or hide the compact in-window transcription history panel."""
+        visible = not self._history_scroll.isVisible()
+        self._history_scroll.setVisible(visible)
+        self._btn_clear_history.setVisible(visible)
+        self._history_toggle_row.setText(
+            "Hide Transcription History" if visible else "Show Transcription History"
+        )
 
     # ═════════════════════════════════════════════════════════════════════════
     # CLEAR LOGS & HISTORY

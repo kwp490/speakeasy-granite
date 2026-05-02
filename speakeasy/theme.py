@@ -88,7 +88,7 @@ class Font:
 
 class Size:
     BUTTON_HEIGHT = 36
-    BUTTON_HEIGHT_PRIMARY = 58     # Start Recording, prominent CTAs
+    BUTTON_HEIGHT_PRIMARY = 52     # Start Recording, prominent CTAs
     GEAR_BUTTON = 76               # settings button to right of record
     INPUT_HEIGHT = 36
     TAB_HEIGHT = 40
@@ -195,7 +195,9 @@ def app_stylesheet() -> str:
         QWidget#MainContent,
         QWidget#SectionContent,
         QWidget#RecordButtonContent,
-        QWidget#RecordButtonText {{
+        QWidget#RecordButtonText,
+        QWidget#StatusContent,
+        QWidget#StatusSegment {{
             background: transparent;
         }}
 
@@ -224,6 +226,12 @@ def app_stylesheet() -> str:
         }}
         QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
             border-color: {Color.PRIMARY};
+        }}
+
+        QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{
+            background-color: rgba(21, 38, 56, 0.38);
+            border-color: {Color.BORDER};
+            color: {Color.TEXT_DISABLED};
         }}
 
         QComboBox::drop-down {{ border: none; width: 20px; }}
@@ -338,10 +346,10 @@ def gear_button_style() -> str:
     """The settings button next to Start Recording."""
     return f"""
         QToolButton, QPushButton {{
-            background-color: transparent;
+            background-color: rgba(21, 38, 56, 0.72);
             color: {Color.TEXT_BODY};
             font-size: {Font.BODY[0]}pt;
-            border: 1px solid transparent;
+            border: 1px solid {Color.BORDER};
             border-radius: {Size.BORDER_RADIUS_LG}px;
             padding: {Spacing.SM}px;
         }}
@@ -471,15 +479,20 @@ def compact_status_bar_style() -> str:
     """
 
 
-
-def primary_record_button_style(recording: bool = False, processing: bool = False) -> str:
+def primary_record_button_style(state: str = "idle") -> str:
     """Primary Start Recording button style with state variants."""
-    if recording:
+    if state == "recording":
         bg, bg_hover, bg_pressed = Color.DANGER, Color.DANGER_HOVER, Color.DANGER_HOVER
-    elif processing:
-        bg = bg_hover = bg_pressed = Color.PANEL_ELEVATED
+        border = "rgba(248, 113, 113, 0.42)"
+    elif state == "processing":
+        bg, bg_hover, bg_pressed = Color.PANEL_ELEVATED, Color.PANEL_HOVER, Color.BORDER
+        border = Color.BORDER_SUBTLE
+    elif state == "disabled":
+        bg, bg_hover, bg_pressed = Color.PANEL_ELEVATED, Color.PANEL_ELEVATED, Color.PANEL_ELEVATED
+        border = Color.BORDER
     else:
         bg, bg_hover, bg_pressed = Color.PRIMARY, Color.PRIMARY_HOVER, Color.PRIMARY_PRESSED
+        border = "rgba(96, 165, 250, 0.28)"
     return f"""
         QPushButton {{
             background-color: qlineargradient(
@@ -490,10 +503,10 @@ def primary_record_button_style(recording: bool = False, processing: bool = Fals
             color: {Color.TEXT_PRIMARY};
             font-size: {Font.SECTION_HEADER[0]}pt;
             font-weight: bold;
-            border: 1px solid rgba(96, 165, 250, 0.28);
+            border: 1px solid {border};
             border-radius: {Size.BORDER_RADIUS_LG}px;
             min-height: {Size.BUTTON_HEIGHT_PRIMARY}px;
-            padding: {Spacing.SM}px {Spacing.LG}px;
+            padding: 0 {Spacing.LG}px;
         }}
         QPushButton:hover {{ background-color: {bg_hover}; }}
         QPushButton:pressed {{ background-color: {bg_pressed}; }}
@@ -504,16 +517,58 @@ def primary_record_button_style(recording: bool = False, processing: bool = Fals
     """
 
 
+def make_bounded_content(
+    parent: QWidget = None,
+    max_width: int = Size.SETTING_ROW_MAX_WIDTH,
+) -> tuple[QWidget, QVBoxLayout, QHBoxLayout]:
+    """Create a centered bounded content area inside a stretch row."""
+    row = QHBoxLayout()
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(0)
+
+    content = QWidget(parent)
+    content.setObjectName("SectionContent")
+    content.setMaximumWidth(max_width)
+    content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+    content_layout = QVBoxLayout(content)
+    content_layout.setContentsMargins(0, 0, 0, 0)
+    content_layout.setSpacing(Spacing.MD)
+
+    row.addStretch()
+    row.addWidget(content, 100)
+    row.addStretch()
+    return content, content_layout, row
+
+
+def make_separator(parent: QWidget = None) -> QFrame:
+    """Subtle horizontal separator between rows."""
+    separator = QFrame(parent)
+    separator.setObjectName("SettingSeparator")
+    separator.setFrameShape(QFrame.Shape.HLine)
+    separator.setFrameShadow(QFrame.Shadow.Plain)
+    separator.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    separator.setFixedHeight(1)
+    separator.setStyleSheet(f"color: {Color.BORDER}; background: transparent;")
+    return separator
+
+
 def subtle_danger_button_style() -> str:
     """Low-emphasis Quit button style."""
     return f"""
         QPushButton {{
             background-color: transparent;
-            border: none;
+            border: 1px solid rgba(239, 68, 68, 0.48);
+            border-radius: {Size.BORDER_RADIUS_SM}px;
             color: {Color.DANGER};
-            padding: {Spacing.XS}px {Spacing.SM}px;
+            padding: {Spacing.XS}px {Spacing.MD}px;
         }}
-        QPushButton:hover {{ color: {Color.DANGER_HOVER}; }}
+        QPushButton:hover {{
+            background-color: rgba(239, 68, 68, 0.12);
+            border-color: {Color.DANGER};
+            color: {Color.DANGER_HOVER};
+        }}
+        QPushButton:pressed {{ background-color: rgba(239, 68, 68, 0.18); }}
     """
 
 
@@ -584,14 +639,7 @@ def make_setting_row(
     outer.addWidget(row_inner)
 
     if show_separator:
-        separator = QFrame(container)
-        separator.setObjectName("SettingSeparator")
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Plain)
-        separator.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        separator.setFixedHeight(1)
-        separator.setStyleSheet(f"color: {Color.BORDER}; background: transparent;")
-        outer.addWidget(separator)
+        outer.addWidget(make_separator(container))
 
     return container
 
@@ -625,20 +673,7 @@ def make_section_panel(
     header.addWidget(title_label)
     header.addStretch()
     outer.addLayout(header)
-    content = QVBoxLayout()
-    content_widget = QWidget(frame)
-    content_widget.setObjectName("SectionContent")
-    content_widget.setMaximumWidth(Size.SETTING_ROW_MAX_WIDTH)
-    content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-    content_widget.setLayout(content)
-    content.setContentsMargins(0, 0, 0, 0)
-    content.setSpacing(Spacing.MD)
-    content_row = QHBoxLayout()
-    content_row.setContentsMargins(0, 0, 0, 0)
-    content_row.setSpacing(0)
-    content_row.addStretch()
-    content_row.addWidget(content_widget, 100)
-    content_row.addStretch()
+    _, content, content_row = make_bounded_content(frame)
     outer.addLayout(content_row)
     return frame, content
 
@@ -668,12 +703,12 @@ def make_action_row(
             self.setObjectName("ActionRow")
             self.setStyleSheet(f"""
                 QWidget#ActionRow {{
-                    background-color: rgba(21, 38, 56, 0.72);
-                    border: 1px solid {Color.BORDER};
-                    border-radius: {Size.BORDER_RADIUS_MD}px;
+                    background-color: transparent;
+                    border: 1px solid transparent;
+                    border-radius: {Size.BORDER_RADIUS_SM}px;
                 }}
                 QWidget#ActionRow:hover {{
-                    background-color: rgba(27, 49, 71, 0.84);
+                    background-color: rgba(27, 49, 71, 0.62);
                     border-color: {Color.BORDER_SUBTLE};
                 }}
             """)

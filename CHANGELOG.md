@@ -5,6 +5,24 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - Record Button State Machine & UI Polish
+
+### Changed
+- **Record button state machine** (`main_window.py`): replaced static text labels with a proper state-driven `_set_record_button_state()` method supporting `idle`, `recording`, `processing`, and `disabled` states; button now shows an icon, title, colored dot, and status text inside an `HBoxLayout` overlay
+- **Record button** gains a `processing` state that disables the button and shows a spinner-style dot while the engine is transcribing
+- **Status segment hover** (`status_pills.py`): clickable segments now show a subtle background on hover via QSS; layout alignment changed from `addStretch` bookends to `AlignCenter`
+- **`primary_record_button_style()`** (`theme.py`): signature changed from `(recording, processing)` booleans to a single `state: str` parameter (`"idle"`, `"recording"`, `"processing"`, `"disabled"`); per-state border colors added
+- **`gear_button_style()`**: button background changed from `transparent` to a subtle panel color with visible border for discoverability
+- **`subtle_danger_button_style()`**: Quit button gains a faint red border and hover background
+- **`make_bounded_content()`** helper extracted to `theme.py` for reuse in record-row and bottom-row centering
+- **`make_separator()`** helper extracted to `theme.py` to eliminate duplicated `QFrame` setup
+- **`make_section_panel()`** refactored to use `make_bounded_content()` internally
+- **`make_action_row()`** default background changed from opaque panel to transparent with hover-only fill
+- **Disabled input styles** added to global QSS for `QLineEdit`, `QComboBox`, `QSpinBox`, `QDoubleSpinBox`
+- **History panel** is now collapsed by default; a `_on_toggle_history` slot toggles scroll area and Clear button visibility
+- Main window `_build_ui` reorganized into named sections: Automation, Transcription Mode, History with `make_section_panel()` wrappers; `QGroupBox` for Professional Mode replaced
+- `SIZE.BUTTON_HEIGHT_PRIMARY` reduced from 58 → 52 px
+
 ## [0.8.0] - UI Redesign, CUDA Thread Fix & Public Model Download
 
 ### Added

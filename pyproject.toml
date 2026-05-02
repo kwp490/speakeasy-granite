@@ -7,7 +7,7 @@ packages = ["speakeasy"]
 
 [project]
 name = "speakeasy-granite"
-version = "0.8.0"
+version = "0.8.1"
 description = "SpeakEasy AI Granite — Native Windows speech-to-text and speech translation with IBM Granite Speech"
 readme = "README.md"
 license = "MIT"
