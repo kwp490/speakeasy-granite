@@ -516,8 +516,8 @@ class MainWindow(QMainWindow):
 
         # ── Build UI ─────────────────────────────────────────────────────────
         self.setWindowTitle("SpeakEasy AI Granite — Voice to Text")
-        self.setMinimumSize(640, 700)
-        self.resize(720, 820)
+        self.setMinimumSize(640, 620)
+        self.resize(720, 720)
         self._build_ui()
         self._setup_logging()
         self._setup_timers()
@@ -557,7 +557,6 @@ class MainWindow(QMainWindow):
             make_bounded_content,
             make_section_panel,
             make_setting_row,
-            primary_button_style,
             primary_record_button_style,
             subtle_danger_button_style,
         )
@@ -565,8 +564,8 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-        root.setSpacing(Spacing.SECTION)
+        root.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
+        root.setSpacing(Spacing.MD)
 
         # ── Transcription section (dominant) ─────────────────────────────────
         self._btn_record = QPushButton()
@@ -576,12 +575,12 @@ class MainWindow(QMainWindow):
         self._btn_record.clicked.connect(self._on_toggle_recording)
 
         record_button_layout = QHBoxLayout(self._btn_record)
-        record_button_layout.setContentsMargins(Spacing.LG, 0, Spacing.LG, 0)
-        record_button_layout.setSpacing(Spacing.MD)
+        record_button_layout.setContentsMargins(Spacing.MD, 0, Spacing.MD, 0)
+        record_button_layout.setSpacing(Spacing.SM)
         record_button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._record_icon = QLabel()
-        icon_size = 30
+        icon_size = 26
         self._record_icon.setPixmap(load_icon("microphone-white").pixmap(QSize(icon_size, icon_size)))
         self._record_icon.setFixedSize(icon_size, icon_size)
         self._record_icon.setStyleSheet("background: transparent;")
@@ -618,7 +617,6 @@ class MainWindow(QMainWindow):
         self._btn_dev_panel.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self._btn_dev_panel.setToolTip("Open Developer Panel")
         self._btn_dev_panel.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_dev_panel.setFixedSize(Size.BUTTON_HEIGHT_PRIMARY, Size.BUTTON_HEIGHT_PRIMARY)
         self._btn_dev_panel.setMinimumSize(Size.GEAR_BUTTON, Size.BUTTON_HEIGHT_PRIMARY)
         self._btn_dev_panel.setMaximumSize(16777215, Size.BUTTON_HEIGHT_PRIMARY)
         self._btn_dev_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -654,7 +652,7 @@ class MainWindow(QMainWindow):
 
         # ── Transcription Mode ───────────────────────────────────────────────
         transcription_section, transcription_layout = make_section_panel("Transcription Mode", central, icon_name="sparkles")
-        self._chk_professional = ToggleSwitch("Enable")
+        self._chk_professional = ToggleSwitch()
         self._chk_professional.setFixedSize(38, 22)
         self._chk_professional.setChecked(self.settings.professional_mode)
         self._chk_professional.toggled.connect(self._on_professional_toggled)
@@ -665,10 +663,16 @@ class MainWindow(QMainWindow):
         self._combo_pro_preset.currentTextChanged.connect(self._on_pro_preset_quick_select)
         transcription_layout.addWidget(make_setting_row("Enable Professional Mode", self._chk_professional, transcription_section))
 
+        profile_row = QWidget(transcription_section)
+        profile_row.setFixedHeight(Size.INPUT_HEIGHT)
+        profile_row_layout = QHBoxLayout(profile_row)
+        profile_row_layout.setContentsMargins(0, 0, 0, 0)
+        profile_row_layout.setSpacing(Spacing.SM)
         profile_label = QLabel("Profile")
         profile_label.setStyleSheet(f"color: {Color.TEXT_HEADING}; background: transparent; font-weight: 600;")
-        transcription_layout.addWidget(profile_label)
-        transcription_layout.addWidget(self._combo_pro_preset)
+        profile_row_layout.addWidget(profile_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        profile_row_layout.addWidget(self._combo_pro_preset, 1, Qt.AlignmentFlag.AlignVCenter)
+        transcription_layout.addWidget(profile_row)
         root.addWidget(transcription_section)
 
         # ── History ──────────────────────────────────────────────────────────
@@ -678,7 +682,7 @@ class MainWindow(QMainWindow):
         history_layout.addWidget(self._history_toggle_row)
 
         self._btn_clear_history = QPushButton("Clear History")
-        self._btn_clear_history.setStyleSheet(primary_button_style())
+        self._btn_clear_history.setMinimumHeight(Size.BUTTON_HEIGHT)
         self._btn_clear_history.clicked.connect(self._on_clear_history)
 
         history_actions = QHBoxLayout()
@@ -695,7 +699,7 @@ class MainWindow(QMainWindow):
         self._history_scroll = QScrollArea()
         self._history_scroll.setWidgetResizable(True)
         self._history_scroll.setWidget(self._history_widget)
-        self._history_scroll.setMinimumHeight(200)
+        self._history_scroll.setMinimumHeight(120)
         self._history_scroll.setVisible(False)
         self._btn_clear_history.setVisible(False)
         history_layout.addLayout(history_actions)

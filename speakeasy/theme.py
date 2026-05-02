@@ -88,15 +88,15 @@ class Font:
 
 class Size:
     BUTTON_HEIGHT = 36
-    BUTTON_HEIGHT_PRIMARY = 64     # Start Recording, prominent CTAs
-    GEAR_BUTTON = 76               # settings button minimum width
+    BUTTON_HEIGHT_PRIMARY = 56     # Start Recording, prominent CTAs
+    GEAR_BUTTON = 68               # settings button minimum width
     INPUT_HEIGHT = 36
     TAB_HEIGHT = 40
     PROGRESS_BAR_HEIGHT = 6        # thin bars in Realtime Data
     STATUS_DOT = 8                 # colored dots in status row
     STATUS_ICON_CARD = 24
     STATUS_ICON_PILL = 18
-    STATUS_CARD_MIN_HEIGHT = 52
+    STATUS_CARD_MIN_HEIGHT = 44
     STATUS_PILL_MIN_HEIGHT = 28
     STATUS_LAYOUT_THRESHOLD = 640
     SETTING_ROW_MAX_WIDTH = 560
@@ -324,7 +324,7 @@ def primary_button_style() -> str:
             border: 1px solid rgba(96, 165, 250, 0.28);
             border-radius: {Size.BORDER_RADIUS_LG}px;
             min-height: {Size.BUTTON_HEIGHT_PRIMARY}px;
-            padding: {Spacing.SM}px {Spacing.LG}px;
+            padding: {Spacing.XS}px {Spacing.MD}px;
         }}
         QPushButton:hover {{
             background-color: qlineargradient(
@@ -533,7 +533,7 @@ def make_bounded_content(
 
     content_layout = QVBoxLayout(content)
     content_layout.setContentsMargins(0, 0, 0, 0)
-    content_layout.setSpacing(Spacing.MD)
+    content_layout.setSpacing(Spacing.XS)
 
     row.addStretch()
     row.addWidget(content, 100)
@@ -586,13 +586,13 @@ def make_setting_row(
     container = QWidget(parent)
     container.setObjectName("SettingRow")
     row_height = Size.SETTING_ROW_STACKED_HEIGHT if stacked else Size.SETTING_ROW_HEIGHT
-    separator_height = Spacing.SM + 1 if show_separator else 0
+    separator_height = Spacing.XS + 1 if show_separator else 0
     container.setFixedHeight(row_height + separator_height)
     container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     outer = QVBoxLayout(container)
     outer.setContentsMargins(0, 0, 0, 0)
-    outer.setSpacing(Spacing.SM)
+    outer.setSpacing(Spacing.XS)
 
     row_inner = QWidget(container)
     row_inner.setObjectName("SettingRowInner")
@@ -654,8 +654,8 @@ def make_section_panel(
     frame.setObjectName("SectionPanel")
     frame.setStyleSheet(section_panel_style())
     outer = QVBoxLayout(frame)
-    outer.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-    outer.setSpacing(Spacing.MD)
+    outer.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
+    outer.setSpacing(Spacing.SM)
     header = QHBoxLayout()
     header.setContentsMargins(0, 0, 0, 0)
     header.setSpacing(Spacing.SM)
@@ -698,7 +698,7 @@ def make_action_row(
         def __init__(self, label: str, trailing: str, p: QWidget) -> None:
             super().__init__(p)
             self.setCursor(Qt.CursorShape.PointingHandCursor)
-            self.setFixedHeight(36)
+            self.setFixedHeight(32)
             self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             self.setObjectName("ActionRow")
             self.setStyleSheet(f"""

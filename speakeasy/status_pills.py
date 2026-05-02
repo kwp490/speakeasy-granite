@@ -20,6 +20,7 @@ from .theme import (
     Color,
     Font,
     Motion,
+    Size,
     Spacing,
     compact_status_bar_style,
     load_icon,
@@ -123,7 +124,7 @@ class _StatusSegment(QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         icon_label = QLabel()
-        icon_size = 22
+        icon_size = 20
         pixmap = load_icon(icon_name).pixmap(QSize(icon_size, icon_size))
         icon_label.setPixmap(pixmap)
         icon_label.setFixedSize(icon_size, icon_size)
@@ -236,15 +237,15 @@ class StatusPillBar(QWidget):
         self._container = QFrame(self)
         self._container.setObjectName("CompactStatusBar")
         self._container.setStyleSheet(compact_status_bar_style())
-        self._container.setMinimumHeight(52)
+        self._container.setMinimumHeight(Size.STATUS_CARD_MIN_HEIGHT)
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(self._container)
 
         layout = QHBoxLayout(self._container)
-        layout.setContentsMargins(Spacing.LG, Spacing.SM, Spacing.LG, Spacing.SM)
-        layout.setSpacing(Spacing.MD)
+        layout.setContentsMargins(Spacing.MD, Spacing.XS, Spacing.MD, Spacing.XS)
+        layout.setSpacing(Spacing.SM)
 
         self._ai_segment = _StatusSegment(
             "brain", "Model", clickable=True, accessible_name="AI Model",
@@ -274,7 +275,7 @@ class StatusPillBar(QWidget):
         sep.setFrameShadow(QFrame.Shadow.Plain)
         sep.setStyleSheet(f"background-color: {Color.BORDER_SUBTLE}; border: none;")
         sep.setFixedWidth(2)
-        sep.setFixedHeight(34)
+        sep.setFixedHeight(28)
         return sep
 
     def set_ai_model(self, name: str, device: str, status: Any, fallback: bool) -> None:

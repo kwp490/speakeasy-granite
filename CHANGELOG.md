@@ -5,6 +5,25 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - Compact Layout Pass
+
+### Changed
+- **Window size** reduced: minimum 640×700 → 640×620, default resize 720×820 → 720×720
+- **Root layout** margins/spacing tightened: `LG/SECTION` → `MD/MD`
+- **Record button**: icon 30 → 26 px; internal spacing `LG/MD` → `MD/SM`; removed redundant `setFixedSize` on gear button (now uses `setMinimumSize` + `setMaximumSize` only)
+- **Status bar container** minimum height 52 → `STATUS_CARD_MIN_HEIGHT` (44 px); internal padding `LG/SM` → `MD/XS`; separator height 34 → 28 px; icon size 22 → 20 px
+- **`SIZE` constants**: `BUTTON_HEIGHT_PRIMARY` 64 → 56 px; `GEAR_BUTTON` 76 → 68 px; `STATUS_CARD_MIN_HEIGHT` 52 → 44 px
+- **`make_section_panel()`** margins/spacing `LG/MD` → `MD/SM`
+- **`make_setting_row()`** separator height and outer spacing use `XS` instead of `SM`
+- **`make_bounded_content()`** inner spacing `MD` → `XS`
+- **`make_action_row()`** height 36 → 32 px
+- **`primary_button_style()`** padding `SM/LG` → `XS/MD`
+- **Profile combo** in Transcription Mode section placed in a fixed-height `QHBoxLayout` row alongside a "Profile" label instead of two separate stacked widgets
+- **`_chk_professional`** constructed without label text (`ToggleSwitch()` instead of `ToggleSwitch("Enable")`) — label is supplied by the `make_setting_row` call
+- **Clear History button** uses default style + `setMinimumHeight` instead of `primary_button_style()`
+- **History scroll area** minimum height 200 → 120 px
+- **Tests updated**: layout assertions aligned to new sizes and API (`test_main_window_layout.py`, `test_developer_panel_window.py`, `test_developer_panel_live.py`)
+
 ## [0.8.2] - Record Button & Status Bar Refinements
 
 ### Changed

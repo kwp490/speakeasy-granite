@@ -63,9 +63,10 @@ class TestDevPanelLayoutAST:
         src = self._mw_method_source("_build_ui")
         assert "setCheckable(True)" in src
 
-    def test_gear_button_fixed_size_48x48(self):
+    def test_gear_button_uses_compact_height(self):
         src = self._mw_method_source("_build_ui")
-        assert "setFixedSize(Size.BUTTON_HEIGHT_PRIMARY, Size.BUTTON_HEIGHT_PRIMARY)" in src
+        assert "setMinimumSize(Size.GEAR_BUTTON, Size.BUTTON_HEIGHT_PRIMARY)" in src
+        assert "setMaximumSize(16777215, Size.BUTTON_HEIGHT_PRIMARY)" in src
 
     # ── Toggle method exists ─────────────────────────────────────────────────
 

@@ -60,15 +60,21 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_build_ui")
         self.assertIn("setMinimumHeight(Size.BUTTON_HEIGHT_PRIMARY)", src)
 
-    def test_start_button_font_increased(self):
-        """Start/Stop buttons must use primary_button_style."""
+    def test_start_button_uses_record_style(self):
+        """Start/Stop button must use the dedicated record button style."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("primary_button_style()", src)
+        self.assertIn('primary_record_button_style("idle")', src)
 
-    def test_history_min_height_increased(self):
-        """History scroll area must have minimumHeight >= 200."""
+    def test_history_min_height_compact(self):
+        """History scroll area must keep a compact minimum height."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("setMinimumHeight(200)", src)
+        self.assertIn("setMinimumHeight(120)", src)
+
+    def test_window_target_size_is_compact(self):
+        """Main window must use the compact requested default and minimum sizes."""
+        src = self._get_method_source("__init__")
+        self.assertIn("setMinimumSize(640, 620)", src)
+        self.assertIn("resize(720, 720)", src)
 
     def test_no_lbl_dictation_state_in_build_ui(self):
         """_lbl_dictation_state must not be created in _build_ui."""
@@ -284,7 +290,7 @@ class TestLayoutStructure(unittest.TestCase):
         """_chk_professional toggle must be created in _build_ui."""
         src = self._get_method_source("_build_ui")
         self.assertIn("self._chk_professional", src)
-        self.assertIn('ToggleSwitch("Enable")', src)
+        self.assertIn("self._chk_professional = ToggleSwitch()", src)
 
     def test_chk_professional_connected_to_toggled(self):
         """_chk_professional must be connected to _on_professional_toggled."""
@@ -400,6 +406,19 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         finally:
             win.close()
 
+    def test_window_compact_size_target(self):
+        """The initial layout must fit within the compact window target."""
+        win = self._make_window()
+        try:
+            layout = win.centralWidget().layout()
+            layout.activate()
+            self.assertEqual(win.minimumSize().width(), 640)
+            self.assertEqual(win.minimumSize().height(), 620)
+            self.assertLessEqual(layout.minimumSize().height(), 620)
+            self.assertLessEqual(win.size().height(), 720)
+        finally:
+            win.close()
+
     def test_start_button_height(self):
         """Record button must have minimum height >= 48."""
         win = self._make_window()
@@ -423,7 +442,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         win = self._make_window()
         try:
             self.assertIsNotNone(win._chk_professional)
-            self.assertEqual(win._chk_professional.text(), "Enable")
+            self.assertEqual(win._chk_professional.text(), "")
         finally:
             win.close()
 
