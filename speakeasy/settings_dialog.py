@@ -222,26 +222,6 @@ class SettingsWidget(QWidget):
         )
         ux_form.addRow(make_toggle_row("Enable global hotkeys", self._hotkeys_enabled))
 
-        self._streaming_partials = ToggleSwitch("")
-        _streaming_tip = (
-            "Shows a low-latency preview while speaking. Copy/paste happens\n"
-            "only when the final transcription is complete."
-        )
-        if VARIANT == "cpu":
-            _streaming_tip += (
-                "\n\nNote: on CPU builds each chunk takes longer to render\n"
-                "than on GPU; disable this if your machine is slow."
-            )
-        self._streaming_partials.setToolTip(_streaming_tip)
-        ux_form.addRow(make_toggle_row("Live transcription", self._streaming_partials))
-        self._streaming_description = QLabel(
-            "Shows a low-latency preview while speaking. Copy/paste happens only when "
-            "the final transcription is complete."
-        )
-        self._streaming_description.setWordWrap(True)
-        self._streaming_description.setStyleSheet(f"color: {Color.TEXT_MUTED};")
-        ux_form.addRow(self._streaming_description)
-
         layout.addWidget(ux_section)
 
         # ── Hotkeys section ──────────────────────────────────────────────────
@@ -315,7 +295,6 @@ class SettingsWidget(QWidget):
         self._hotkey_start.setText(s.hotkey_start)
         self._hotkey_quit.setText(s.hotkey_quit)
         self._hotkey_dev_panel.setText(s.hotkey_dev_panel)
-        self._streaming_partials.setChecked(s.streaming_partials_enabled)
 
         idx = self._mic_combo.findData(s.mic_device_index)
         if idx >= 0:
@@ -340,7 +319,6 @@ class SettingsWidget(QWidget):
         self._hotkey_start.textChanged.connect(self._on_any_changed)
         self._hotkey_quit.textChanged.connect(self._on_any_changed)
         self._hotkey_dev_panel.textChanged.connect(self._on_any_changed)
-        self._streaming_partials.toggled.connect(self._on_any_changed)
         self._mic_combo.currentIndexChanged.connect(self._on_any_changed)
         self._device_combo.currentTextChanged.connect(self._on_any_changed)
 
@@ -364,7 +342,6 @@ class SettingsWidget(QWidget):
             or (self._hotkey_start.text().strip() or "ctrl+alt+p") != s.get("hotkey_start")
             or (self._hotkey_quit.text().strip() or "ctrl+alt+q") != s.get("hotkey_quit")
             or (self._hotkey_dev_panel.text().strip() or "ctrl+alt+d") != s.get("hotkey_dev_panel")
-            or self._streaming_partials.isChecked() != s.get("streaming_partials_enabled")
             or self._mic_combo.currentData() != s.get("mic_device_index")
         )
 
@@ -385,7 +362,6 @@ class SettingsWidget(QWidget):
         s.hotkey_start = self._hotkey_start.text().strip() or "ctrl+alt+p"
         s.hotkey_quit = self._hotkey_quit.text().strip() or "ctrl+alt+q"
         s.hotkey_dev_panel = self._hotkey_dev_panel.text().strip() or "ctrl+alt+d"
-        s.streaming_partials_enabled = self._streaming_partials.isChecked()
         s.mic_device_index = self._mic_combo.currentData()
         s.save()
 
@@ -436,7 +412,6 @@ class SettingsWidget(QWidget):
         self._hotkey_start.setText(defaults.hotkey_start)
         self._hotkey_quit.setText(defaults.hotkey_quit)
         self._hotkey_dev_panel.setText(defaults.hotkey_dev_panel)
-        self._streaming_partials.setChecked(defaults.streaming_partials_enabled)
 
 
 class AdvancedSettingsWidget(QWidget):

@@ -24,13 +24,11 @@ class _StubEngine(SpeechEngine):
 
     def _transcribe_impl(self, audio_16k: np.ndarray, language: str,
                           punctuation: bool = True,
-                          timeout: float = 30.0,
-                          partial_callback=None) -> str:
+                          timeout: float = 30.0) -> str:
         self.last_kwargs = {
             "language": language,
             "punctuation": punctuation,
             "timeout": timeout,
-            "partial_callback": partial_callback,
         }
         return "hello world"
 
@@ -83,23 +81,6 @@ class TestSpeechEngineContract(unittest.TestCase):
     def test_vram_estimate(self):
         engine = _StubEngine()
         self.assertEqual(engine.vram_estimate_gb, 1.0)
-
-    def test_transcribe_forwards_partial_callback(self):
-        """``partial_callback`` must be passed through untouched to ``_transcribe_impl``."""
-        engine = _StubEngine()
-        engine.load("/dummy")
-        cb = lambda text, i, n: None  # noqa: E731
-        audio = np.zeros(16000, dtype=np.float32)
-        engine.transcribe(audio, 16000, partial_callback=cb)
-        self.assertIs(engine.last_kwargs["partial_callback"], cb)
-
-    def test_transcribe_default_partial_callback_is_none(self):
-        engine = _StubEngine()
-        engine.load("/dummy")
-        audio = np.zeros(16000, dtype=np.float32)
-        engine.transcribe(audio, 16000)
-        self.assertIsNone(engine.last_kwargs["partial_callback"])
-
 
 class TestEngineRegistryHasEngines(unittest.TestCase):
     """The engine registry must contain at least one engine."""

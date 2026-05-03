@@ -5,6 +5,32 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - Streaming Partials Removed, Settings Migration
+
+### Removed
+- **Streaming partials / live-draft transcription** fully removed: `streaming_partials_enabled` setting, `WorkerSignals.partial` signal, `PartialCallback` type alias, `partial_callback` parameter from `SpeechEngine.transcribe()` / `_transcribe_impl()`, `_on_transcription_partial()` slot, `_active_draft_entry` state, and `is_draft` / `set_text` / `set_progress` / `mark_final` / `mark_error` draft API from `_HistoryEntry`
+- **Live transcription toggle** removed from `SettingsWidget` UX section
+- `_DRAFT_ICON` / draft styling code removed from `history_widget.py`
+
+### Added
+- **Settings migration** (`config.py`): `Settings.load()` now detects and silently removes a set of deprecated transcription-preview keys (`streaming_partials_enabled`, `live_transcription_enabled`, etc.) from the JSON file on load, rewriting the file without those keys
+
+### Changed
+- **`dev_panel_height` default** updated 1131 → 880 px; clamp floor updated to match
+- **`SpeechEngine._transcribe_impl()`** and `transcribe()` signatures drop `partial_callback`; `base.py` removes `PartialCallback` and `Callable`/`Optional` imports
+- **`GraniteTranscribeEngine._transcribe_impl()`**: per-chunk partial callback call removed; `total` and `index` variables simplified
+- **Copilot instructions** updated: streaming partials section replaced with concise final-result-only transcription flow description
+- **README**: translation targets list corrected (Portuguese removed); architecture note updated to reflect final-result-only chunking
+- **CHANGELOG 0.5.0** entry rewritten to note the feature has since been removed
+
+### Tests
+- `test_config.py`: `streaming_partials_enabled` default test removed; replaced with migration test covering all deprecated key variants
+- `test_config_persistence.py`: height default updated 1131 → 880
+- `test_engine_base.py`: `partial_callback` forwarding tests removed; `_StubEngine._transcribe_impl` signature cleaned up
+- `test_granite_transcribe.py`: `test_long_audio_fires_partials` replaced with `test_long_audio_chunks_and_stitches_final_result`
+- `test_main_window_layout.py`: `TestStreamingPartials` suite replaced with `TestFinalHistoryEntries` (two simplified final-entry tests)
+- `test_settings_widget.py`: streaming partials toggle test replaced with `test_transcription_preview_controls_removed`
+
 ## [0.10.0] - Advanced Settings Tab, Formatting Style & Settings Refactor
 
 ### Added
@@ -25,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`Settings._VALID_LANGUAGES`** added with explicit set; unknown language codes fall back to `"en"` with a warning
 - **`main_window.py`** passes `formatting_style` to `configure_prompt_options()` before transcription
 - **README** updated with `formatting_style` field, expanded language/translation notes, and Granite prompt-driven behavior description
+
+### Removed
+- Former draft-result transcription UI and settings were removed. Dictation now records a completed utterance, produces one final transcription, then copies and optionally pastes that final text.
 
 ### Tests
 - `test_config.py`: added `formatting_style` round-trip, auto-language validation, invalid language/translation-target/formatting-style fallback tests
@@ -55,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.9.1] - Bug Fixes and Test Alignment
 
 ### Fixed
-- **Duplicate `set_progress` call** in `_on_transcription_partial()` removed (called twice in v0.9.0)
+- Duplicate history progress update call removed (called twice in v0.9.0)
 - **Stray panel-toggle code** at the end of `_flush_history_buffer()` removed — the hide/show block was accidentally left in the method after the `_on_toggle_dev_panel()` refactor in v0.9.0, causing the panel to always open/close after flushing buffered history entries
 
 ### Changed
@@ -66,7 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `test_history_min_height_compact` replaced by `test_history_widget_has_scroll_area` (checks `history_widget.py`)
   - `test_clear_history_button_in_build_ui` replaced by `test_clear_history_button_in_history_widget`
   - `_history_entries()` helper updated to import `_HistoryEntry` from `history_widget` and read from `dev_panel.history_widget.history_layout`
-  - `test_no_partial_creates_plain_entry` now calls `win._ensure_dev_panel()` first so the history layout exists
+  - Plain history-entry test now calls `win._ensure_dev_panel()` first so the history layout exists
   - `mock_main_window` fixture adds `_on_clear_history` mock
 
 ## [0.9.0] - History Moved to Developer Panel Tab
@@ -83,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`_HistoryEntry` and `_WordWrapLabel`** moved from `main_window.py` into `history_widget.py`; `main_window.py` imports them from there at call sites
 - **Inline history section removed** from `_build_ui()`: the `History` `SectionPanel`, scroll area, toggle row, and Clear button inside the main window are gone; history lives exclusively in the Developer Panel tab
 - **`_on_toggle_dev_panel()`** refactored to call `_ensure_dev_panel()` then toggle visibility, removing duplicated panel-creation code
-- **`_active_draft_entry`** type annotation relaxed to bare `None` (no longer `Optional[_HistoryEntry]`) since the type is now imported lazily
+- Intermediate history state type annotation relaxed to bare `None` since the history entry type is imported lazily
 - History entries are inserted into `hw.history_layout` / `hw.history_content` (Developer Panel) rather than `self._history_layout` / `self._history_widget`
 - `_on_clear_history()` clears `_history_buffer` and delegates layout clearing to the panel's `HistoryWidget` if the panel exists
 
@@ -226,7 +255,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Design token system** (`theme.py`): single source of truth for colors, typography, spacing, and stylesheet helpers
 - **`RealtimeDataWidget`**: live engine monitoring with RAM/VRAM usage, GPU temperature/utilization, and reload/validate actions
 - **`TokenSparkline`**: custom-painted line chart for real-time token throughput visualization
-- **`LogsWidget`**: application log display with real-time streaming from `QtLogHandler`
+- **`LogsWidget`**: application log display with continuous updates from `QtLogHandler`
 - **`ProModeWidget`**: embeddable Professional Mode UI for API key, preset, and instruction management
 - Six new developer panel settings: `dev_panel_open`, `dev_panel_active_tab`, `dev_panel_width`, `dev_panel_height`, `dev_panel_snapped`, `hotkey_dev_panel`
 - Dev dependencies: `pytest-qt`, `pytest-cov`, `pytest-mock`
@@ -267,22 +296,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.5.0] - Streaming Partials
+## [0.5.0] - Superseded Dictation Feedback
 
 ### Added
-- **Live-draft transcription**: long recordings (>30 s) now stream each internal
-  transcription chunk into the history pane as soon as it is ready, instead of
-  showing nothing until the entire recording has been transcribed. The draft
-  entry is updated in place and replaced by the authoritative stitched text
-  once the final chunk completes. Clipboard and auto-paste still fire exactly
-  once, on the final result. Controlled by the new
-  `streaming_partials_enabled` setting (default on; toggle in Settings)
-- **`SpeechEngine` partial-callback contract**: `transcribe()` / `_transcribe_impl()`
-  accept an optional `partial_callback(text, chunk_index, total_chunks)` which
-  the Granite engine invokes after each chunk of a multi-chunk transcription;
-  callback exceptions are logged and swallowed
-- **`WorkerSignals.partial(str, int, int)`** signal for routing per-chunk
-  updates from the engine worker to the UI thread via `Qt.QueuedConnection`
+- This release introduced an experimental in-progress history feedback path. That path has since been removed; current dictation behavior is final-result only.
 
 ---
 

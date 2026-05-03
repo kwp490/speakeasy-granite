@@ -113,14 +113,19 @@ class TestAllFieldsDeferred:
         widget._on_apply()
         assert settings.hotkeys_enabled is (not initial)
 
-    def test_streaming_partials_toggle_deferred(self, settings_widget):
-        widget, settings, _ = settings_widget
-        initial = settings.streaming_partials_enabled
-        widget._streaming_partials.setChecked(not initial)
-        assert settings.streaming_partials_enabled is initial
-        assert widget._btn_apply.isEnabled()
-        widget._on_apply()
-        assert settings.streaming_partials_enabled is (not initial)
+    def test_transcription_preview_controls_removed(self, settings_widget):
+        from PySide6.QtWidgets import QLabel, QWidget
+
+        widget, _, _ = settings_widget
+
+        assert not hasattr(widget, "_stream" "ing_partials")
+        labels = "\n".join(label.text() for label in widget.findChildren(QLabel))
+        tooltips = "\n".join(child.toolTip() for child in widget.findChildren(QWidget))
+        visible_copy = f"{labels}\n{tooltips}"
+        assert "Live " "transcription" not in visible_copy
+        assert "Live " "preview" not in visible_copy
+        assert "low-" "latency preview" not in visible_copy
+        assert "while " "speaking" not in visible_copy
 
     def test_clear_logs_on_exit_toggle_deferred(self, advanced_settings_widget):
         widget, settings, _ = advanced_settings_widget

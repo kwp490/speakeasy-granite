@@ -278,9 +278,6 @@ class MainWindow(QMainWindow):
         self._model_load_start: float = 0.0
         self._last_resume_time: float = 0.0
         self._mic_suspended_for_processing = False
-        # Live-draft history entry updated while the engine transcribes a
-        # multi-chunk recording; None outside of transcription.
-        self._active_draft_entry = None
         # Buffer for history entries added before the Developer Panel exists.
         self._history_buffer: list[tuple] = []
 
@@ -964,13 +961,8 @@ class MainWindow(QMainWindow):
 
         self._suspend_mic_stream_for_processing()
 
-        # Streaming partial emission: when enabled, the engine fires a
-        # callback after each chunk of a multi-chunk transcription. Route it
-        # to a Qt signal on the worker (thread-safe via QueuedConnection).
-        streaming_enabled = bool(self.settings.streaming_partials_enabled)
-
         # Heavy work on thread pool — NO clipboard ops here
-        def _process(_partial_emit=None):
+        def _process():
             # Trim silence
             trim_result = self._recorder.trim_silence(audio)
             if trim_result is None:
@@ -997,42 +989,13 @@ class MainWindow(QMainWindow):
                 trimmed, self.settings.sample_rate, self.settings.language,
                 punctuation=self.settings.punctuation,
                 timeout=self.settings.inference_timeout,
-                partial_callback=_partial_emit,
             )
             return text
 
         worker = Worker(_process)
         worker.signals.result.connect(self._on_transcription_result)
         worker.signals.error.connect(self._on_transcription_error)
-        if streaming_enabled:
-            worker.signals.partial.connect(
-                self._on_transcription_partial, Qt.ConnectionType.QueuedConnection
-            )
-            # Bind the worker's partial signal into the _process closure.
-            # QueuedConnection ensures the UI slot runs on the main thread.
-            worker.args = (worker.signals.partial.emit,)
         self._engine_pool.start(worker)
-
-    @Slot(str, int, int)
-    def _on_transcription_partial(self, text: str, chunk_index: int, total_chunks: int) -> None:
-        """Engine emitted a per-chunk partial transcription — show as draft."""
-        from .history_widget import _HistoryEntry
-
-        text = str(text).strip()
-        self._ensure_dev_panel()
-        hw = self._dev_panel.history_widget
-        if self._active_draft_entry is None:
-            ts = datetime.datetime.now().strftime("%H:%M:%S")
-            draft = _HistoryEntry(
-                ts, text, success=True, parent=hw.history_content,
-                is_draft=True,
-            )
-            count = hw.history_layout.count()
-            hw.history_layout.insertWidget(max(0, count - 1), draft)
-            self._active_draft_entry = draft
-        else:
-            self._active_draft_entry.set_text(text)
-        self._active_draft_entry.set_progress(chunk_index, total_chunks)
 
     @Slot(object)
     def _on_transcription_result(self, text: str) -> None:
@@ -1279,12 +1242,6 @@ class MainWindow(QMainWindow):
         original_text: Optional[str] = None,
     ) -> None:
         from .history_widget import _HistoryEntry
-
-        if self._active_draft_entry is not None:
-            draft = self._active_draft_entry
-            self._active_draft_entry = None
-            draft.mark_final(text, success=success, original_text=original_text)
-            return
 
         if self._dev_panel is None:
             self._history_buffer.append((timestamp, text, success, original_text))

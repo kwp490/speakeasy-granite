@@ -85,21 +85,12 @@ uv run python -m speakeasy                                # Run from source (nee
 - Cast floating processor outputs to model dtype before `generate()`.
 - Use Python threads, never QThreadPool.
 
-### Streaming partials (live-draft transcription)
-- Long recordings are chunked inside `GraniteTranscribeEngine._transcribe_impl`. When the
-  caller passes `partial_callback=<fn>`, the engine invokes it after each chunk with
-  `(running_stitched_text, chunk_index_1based, total_chunks)` and **swallows any exception**
-  the callback raises (logged, never propagated). Single-chunk audio does NOT fire the callback.
-- `WorkerSignals.partial = Signal(str, int, int)` carries the callback payload from the
-  engine thread to the UI. Always connect with `Qt.QueuedConnection` so the slot runs on
-  the main Qt thread.
-- `MainWindow` keeps exactly one `_active_draft_entry: Optional[_HistoryEntry]`. The
-  partial slot creates it on the first partial and updates it in place thereafter;
-  `_add_history` auto-finalizes it (via `_HistoryEntry.mark_final`) when the authoritative
-  result lands so there is never a stale orphan draft row. Clipboard writes and auto-paste
-  are gated on the final-result path **only** — they never fire per chunk.
-- Partials are disabled when `settings.streaming_partials_enabled` is False (Settings
-  dialog checkbox; default True). Behavior then matches the pre-streaming flow.
+### Transcription flow
+- SpeakEasy records the utterance, stops recording, runs one final transcription, then
+  copies the final text and optionally auto-pastes it.
+- Long recordings may be chunked inside `GraniteTranscribeEngine._transcribe_impl`, but
+  chunking is internal; UI history, clipboard writes, and auto-paste use only the final
+  stitched result.
 - `DedicatedWorkerPool` remains single-worker. Do not make the engine pool concurrent.
 
 ### Security

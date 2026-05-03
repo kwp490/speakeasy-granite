@@ -171,22 +171,18 @@ class TestGraniteChunking(unittest.TestCase):
         self.assertEqual(result, "short clip")
         self.assertEqual(len(engine._processor.calls), 1)
 
-    def test_long_audio_fires_partials(self):
+    def test_long_audio_chunks_and_stitches_final_result(self):
         engine = self._engine(
             ["the quick brown fox", "brown fox jumps over"],
             max_clip=30.0,
             overlap=5.0,
         )
-        calls = []
         result = engine._transcribe_impl(
             np.zeros(int(50 * 16000), dtype=np.float32),
             "en",
-            partial_callback=lambda text, index, total: calls.append((text, index, total)),
         )
 
         self.assertEqual(len(engine._processor.calls), 2)
-        self.assertEqual([call[1] for call in calls], [1, 2])
-        self.assertTrue(all(call[2] == 2 for call in calls))
         self.assertEqual(result, "the quick brown fox jumps over")
 
 

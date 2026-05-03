@@ -162,7 +162,6 @@ class GraniteTranscribeEngine(SpeechEngine):
         language: str,
         punctuation: bool = True,
         timeout: float = 30.0,
-        partial_callback=None,
     ) -> str:
         from .audio_utils import chunk_audio, stitch_transcripts
         import time as _time
@@ -191,8 +190,7 @@ class GraniteTranscribeEngine(SpeechEngine):
             overlap_seconds=self._overlap_seconds,
         )
         texts = []
-        total = len(chunks)
-        for index, chunk in enumerate(chunks):
+        for chunk in chunks:
             chunk_duration = len(chunk) / 16000
             text = self._transcribe_chunk(
                 chunk,
@@ -202,11 +200,6 @@ class GraniteTranscribeEngine(SpeechEngine):
                 self._token_budget(chunk_duration),
             )
             texts.append(text)
-            if partial_callback is not None:
-                try:
-                    partial_callback(stitch_transcripts(texts), index + 1, total)
-                except Exception:
-                    log.exception("partial_callback raised; ignoring")
 
         result = stitch_transcripts(texts)
         wall = _time.monotonic() - impl_start

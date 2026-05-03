@@ -24,8 +24,8 @@ class TestDevPanelFieldDefaults:
     def test_dev_panel_width_default_629(self):
         assert Settings().dev_panel_width == 629
 
-    def test_dev_panel_height_default_1131(self):
-        assert Settings().dev_panel_height == 1131
+    def test_dev_panel_height_default_880(self):
+        assert Settings().dev_panel_height == 880
 
     def test_dev_panel_snapped_default_true(self):
         assert Settings().dev_panel_snapped is True
@@ -74,7 +74,7 @@ class TestForwardCompat:
         assert loaded.dev_panel_open is False
         assert loaded.dev_panel_active_tab == "settings"
         assert loaded.dev_panel_width == 629
-        assert loaded.dev_panel_height == 1131
+        assert loaded.dev_panel_height == 880
         assert loaded.dev_panel_snapped is True
         assert loaded.hotkey_dev_panel == "ctrl+alt+d"
 
@@ -100,7 +100,7 @@ class TestDevPanelValidation:
     def test_validate_clamps_undersized_height(self):
         s = Settings(dev_panel_height=10)
         s.validate()
-        assert s.dev_panel_height == 1131
+        assert s.dev_panel_height == 880
 
     @pytest.mark.parametrize("tab", ["settings", "advanced", "realtime", "logs", "pro", "history"])
     def test_validate_accepts_all_valid_tab_keys(self, tab):

@@ -2,7 +2,9 @@
 
 Native Windows speech-to-text and speech translation powered by IBM Granite Speech 4.1 2B.
 
-SpeakEasy AI Granite is a Windows desktop dictation app built with Python, PySide6, HuggingFace Transformers, and PyTorch. It records microphone audio locally, runs the IBM Granite Speech model on GPU or CPU, and can copy or paste the final text into whatever application you are using.
+SpeakEasy records your speech, transcribes the completed utterance, copies it to the clipboard, and can paste it into the active application.
+
+SpeakEasy AI Granite is a Windows desktop dictation app built with Python, PySide6, HuggingFace Transformers, and PyTorch. It records microphone audio locally and runs the IBM Granite Speech model on GPU or CPU.
 
 ## Model
 
@@ -12,7 +14,7 @@ This fork uses [ibm-granite/granite-speech-4.1-2b](https://huggingface.co/ibm-gr
 - License: Apache 2.0 for the model
 - Primary tasks: automatic speech recognition, speech translation, keyword-biased ASR
 - ASR languages: English, French, German, Spanish, Portuguese, Japanese
-- Translation targets exposed by the app: English, French, German, Spanish, Portuguese, Japanese, Italian, Mandarin
+- Translation targets exposed by the app: English, French, German, Spanish, Japanese, Italian, Mandarin
 
 The model is downloaded from Hugging Face into the app's local model directory. A Hugging Face token is optional unless the Hub rejects anonymous access for your account or network context.
 
@@ -92,7 +94,7 @@ as Whisper-style decoder switches.
 - Engine load/transcribe/unload runs on `DedicatedWorkerPool`, not `QThreadPool`.
 - Clipboard writes stay on the main Qt thread.
 - Engines receive mono float32 audio resampled to 16 kHz.
-- Long recordings are chunked and stitched; partial callbacks update the live draft history row.
+- Long recordings may be chunked internally and stitched into one final transcription.
 - Granite prompts are built with `<|audio|>` and the tokenizer chat template.
 
 ## Repository Status

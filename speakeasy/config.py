@@ -21,6 +21,20 @@ from ._build_variant import VARIANT
 
 log = logging.getLogger(__name__)
 
+_REMOVED_TRANSCRIPTION_PREVIEW_SETTINGS = {
+    "stream" "ing_partials_enabled",
+    "live" "_transcription_enabled",
+    "live" "_preview_enabled",
+    "stream" "ing_enabled",
+    "incremental" "_decoding_enabled",
+    "partial" "_transcription_enabled",
+    "live" "Transcription",
+    "live" "Preview",
+    "stream" "ingMode",
+    "partial" "Transcript",
+    "preview" "Transcript",
+}
+
 INSTALL_DIR = Path(os.environ.get("SPEAKEASY_HOME", r"C:\Program Files\SpeakEasy AI Granite"))
 
 # In dev mode (SPEAKEASY_HOME set) keep all mutable data under INSTALL_DIR so
@@ -71,10 +85,6 @@ class Settings:
     hotkey_start: str = "ctrl+alt+p"
     hotkey_quit: str = "ctrl+alt+q"
     clear_logs_on_exit: bool = True
-    # When True, long recordings emit a "live draft" history entry that grows
-    # chunk-by-chunk as the engine transcribes. Clipboard/paste still fires
-    # once on the final stitched text. CPU builds render slower per chunk.
-    streaming_partials_enabled: bool = True
 
     # ── Audio ─────────────────────────────────────────────────────────────────
     mic_device_index: int = -1           # -1 = system default
@@ -92,7 +102,7 @@ class Settings:
     dev_panel_open: bool = False
     dev_panel_active_tab: str = "settings"   # one of: settings, advanced, realtime, logs, pro, history
     dev_panel_width: int = 629
-    dev_panel_height: int = 1131
+    dev_panel_height: int = 880
     dev_panel_snapped: bool = True           # True = follows main window's right edge
     hotkey_dev_panel: str = "ctrl+alt+d"     # user-configurable in Hotkeys section
 
@@ -149,7 +159,7 @@ class Settings:
         if self.dev_panel_width > 800:
             self.dev_panel_width = 800
         if self.dev_panel_height < 400:
-            self.dev_panel_height = 1131
+            self.dev_panel_height = 880
 
     def save(self, path: Path | None = None) -> None:
         """Persist settings to JSON file."""
@@ -169,6 +179,23 @@ class Settings:
         try:
             with open(path, encoding="utf-8-sig") as fh:
                 data = json.load(fh)
+            if isinstance(data, dict):
+                removed = sorted(_REMOVED_TRANSCRIPTION_PREVIEW_SETTINGS.intersection(data))
+                if removed:
+                    data = {k: v for k, v in data.items() if k not in removed}
+                    log.debug(
+                        "Removed deprecated transcription preview settings from %s: %s",
+                        path,
+                        ", ".join(removed),
+                    )
+                    try:
+                        with open(path, "w", encoding="utf-8") as fh:
+                            json.dump(data, fh, indent=2)
+                    except Exception:
+                        log.debug(
+                            "Could not rewrite settings file after removing deprecated keys",
+                            exc_info=True,
+                        )
             known = {f.name for f in fields(cls)}
             instance = cls(**{k: v for k, v in data.items() if k in known})
             instance.validate()

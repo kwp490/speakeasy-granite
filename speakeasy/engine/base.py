@@ -7,16 +7,10 @@ from __future__ import annotations
 import gc
 import logging
 from abc import ABC, abstractmethod
-from typing import Callable, Optional
 
 import numpy as np
 
 from .audio_utils import ensure_16khz
-
-# Partial-result callback: (stitched_text_so_far, chunk_index_1based, total_chunks).
-# Raised exceptions are logged and swallowed by the engine; callbacks must not
-# break the transcription loop.
-PartialCallback = Callable[[str, int, int], None]
 
 log = logging.getLogger(__name__)
 
@@ -52,15 +46,8 @@ class SpeechEngine(ABC):
     @abstractmethod
     def _transcribe_impl(self, audio_16k: np.ndarray, language: str,
                           punctuation: bool = True,
-                          timeout: float = 30.0,
-                          partial_callback: Optional[PartialCallback] = None) -> str:
-        """Engine-specific transcription of 16 kHz mono float32 audio.
-
-        If ``partial_callback`` is provided and the engine transcribes the
-        audio in multiple chunks, the callback is invoked after each chunk
-        with the running stitched text. Callback errors must be logged and
-        swallowed — they must never break the transcription loop.
-        """
+                          timeout: float = 30.0) -> str:
+        """Engine-specific transcription of 16 kHz mono float32 audio."""
 
     @abstractmethod
     def unload(self) -> None:
@@ -75,8 +62,7 @@ class SpeechEngine(ABC):
 
     def transcribe(self, audio: np.ndarray, sample_rate: int,
                     language: str = "en", punctuation: bool = True,
-                    timeout: float = 30.0,
-                    partial_callback: Optional[PartialCallback] = None) -> str:
+                    timeout: float = 30.0) -> str:
         """Resample to 16 kHz, guard empty/unloaded, then delegate."""
         if self._model is None:
             raise RuntimeError(f"{self.name} model not loaded")
@@ -84,8 +70,7 @@ class SpeechEngine(ABC):
         if len(audio_16k) == 0:
             return ""
         return self._transcribe_impl(audio_16k, language, punctuation=punctuation,
-                                      timeout=timeout,
-                                      partial_callback=partial_callback)
+                                      timeout=timeout)
 
     def _release_model(self) -> None:
         """Delete model reference and free GPU memory."""

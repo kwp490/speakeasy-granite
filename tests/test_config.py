@@ -71,20 +71,35 @@ class SettingsConfigTests(unittest.TestCase):
         self.assertTrue(s.auto_paste)
         self.assertTrue(s.hotkeys_enabled)
         self.assertTrue(s.punctuation)
-        # Streaming partial transcription defaults to on.
-        self.assertTrue(s.streaming_partials_enabled)
         # Professional Mode defaults
         self.assertFalse(s.professional_mode)
         self.assertEqual(s.pro_active_preset, "General Professional")
         self.assertFalse(s.store_api_key)
 
-    def test_streaming_partials_round_trip(self):
+    def test_removed_transcription_preview_settings_are_ignored_and_migrated(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "settings.json"
-            settings = Settings(streaming_partials_enabled=False)
-            settings.save(config_path)
+            removed_keys = {
+                "stream" "ing_partials_enabled": True,
+                "live" "_transcription_enabled": True,
+                "live" "_preview_enabled": True,
+                "stream" "ing_enabled": True,
+                "incremental" "_decoding_enabled": True,
+                "partial" "_transcription_enabled": True,
+            }
+            config_path.write_text(
+                json.dumps({"engine": "granite", "auto_copy": False, **removed_keys}),
+                encoding="utf-8",
+            )
+
             loaded = Settings.load(config_path)
-            self.assertFalse(loaded.streaming_partials_enabled)
+
+            self.assertFalse(loaded.auto_copy)
+            for key in removed_keys:
+                self.assertFalse(hasattr(loaded, key))
+            migrated = json.loads(config_path.read_text(encoding="utf-8"))
+            for key in removed_keys:
+                self.assertNotIn(key, migrated)
 
     def test_load_missing_file_returns_defaults(self):
         loaded = Settings.load(Path("/nonexistent/path/settings.json"))

@@ -25,10 +25,6 @@ class WorkerSignals(QObject):
     finished = Signal()
     error = Signal(str)
     result = Signal(object)
-    # Per-chunk partial transcription result: (running_text, chunk_index_1based, total_chunks).
-    # Emitted from the worker thread; connect with Qt.QueuedConnection to marshal
-    # into the UI thread.
-    partial = Signal(str, int, int)
 
 
 class Worker(QRunnable):
