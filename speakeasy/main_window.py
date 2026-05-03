@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from PySide6.QtCore import QEasingCurve, QObject, QPoint, QPropertyAnimation, QRect, QThreadPool, QTimer, Qt, Property, Signal, Slot
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -319,8 +319,8 @@ class MainWindow(QMainWindow):
 
         # ── Build UI ─────────────────────────────────────────────────────────
         self.setWindowTitle("SpeakEasy AI Granite — Voice to Text")
-        self.setMinimumSize(640, 600)
-        self.resize(720, 640)
+        self.setMinimumSize(640, 485)
+        self.resize(720, 485)
         self._build_ui()
         self._setup_logging()
         self._setup_timers()
@@ -388,17 +388,21 @@ class MainWindow(QMainWindow):
         self._record_icon.setFixedSize(icon_size, icon_size)
         self._record_icon.setStyleSheet("background: transparent;")
         self._record_title = QLabel("Start Recording")
-        title_font = QFont(Font.FAMILY, 13)
+        title_font = QFont(Font.FAMILY, 16)
         title_font.setWeight(QFont.Weight.DemiBold)
         self._record_title.setFont(title_font)
-        self._record_title.setStyleSheet(f"color: {Color.TEXT_PRIMARY}; background: transparent; font-weight: 700;")
+        self._record_title.setStyleSheet(f"color: {Color.TEXT_PRIMARY}; background: transparent; font-weight: 700; font-size: 16pt;")
+        title_height = QFontMetrics(title_font).height()
+        self._record_title.setFixedHeight(title_height)
         self._record_dot = QLabel("●")
-        status_font = QFont(Font.FAMILY, 10)
+        status_font = QFont(Font.FAMILY, 13)
         status_font.setWeight(QFont.Weight.DemiBold)
         self._record_dot.setFont(status_font)
+        self._record_dot.setFixedHeight(title_height)
         self._record_dot.setStyleSheet(f"color: {Color.SUCCESS}; background: transparent; font-weight: 700;")
         self._record_status = QLabel("Ready")
         self._record_status.setFont(status_font)
+        self._record_status.setFixedHeight(title_height)
         self._record_status.setStyleSheet(f"color: {Color.TEXT_PRIMARY}; background: transparent; font-weight: 600;")
         record_button_layout.addWidget(self._record_icon, 0, Qt.AlignmentFlag.AlignVCenter)
         record_button_layout.addWidget(self._record_title, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -416,7 +420,7 @@ class MainWindow(QMainWindow):
         self._btn_dev_panel = QToolButton()
         self._btn_dev_panel.setText("Settings")
         self._btn_dev_panel.setIcon(load_icon("settings"))
-        self._btn_dev_panel.setIconSize(QSize(22, 22))
+        self._btn_dev_panel.setIconSize(QSize(20, 20))
         self._btn_dev_panel.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self._btn_dev_panel.setToolTip("Open Developer Panel")
         self._btn_dev_panel.setCursor(Qt.CursorShape.PointingHandCursor)

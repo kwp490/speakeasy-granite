@@ -89,7 +89,7 @@ class Font:
 class Size:
     BUTTON_HEIGHT = 36
     BUTTON_HEIGHT_PRIMARY = 56     # Start Recording, prominent CTAs
-    GEAR_BUTTON = 68               # settings button minimum width
+    GEAR_BUTTON = 76               # settings button minimum width
     INPUT_HEIGHT = 36
     TAB_HEIGHT = 40
     PROGRESS_BAR_HEIGHT = 6        # thin bars in Realtime Data
@@ -351,7 +351,8 @@ def gear_button_style() -> str:
             font-size: {Font.BODY[0]}pt;
             border: 1px solid {Color.BORDER};
             border-radius: {Size.BORDER_RADIUS_LG}px;
-            padding: {Spacing.SM}px;
+            padding: 4px {Spacing.SM}px;
+            icon-size: 18px;
         }}
         QToolButton:hover, QPushButton:hover {{
             background-color: rgba(49, 69, 91, 0.35);

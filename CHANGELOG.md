@@ -5,6 +5,15 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - Record Button Typography & Window Sizing
+
+### Changed
+- **Window size** reduced to minimum: 640×485, default resize 720×485 (single-screen height fit)
+- **Record button title font** increased 13 → 16 pt; explicit `font-size: 16pt` in stylesheet
+- **Record button label heights** pinned to `QFontMetrics.height()` so all three inline labels (title, dot, status) align on the same baseline
+- **Status/dot font** increased 10 → 13 pt
+- **Settings button** icon size 22 → 20 px; `GEAR_BUTTON` minimum width 68 → 76 px; gear style padding adjusted to `4px SM` with explicit `icon-size: 18px`
+
 ## [0.9.1] - Bug Fixes and Test Alignment
 
 ### Fixed
