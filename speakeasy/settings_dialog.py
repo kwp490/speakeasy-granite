@@ -1,11 +1,12 @@
 """
 Settings UI for SpeakEasy AI.
 
-``SettingsWidget`` is the embeddable settings form used by the Developer Panel.
+``SettingsWidget`` is the user-facing settings form used by the Developer Panel.
+``AdvancedSettingsWidget`` contains developer/runtime tuning controls.
 ``SettingsDialog`` wraps it in a modal dialog for backward compatibility.
 
-Auto-apply toggles (safe fields) take effect immediately.
-Risky fields (model path, device, engine, sample rate) require an explicit Apply.
+All settings fields are deferred until Apply. Device changes and model-path changes
+emit reload requests from their respective tabs.
 """
 
 from __future__ import annotations
@@ -40,6 +41,7 @@ log = logging.getLogger(__name__)
 
 # IBM Granite Speech 4.1 supported ASR languages
 GRANITE_LANGUAGES = [
+    ("auto", "Auto"),
     ("en", "English"),
     ("fr", "French"),
     ("de", "German"),
@@ -53,19 +55,24 @@ GRANITE_TRANSLATION_TARGETS = [
     "French",
     "German",
     "Spanish",
-    "Portuguese",
     "Japanese",
     "Italian",
     "Mandarin",
 ]
 
+GRANITE_FORMATTING_STYLES = [
+    ("sentence_case", "Sentence case"),
+    ("plain_text", "Plain text"),
+    ("preserve_spoken_wording", "Preserve spoken wording"),
+]
+
 
 class SettingsWidget(QWidget):
-    """Embeddable settings UI — all fields are deferred until Apply is clicked."""
+    """Embeddable user-facing settings UI — all fields are deferred until Apply is clicked."""
 
     risky_change_pending = Signal()   # emitted when any field differs from saved state
     settings_applied = Signal()       # emitted after Apply succeeds
-    reload_model_requested = Signal() # emitted if model path/device changed on Apply
+    reload_model_requested = Signal() # emitted if device changed on Apply
 
     def __init__(self, settings: Settings, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -93,18 +100,6 @@ class SettingsWidget(QWidget):
         # ── Model section ────────────────────────────────────────────────────
         model_section, engine_form = make_section("Model", self)
 
-        model_row = QHBoxLayout()
-        self._model_path = QLineEdit()
-        self._model_path.setToolTip(
-            "Folder containing the downloaded model weights.\n"
-            "Use Browse\u2026 to locate the directory on disk."
-        )
-        btn_browse = QPushButton("Browse\u2026")
-        btn_browse.clicked.connect(self._browse_model_path)
-        model_row.addWidget(self._model_path)
-        model_row.addWidget(btn_browse)
-        engine_form.addRow("Model path:", model_row)
-
         self._device_combo = QComboBox()
         self._device_combo.addItems(["cuda", "cpu"])
         self._device_combo.setToolTip(
@@ -128,10 +123,12 @@ class SettingsWidget(QWidget):
 
         self._language_combo = QComboBox()
         for code, label in GRANITE_LANGUAGES:
-            self._language_combo.addItem(f"{label} ({code})", code)
+            display = label if code == "auto" else f"{label} ({code})"
+            self._language_combo.addItem(display, code)
         self._language_combo.setToolTip(
             "The spoken language in your recordings.\n"
-            "Choose the language you will be dictating in for best accuracy."
+            "Choose Auto for Granite prompt-based language inference, or select\n"
+            "the language you will be dictating in for best accuracy."
         )
         engine_form.addRow("Language:", self._language_combo)
 
@@ -142,7 +139,7 @@ class SettingsWidget(QWidget):
             "Choose whether Granite should transcribe the speech as-is or\n"
             "translate it to the selected target language."
         )
-        engine_form.addRow("Task:", self._task_combo)
+        engine_form.addRow("Mode:", self._task_combo)
 
         self._translation_target = QComboBox()
         for target in GRANITE_TRANSLATION_TARGETS:
@@ -151,32 +148,37 @@ class SettingsWidget(QWidget):
             "Target language for Granite speech translation."
         )
         engine_form.addRow("Translate to:", self._translation_target)
+        self._translation_target_label = engine_form.labelForField(self._translation_target)
 
         self._keyword_bias = QLineEdit()
-        self._keyword_bias.setPlaceholderText("names, acronyms, product terms")
+        self._keyword_bias.setPlaceholderText("Names, acronyms, jargon, product terms")
         self._keyword_bias.setToolTip(
             "Optional comma-separated keywords to bias Granite toward\n"
             "names, acronyms, and technical terms."
         )
         engine_form.addRow("Keywords:", self._keyword_bias)
 
-        self._punctuation = ToggleSwitch("Enable automatic punctuation")
-        self._punctuation.setToolTip(
-            "Automatically inserts commas, periods, and other punctuation\n"
-            "into the transcribed text based on natural speech patterns."
-        )
-        engine_form.addRow(self._punctuation)
-
-        self._inference_timeout = QSpinBox()
-        self._inference_timeout.setRange(5, 300)
-        self._inference_timeout.setSuffix(" s")
-        self._inference_timeout.setToolTip(
-            "Maximum time (in seconds) to wait for a transcription to finish\n"
-            "before giving up. Increase this if long recordings are timing out."
-        )
-        engine_form.addRow("Inference timeout:", self._inference_timeout)
-
         layout.addWidget(model_section)
+
+        # ── Transcription Style section ──────────────────────────────────────
+        style_section, style_form = make_section("Transcription Style", self)
+
+        self._punctuation = ToggleSwitch("")
+        self._punctuation.setToolTip(
+            "Requests Granite prompt wording for punctuation and capitalization.\n"
+            "When off, Granite receives the basic transcription prompt."
+        )
+        style_form.addRow(make_toggle_row("Punctuation and capitalization", self._punctuation))
+
+        self._formatting_style = QComboBox()
+        for value, label in GRANITE_FORMATTING_STYLES:
+            self._formatting_style.addItem(label, value)
+        self._formatting_style.setToolTip(
+            "Controls the Granite prompt wording for ordinary dictation output."
+        )
+        style_form.addRow("Formatting style:", self._formatting_style)
+
+        layout.addWidget(style_section)
 
         # ── Audio section ────────────────────────────────────────────────────
         audio_section, audio_form = make_section("Audio", self)
@@ -194,37 +196,6 @@ class SettingsWidget(QWidget):
         )
         audio_form.addRow("Microphone:", self._mic_combo)
 
-        self._silence_threshold = QDoubleSpinBox()
-        self._silence_threshold.setRange(0.0001, 0.1)
-        self._silence_threshold.setDecimals(4)
-        self._silence_threshold.setSingleStep(0.0005)
-        self._silence_threshold.setToolTip(
-            "How quiet the audio must be to count as silence and stop recording.\n"
-            "Lower value = more sensitive (stops sooner on quiet speech).\n"
-            "Higher value = requires more obvious silence before stopping."
-        )
-        audio_form.addRow("Silence threshold (RMS):", self._silence_threshold)
-
-        self._silence_margin = QSpinBox()
-        self._silence_margin.setRange(50, 1000)
-        self._silence_margin.setSuffix(" ms")
-        self._silence_margin.setToolTip(
-            "Extra time to continue recording after silence is detected (in milliseconds).\n"
-            "Increase this if the end of your sentences is being clipped."
-        )
-        audio_form.addRow("Silence margin:", self._silence_margin)
-
-        self._sample_rate = QSpinBox()
-        self._sample_rate.setRange(8000, 48000)
-        self._sample_rate.setSingleStep(8000)
-        self._sample_rate.setSuffix(" Hz")
-        self._sample_rate.setToolTip(
-            "Recording quality in samples per second.\n"
-            "16000 Hz is the standard for speech recognition and recommended for most users.\n"
-            "Higher values use more memory with no accuracy benefit."
-        )
-        audio_form.addRow("Sample rate (recording):", self._sample_rate)
-
         layout.addWidget(audio_section)
 
         # ── UX Behavior section ──────────────────────────────────────────────
@@ -239,10 +210,10 @@ class SettingsWidget(QWidget):
 
         self._auto_paste = ToggleSwitch("")
         self._auto_paste.setToolTip(
-            "Simulates a Ctrl+V keypress after copying, pasting the transcribed text\n"
+            "Simulates a Ctrl+V keypress after copying, pasting the finalized text\n"
             "directly into whatever application is currently focused."
         )
-        ux_form.addRow(make_toggle_row("Auto-paste (Ctrl+V) after copy", self._auto_paste))
+        ux_form.addRow(make_toggle_row("Auto-paste after copy", self._auto_paste))
 
         self._hotkeys_enabled = ToggleSwitch("")
         self._hotkeys_enabled.setToolTip(
@@ -251,19 +222,10 @@ class SettingsWidget(QWidget):
         )
         ux_form.addRow(make_toggle_row("Enable global hotkeys", self._hotkeys_enabled))
 
-        self._clear_logs_on_exit = ToggleSwitch("")
-        self._clear_logs_on_exit.setToolTip(
-            "Erases the contents of the diagnostic log panel\n"
-            "each time the application closes."
-        )
-        ux_form.addRow(make_toggle_row("Clear logs on application exit", self._clear_logs_on_exit))
-
         self._streaming_partials = ToggleSwitch("")
         _streaming_tip = (
-            "Long recordings are transcribed in ~30 s chunks; when enabled,\n"
-            "each chunk appears in the history pane as soon as it is ready\n"
-            "instead of waiting for the whole recording to finish.\n"
-            "Auto-copy and auto-paste still fire once, on the final result."
+            "Shows a low-latency preview while speaking. Copy/paste happens\n"
+            "only when the final transcription is complete."
         )
         if VARIANT == "cpu":
             _streaming_tip += (
@@ -272,6 +234,13 @@ class SettingsWidget(QWidget):
             )
         self._streaming_partials.setToolTip(_streaming_tip)
         ux_form.addRow(make_toggle_row("Live transcription", self._streaming_partials))
+        self._streaming_description = QLabel(
+            "Shows a low-latency preview while speaking. Copy/paste happens only when "
+            "the final transcription is complete."
+        )
+        self._streaming_description.setWordWrap(True)
+        self._streaming_description.setStyleSheet(f"color: {Color.TEXT_MUTED};")
+        ux_form.addRow(self._streaming_description)
 
         layout.addWidget(ux_section)
 
@@ -323,7 +292,6 @@ class SettingsWidget(QWidget):
 
     def _populate(self) -> None:
         s = self.settings
-        self._model_path.setText(s.model_path)
         idx = self._device_combo.findText(s.device)
         if idx >= 0:
             self._device_combo.setCurrentIndex(idx)
@@ -338,17 +306,15 @@ class SettingsWidget(QWidget):
             self._translation_target.setCurrentIndex(idx)
         self._keyword_bias.setText(s.keyword_bias)
         self._punctuation.setChecked(s.punctuation)
-        self._inference_timeout.setValue(s.inference_timeout)
-        self._silence_threshold.setValue(s.silence_threshold)
-        self._silence_margin.setValue(s.silence_margin_ms)
-        self._sample_rate.setValue(s.sample_rate)
+        idx = self._formatting_style.findData(s.formatting_style)
+        if idx >= 0:
+            self._formatting_style.setCurrentIndex(idx)
         self._auto_copy.setChecked(s.auto_copy)
         self._auto_paste.setChecked(s.auto_paste)
         self._hotkeys_enabled.setChecked(s.hotkeys_enabled)
         self._hotkey_start.setText(s.hotkey_start)
         self._hotkey_quit.setText(s.hotkey_quit)
         self._hotkey_dev_panel.setText(s.hotkey_dev_panel)
-        self._clear_logs_on_exit.setChecked(s.clear_logs_on_exit)
         self._streaming_partials.setChecked(s.streaming_partials_enabled)
 
         idx = self._mic_combo.findData(s.mic_device_index)
@@ -367,21 +333,16 @@ class SettingsWidget(QWidget):
         self._translation_target.currentIndexChanged.connect(self._on_any_changed)
         self._keyword_bias.textChanged.connect(self._on_any_changed)
         self._punctuation.toggled.connect(self._on_any_changed)
-        self._inference_timeout.valueChanged.connect(self._on_any_changed)
+        self._formatting_style.currentIndexChanged.connect(self._on_any_changed)
         self._auto_copy.toggled.connect(self._on_any_changed)
         self._auto_paste.toggled.connect(self._on_any_changed)
         self._hotkeys_enabled.toggled.connect(self._on_any_changed)
         self._hotkey_start.textChanged.connect(self._on_any_changed)
         self._hotkey_quit.textChanged.connect(self._on_any_changed)
         self._hotkey_dev_panel.textChanged.connect(self._on_any_changed)
-        self._clear_logs_on_exit.toggled.connect(self._on_any_changed)
         self._streaming_partials.toggled.connect(self._on_any_changed)
         self._mic_combo.currentIndexChanged.connect(self._on_any_changed)
-        self._silence_threshold.valueChanged.connect(self._on_any_changed)
-        self._silence_margin.valueChanged.connect(self._on_any_changed)
-        self._model_path.textChanged.connect(self._on_any_changed)
         self._device_combo.currentTextChanged.connect(self._on_any_changed)
-        self._sample_rate.valueChanged.connect(self._on_any_changed)
 
     def _on_any_changed(self, *_) -> None:
         self._btn_apply.setEnabled(self._has_any_diff())
@@ -390,60 +351,49 @@ class SettingsWidget(QWidget):
     def _has_any_diff(self) -> bool:
         s = self._snapshot
         return (
-            self._model_path.text().strip() != s.get("model_path")
-            or self._device_combo.currentText() != s.get("device")
-            or self._sample_rate.value() != s.get("sample_rate")
+            self._device_combo.currentText() != s.get("device")
             or self._language_combo.currentData() != s.get("language")
             or self._task_combo.currentData() != s.get("speech_task")
             or self._translation_target.currentData() != s.get("translation_target_language")
             or self._keyword_bias.text().strip() != s.get("keyword_bias")
             or self._punctuation.isChecked() != s.get("punctuation")
-            or self._inference_timeout.value() != s.get("inference_timeout")
+            or self._formatting_style.currentData() != s.get("formatting_style")
             or self._auto_copy.isChecked() != s.get("auto_copy")
             or self._auto_paste.isChecked() != s.get("auto_paste")
             or self._hotkeys_enabled.isChecked() != s.get("hotkeys_enabled")
             or (self._hotkey_start.text().strip() or "ctrl+alt+p") != s.get("hotkey_start")
             or (self._hotkey_quit.text().strip() or "ctrl+alt+q") != s.get("hotkey_quit")
             or (self._hotkey_dev_panel.text().strip() or "ctrl+alt+d") != s.get("hotkey_dev_panel")
-            or self._clear_logs_on_exit.isChecked() != s.get("clear_logs_on_exit")
             or self._streaming_partials.isChecked() != s.get("streaming_partials_enabled")
             or self._mic_combo.currentData() != s.get("mic_device_index")
-            or self._silence_threshold.value() != s.get("silence_threshold")
-            or self._silence_margin.value() != s.get("silence_margin_ms")
         )
 
     def _on_apply(self) -> None:
-        old_model_path = self._snapshot.get("model_path")
         old_device = self._snapshot.get("device")
 
         s = self.settings
-        s.model_path = self._model_path.text().strip()
         s.device = self._device_combo.currentText()
-        s.sample_rate = self._sample_rate.value()
         s.language = self._language_combo.currentData() or "en"
         s.speech_task = self._task_combo.currentData() or "transcribe"
         s.translation_target_language = self._translation_target.currentData() or "English"
         s.keyword_bias = self._keyword_bias.text().strip()
         s.punctuation = self._punctuation.isChecked()
-        s.inference_timeout = self._inference_timeout.value()
+        s.formatting_style = self._formatting_style.currentData() or "sentence_case"
         s.auto_copy = self._auto_copy.isChecked()
         s.auto_paste = self._auto_paste.isChecked()
         s.hotkeys_enabled = self._hotkeys_enabled.isChecked()
         s.hotkey_start = self._hotkey_start.text().strip() or "ctrl+alt+p"
         s.hotkey_quit = self._hotkey_quit.text().strip() or "ctrl+alt+q"
         s.hotkey_dev_panel = self._hotkey_dev_panel.text().strip() or "ctrl+alt+d"
-        s.clear_logs_on_exit = self._clear_logs_on_exit.isChecked()
         s.streaming_partials_enabled = self._streaming_partials.isChecked()
         s.mic_device_index = self._mic_combo.currentData()
-        s.silence_threshold = self._silence_threshold.value()
-        s.silence_margin_ms = self._silence_margin.value()
         s.save()
 
         self._snapshot = self._take_snapshot()
         self._btn_apply.setEnabled(False)
         self.settings_applied.emit()
 
-        if s.model_path != old_model_path or s.device != old_device:
+        if s.device != old_device:
             self.reload_model_requested.emit()
 
     def _on_device_changed(self, device: str) -> None:
@@ -453,23 +403,19 @@ class SettingsWidget(QWidget):
 
     def _on_task_changed(self, *_) -> None:
         is_translation = self._task_combo.currentData() == "translate"
-        self._translation_target.setEnabled(is_translation)
+        self._translation_target.setVisible(is_translation)
+        if self._translation_target_label is not None:
+            self._translation_target_label.setVisible(is_translation)
         self._on_any_changed()
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
-    def _browse_model_path(self) -> None:
-        path = QFileDialog.getExistingDirectory(
-            self,
-            "Select Model Directory",
-            self._model_path.text(),
-        )
-        if path:
-            self._model_path.setText(path)
-
     def _on_restore_defaults(self) -> None:
         """Reset fields to their default values (requires Apply to save)."""
         defaults = Settings()
+        self._device_combo.setCurrentIndex(
+            max(0, self._device_combo.findText(defaults.device))
+        )
         self._language_combo.setCurrentIndex(
             max(0, self._language_combo.findData(defaults.language))
         )
@@ -481,17 +427,203 @@ class SettingsWidget(QWidget):
         )
         self._keyword_bias.setText(defaults.keyword_bias)
         self._punctuation.setChecked(defaults.punctuation)
-        self._inference_timeout.setValue(defaults.inference_timeout)
-        self._silence_threshold.setValue(defaults.silence_threshold)
-        self._silence_margin.setValue(defaults.silence_margin_ms)
+        self._formatting_style.setCurrentIndex(
+            max(0, self._formatting_style.findData(defaults.formatting_style))
+        )
         self._auto_copy.setChecked(defaults.auto_copy)
         self._auto_paste.setChecked(defaults.auto_paste)
         self._hotkeys_enabled.setChecked(defaults.hotkeys_enabled)
         self._hotkey_start.setText(defaults.hotkey_start)
         self._hotkey_quit.setText(defaults.hotkey_quit)
         self._hotkey_dev_panel.setText(defaults.hotkey_dev_panel)
-        self._clear_logs_on_exit.setChecked(defaults.clear_logs_on_exit)
         self._streaming_partials.setChecked(defaults.streaming_partials_enabled)
+
+
+class AdvancedSettingsWidget(QWidget):
+    """Embeddable developer/runtime settings UI — all fields are deferred."""
+
+    risky_change_pending = Signal()
+    settings_applied = Signal()
+    reload_model_requested = Signal()
+
+    def __init__(self, settings: Settings, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setMinimumWidth(500)
+        self.settings = settings
+        self._snapshot = self._take_snapshot()
+        self._build_ui()
+        self._populate()
+        self._wire_auto_apply()
+
+    def _take_snapshot(self) -> dict:
+        return {f.name: getattr(self.settings, f.name) for f in dc_fields(self.settings.__class__)
+                if not f.name.startswith("_")}
+
+    def _build_ui(self) -> None:
+        from .theme import Color, Spacing, ghost_button_style, make_section, make_toggle_row
+        from .main_window import ToggleSwitch
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        layout.setSpacing(Spacing.SECTION)
+
+        runtime_section, runtime_form = make_section("Model Runtime", self)
+
+        model_row = QHBoxLayout()
+        self._model_path = QLineEdit()
+        self._model_path.setToolTip(
+            "Folder containing the downloaded model weights.\n"
+            "Use Browse to locate the directory on disk."
+        )
+        btn_browse = QPushButton("Browse")
+        btn_browse.clicked.connect(self._browse_model_path)
+        model_row.addWidget(self._model_path)
+        model_row.addWidget(btn_browse)
+        runtime_form.addRow("Model path:", model_row)
+
+        self._inference_timeout = QSpinBox()
+        self._inference_timeout.setRange(5, 300)
+        self._inference_timeout.setSuffix(" s")
+        self._inference_timeout.setToolTip(
+            "Maximum time (in seconds) to wait for a transcription to finish\n"
+            "before giving up. Increase this if long recordings are timing out."
+        )
+        runtime_form.addRow("Inference timeout:", self._inference_timeout)
+
+        layout.addWidget(runtime_section)
+
+        segmentation_section, segmentation_form = make_section("Audio Segmentation", self)
+
+        self._silence_threshold = QDoubleSpinBox()
+        self._silence_threshold.setRange(0.0001, 0.1)
+        self._silence_threshold.setDecimals(4)
+        self._silence_threshold.setSingleStep(0.0005)
+        self._silence_threshold.setToolTip(
+            "How quiet the audio must be to count as silence and stop recording.\n"
+            "Lower value = more sensitive. Higher value = requires more obvious silence."
+        )
+        segmentation_form.addRow("Silence threshold (RMS):", self._silence_threshold)
+
+        self._silence_margin = QSpinBox()
+        self._silence_margin.setRange(50, 1000)
+        self._silence_margin.setSuffix(" ms")
+        self._silence_margin.setToolTip(
+            "Extra time to continue recording after silence is detected.\n"
+            "Increase this if the end of your sentences is being clipped."
+        )
+        segmentation_form.addRow("Silence margin:", self._silence_margin)
+
+        self._sample_rate = QSpinBox()
+        self._sample_rate.setRange(8000, 48000)
+        self._sample_rate.setSingleStep(8000)
+        self._sample_rate.setSuffix(" Hz")
+        self._sample_rate.setToolTip(
+            "Recording sample rate. Granite examples use mono audio at 16000 Hz;\n"
+            "keep the default unless you are diagnosing device-specific audio issues."
+        )
+        segmentation_form.addRow("Sample rate:", self._sample_rate)
+
+        layout.addWidget(segmentation_section)
+
+        diagnostics_section, diagnostics_form = make_section("Diagnostics", self)
+
+        self._clear_logs_on_exit = ToggleSwitch("")
+        self._clear_logs_on_exit.setToolTip(
+            "Erases the contents of the diagnostic log panel\n"
+            "each time the application closes."
+        )
+        diagnostics_form.addRow(make_toggle_row("Clear logs on application exit", self._clear_logs_on_exit))
+        diagnostics_note = QLabel("Runtime and diagnostic controls are intended for troubleshooting.")
+        diagnostics_note.setWordWrap(True)
+        diagnostics_note.setStyleSheet(f"color: {Color.TEXT_MUTED};")
+        diagnostics_form.addRow(diagnostics_note)
+
+        layout.addWidget(diagnostics_section)
+
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, Spacing.LG, 0, 0)
+        self._btn_apply = QPushButton("Apply")
+        self._btn_apply.setEnabled(False)
+        self._btn_apply.setToolTip("Apply pending changes")
+        self._btn_apply.clicked.connect(self._on_apply)
+        self._btn_restore = QPushButton("Restore Defaults")
+        self._btn_restore.setStyleSheet(ghost_button_style())
+        self._btn_restore.clicked.connect(self._on_restore_defaults)
+        action_row.addWidget(self._btn_apply)
+        action_row.addWidget(self._btn_restore)
+        action_row.addStretch()
+        layout.addLayout(action_row)
+
+        layout.addStretch()
+
+    def _populate(self) -> None:
+        s = self.settings
+        self._model_path.setText(s.model_path)
+        self._inference_timeout.setValue(s.inference_timeout)
+        self._silence_threshold.setValue(s.silence_threshold)
+        self._silence_margin.setValue(s.silence_margin_ms)
+        self._sample_rate.setValue(s.sample_rate)
+        self._clear_logs_on_exit.setChecked(s.clear_logs_on_exit)
+
+    def _wire_auto_apply(self) -> None:
+        self._model_path.textChanged.connect(self._on_any_changed)
+        self._inference_timeout.valueChanged.connect(self._on_any_changed)
+        self._silence_threshold.valueChanged.connect(self._on_any_changed)
+        self._silence_margin.valueChanged.connect(self._on_any_changed)
+        self._sample_rate.valueChanged.connect(self._on_any_changed)
+        self._clear_logs_on_exit.toggled.connect(self._on_any_changed)
+
+    def _on_any_changed(self, *_) -> None:
+        self._btn_apply.setEnabled(self._has_any_diff())
+        self.risky_change_pending.emit()
+
+    def _has_any_diff(self) -> bool:
+        s = self._snapshot
+        return (
+            self._model_path.text().strip() != s.get("model_path")
+            or self._inference_timeout.value() != s.get("inference_timeout")
+            or self._silence_threshold.value() != s.get("silence_threshold")
+            or self._silence_margin.value() != s.get("silence_margin_ms")
+            or self._sample_rate.value() != s.get("sample_rate")
+            or self._clear_logs_on_exit.isChecked() != s.get("clear_logs_on_exit")
+        )
+
+    def _on_apply(self) -> None:
+        old_model_path = self._snapshot.get("model_path")
+
+        s = self.settings
+        s.model_path = self._model_path.text().strip()
+        s.inference_timeout = self._inference_timeout.value()
+        s.silence_threshold = self._silence_threshold.value()
+        s.silence_margin_ms = self._silence_margin.value()
+        s.sample_rate = self._sample_rate.value()
+        s.clear_logs_on_exit = self._clear_logs_on_exit.isChecked()
+        s.save()
+
+        self._snapshot = self._take_snapshot()
+        self._btn_apply.setEnabled(False)
+        self.settings_applied.emit()
+
+        if s.model_path != old_model_path:
+            self.reload_model_requested.emit()
+
+    def _browse_model_path(self) -> None:
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Model Directory",
+            self._model_path.text(),
+        )
+        if path:
+            self._model_path.setText(path)
+
+    def _on_restore_defaults(self) -> None:
+        defaults = Settings()
+        self._model_path.setText(defaults.model_path)
+        self._inference_timeout.setValue(defaults.inference_timeout)
+        self._silence_threshold.setValue(defaults.silence_threshold)
+        self._silence_margin.setValue(defaults.silence_margin_ms)
+        self._sample_rate.setValue(defaults.sample_rate)
+        self._clear_logs_on_exit.setChecked(defaults.clear_logs_on_exit)
 
 
 class SettingsDialog(QDialog):

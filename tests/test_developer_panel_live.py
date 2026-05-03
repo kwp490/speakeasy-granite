@@ -72,9 +72,9 @@ class TestDeveloperPanelConstruction:
         panel, _ = dev_panel
         assert panel is not None
 
-    def test_panel_has_five_tabs(self, dev_panel):
+    def test_panel_has_six_tabs(self, dev_panel):
         panel, _ = dev_panel
-        assert panel._tabs.count() == 5
+        assert panel._tabs.count() == 6
 
     def test_panel_default_tab_is_settings(self, dev_panel):
         panel, settings = dev_panel
@@ -87,23 +87,28 @@ class TestDeveloperPanelConstruction:
 
         settings = Settings(dev_panel_active_tab="logs")
         panel = DeveloperPanel(settings, mock_main_window)
-        assert panel._tabs.currentIndex() == 2  # logs tab index
+        assert panel._tabs.currentIndex() == 3  # logs tab index
 
 
 class TestDeveloperPanelTabNavigation:
     def test_switching_tabs_persists_active_tab(self, dev_panel, tmp_path, monkeypatch):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(1)  # Realtime Data
+        panel._tabs.setCurrentIndex(2)  # Realtime Data
         assert settings.dev_panel_active_tab == "realtime"
+
+    def test_switching_to_advanced_tab(self, dev_panel):
+        panel, settings = dev_panel
+        panel._tabs.setCurrentIndex(1)
+        assert settings.dev_panel_active_tab == "advanced"
 
     def test_switching_to_logs_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(2)
+        panel._tabs.setCurrentIndex(3)
         assert settings.dev_panel_active_tab == "logs"
 
     def test_switching_to_pro_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(3)
+        panel._tabs.setCurrentIndex(4)
         assert settings.dev_panel_active_tab == "pro"
 
     def test_switching_back_to_settings(self, dev_panel):
@@ -154,7 +159,7 @@ class TestDeveloperPanelResizing:
         panel._suppress_move_persist = True
         event = QResizeEvent(QSize(999, 999), QSize(480, 720))
         panel.resizeEvent(event)
-        assert settings.dev_panel_width == 600  # unchanged
+        assert settings.dev_panel_width == 629  # unchanged
 
 
 class TestDeveloperPanelSnapping:
@@ -179,6 +184,11 @@ class TestDeveloperPanelSignalWiring:
         panel, _ = dev_panel
         # Emit the signal — should call mock
         panel._settings_widget.reload_model_requested.emit()
+        panel._main_window._on_reload_model.assert_called_once()
+
+    def test_advanced_settings_widget_reload_connected(self, dev_panel):
+        panel, _ = dev_panel
+        panel._advanced_settings_widget.reload_model_requested.emit()
         panel._main_window._on_reload_model.assert_called_once()
 
     def test_realtime_reload_connected(self, dev_panel):
@@ -211,17 +221,22 @@ class TestDeveloperPanelActivateTab:
     def test_activate_tab_realtime(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("realtime")
+        assert panel._tabs.currentIndex() == 2
+
+    def test_activate_tab_advanced(self, dev_panel):
+        panel, _ = dev_panel
+        panel.activate_tab("advanced")
         assert panel._tabs.currentIndex() == 1
 
     def test_activate_tab_logs(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("logs")
-        assert panel._tabs.currentIndex() == 2
+        assert panel._tabs.currentIndex() == 3
 
     def test_activate_tab_pro(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("pro")
-        assert panel._tabs.currentIndex() == 3
+        assert panel._tabs.currentIndex() == 4
 
 
 class TestTokenSparklinePainting:

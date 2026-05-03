@@ -20,6 +20,7 @@ class SettingsConfigTests(unittest.TestCase):
                 speech_task="translate",
                 translation_target_language="French",
                 keyword_bias="Granite, PX-42",
+                formatting_style="preserve_spoken_wording",
                 auto_copy=False,
                 punctuation=False,
             )
@@ -31,6 +32,7 @@ class SettingsConfigTests(unittest.TestCase):
             self.assertEqual(loaded.speech_task, "translate")
             self.assertEqual(loaded.translation_target_language, "French")
             self.assertEqual(loaded.keyword_bias, "Granite, PX-42")
+            self.assertEqual(loaded.formatting_style, "preserve_spoken_wording")
             self.assertFalse(loaded.punctuation)
             self.assertEqual(loaded.model_path, str(models_dir))
             self.assertEqual(loaded.device, "cpu")
@@ -62,6 +64,7 @@ class SettingsConfigTests(unittest.TestCase):
         self.assertEqual(s.speech_task, "transcribe")
         self.assertEqual(s.translation_target_language, "English")
         self.assertEqual(s.keyword_bias, "")
+        self.assertEqual(s.formatting_style, "sentence_case")
         self.assertEqual(s.device, "cuda")
         self.assertEqual(s.sample_rate, 16000)
         self.assertTrue(s.auto_copy)
@@ -199,4 +202,24 @@ class SettingsValidationTests(unittest.TestCase):
         s = Settings(speech_task="summarize")
         s.validate()
         self.assertEqual(s.speech_task, "transcribe")
+
+    def test_auto_language_is_valid(self):
+        s = Settings(language="auto")
+        s.validate()
+        self.assertEqual(s.language, "auto")
+
+    def test_invalid_language_falls_back_to_english_code(self):
+        s = Settings(language="xx")
+        s.validate()
+        self.assertEqual(s.language, "en")
+
+    def test_invalid_translation_target_falls_back_to_english(self):
+        s = Settings(translation_target_language="Portuguese")
+        s.validate()
+        self.assertEqual(s.translation_target_language, "English")
+
+    def test_invalid_formatting_style_falls_back_to_sentence_case(self):
+        s = Settings(formatting_style="meeting_notes")
+        s.validate()
+        self.assertEqual(s.formatting_style, "sentence_case")
 

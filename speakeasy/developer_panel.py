@@ -1,6 +1,6 @@
 """
 Developer Panel — a snapped-but-movable side window with tabs for
-Settings, Realtime Data, Logs, and Pro Mode.
+Settings, Advanced Settings, Realtime Data, Logs, Pro Mode, and History.
 
 Opened from the gear button on the main window or via a global hotkey.
 Closing the panel hides it; reopening restores the last active tab.
@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from .config import Settings
-from .settings_dialog import SettingsWidget
+from .settings_dialog import AdvancedSettingsWidget, SettingsWidget
 
 if TYPE_CHECKING:
     from .main_window import MainWindow
@@ -35,6 +35,7 @@ log = logging.getLogger(__name__)
 
 # Tab keys — must match Settings.dev_panel_active_tab valid values
 TAB_SETTINGS = "settings"
+TAB_ADVANCED = "advanced"
 TAB_REALTIME = "realtime"
 TAB_LOGS = "logs"
 TAB_PRO = "pro"
@@ -586,15 +587,22 @@ class DeveloperPanel(QWidget):
         settings_scroll.setWidget(self._settings_widget)
         self._tabs.addTab(settings_scroll, "\u2699\ufe0f  Settings")
 
-        # Tab 1: Realtime Data
+        # Tab 1: Advanced Settings
+        self._advanced_settings_widget = AdvancedSettingsWidget(self.settings, self)
+        advanced_scroll = QScrollArea()
+        advanced_scroll.setWidgetResizable(True)
+        advanced_scroll.setWidget(self._advanced_settings_widget)
+        self._tabs.addTab(advanced_scroll, "Advanced Settings")
+
+        # Tab 2: Realtime Data
         self.realtime_widget = RealtimeDataWidget(self)
         self._tabs.addTab(self.realtime_widget, "\U0001f4ca  Realtime Data")
 
-        # Tab 2: Logs
+        # Tab 3: Logs
         self.logs_widget = LogsWidget(self)
         self._tabs.addTab(self.logs_widget, "\U0001f4cb  Logs")
 
-        # Tab 3: Pro Mode
+        # Tab 4: Pro Mode
         from .pro_mode_widget import ProModeWidget  # noqa: F811
 
         self.pro_mode_widget = ProModeWidget(
@@ -607,7 +615,7 @@ class DeveloperPanel(QWidget):
         pro_scroll.setWidget(self.pro_mode_widget)
         self._tabs.addTab(pro_scroll, "\U0001f4bc  Pro Mode")
 
-        # Tab 4: History
+        # Tab 5: History
         from .history_widget import HistoryWidget
 
         self.history_widget = HistoryWidget(self)
@@ -621,6 +629,9 @@ class DeveloperPanel(QWidget):
         # Settings tab
         self._settings_widget.reload_model_requested.connect(self._main_window._on_reload_model)
         self._settings_widget.settings_applied.connect(self._main_window._apply_settings)
+        # Advanced Settings tab
+        self._advanced_settings_widget.reload_model_requested.connect(self._main_window._on_reload_model)
+        self._advanced_settings_widget.settings_applied.connect(self._main_window._apply_settings)
         # Realtime tab
         self.realtime_widget.reload_model_requested.connect(self._main_window._on_reload_model)
         self.realtime_widget.validate_requested.connect(self._main_window._on_validate)
@@ -694,11 +705,19 @@ class DeveloperPanel(QWidget):
 
     @staticmethod
     def _tab_key_to_index(key: str) -> int:
-        return {TAB_SETTINGS: 0, TAB_REALTIME: 1, TAB_LOGS: 2, TAB_PRO: 3, TAB_HISTORY: 4}.get(key, 0)
+        return {
+            TAB_SETTINGS: 0,
+            TAB_ADVANCED: 1,
+            TAB_REALTIME: 2,
+            TAB_LOGS: 3,
+            TAB_PRO: 4,
+            TAB_HISTORY: 5,
+        }.get(key, 0)
 
     @staticmethod
     def _index_to_tab_key(idx: int) -> str:
-        return [TAB_SETTINGS, TAB_REALTIME, TAB_LOGS, TAB_PRO, TAB_HISTORY][idx] if 0 <= idx < 5 else TAB_SETTINGS
+        tabs = [TAB_SETTINGS, TAB_ADVANCED, TAB_REALTIME, TAB_LOGS, TAB_PRO, TAB_HISTORY]
+        return tabs[idx] if 0 <= idx < len(tabs) else TAB_SETTINGS
 
     def _on_tab_changed(self, idx: int) -> None:
         self.settings.dev_panel_active_tab = self._index_to_tab_key(idx)

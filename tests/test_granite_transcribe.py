@@ -72,6 +72,38 @@ class TestGranitePrompting(unittest.TestCase):
         self.assertIn("<|audio|>", content)
         self.assertIn("proper punctuation and capitalization", content)
 
+    def test_punctuation_off_uses_basic_transcription_prompt(self):
+        engine = self._engine(["hello"])
+        engine.configure_prompt_options(formatting_style="preserve_spoken_wording")
+
+        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en", punctuation=False)
+
+        content = engine._tokenizer.chats[0][0]["content"]
+        self.assertIn("<|audio|>can you transcribe the speech into a written format?", content)
+        self.assertNotIn("proper punctuation and capitalization", content)
+
+    def test_plain_text_formatting_prompt(self):
+        engine = self._engine(["hello"])
+        engine.configure_prompt_options(formatting_style="plain_text")
+
+        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en")
+
+        content = engine._tokenizer.chats[0][0]["content"]
+        self.assertIn("Transcribe the speech as plain text.", content)
+
+    def test_preserve_spoken_wording_formatting_prompt(self):
+        engine = self._engine(["hello"])
+        engine.configure_prompt_options(formatting_style="preserve_spoken_wording")
+
+        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en")
+
+        content = engine._tokenizer.chats[0][0]["content"]
+        self.assertIn(
+            "Transcribe exactly what is spoken, preserving wording, "
+            "with proper punctuation and capitalization.",
+            content,
+        )
+
     def test_translate_prompt_uses_target_language(self):
         engine = self._engine(["bonjour"])
         engine.configure_prompt_options(
@@ -82,7 +114,20 @@ class TestGranitePrompting(unittest.TestCase):
         engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en")
 
         content = engine._tokenizer.chats[0][0]["content"]
-        self.assertIn("translate the speech to French", content)
+        self.assertIn("translate the speech to French with proper punctuation and capitalization.", content)
+
+    def test_translate_prompt_can_omit_punctuation_clause(self):
+        engine = self._engine(["bonjour"])
+        engine.configure_prompt_options(
+            speech_task="translate",
+            translation_target_language="French",
+        )
+
+        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en", punctuation=False)
+
+        content = engine._tokenizer.chats[0][0]["content"]
+        self.assertIn("translate the speech to French.", content)
+        self.assertNotIn("proper punctuation and capitalization", content)
 
     def test_keyword_bias_prompt_is_normalized(self):
         engine = self._engine(["acme rocket"])
@@ -91,6 +136,7 @@ class TestGranitePrompting(unittest.TestCase):
         engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en")
 
         content = engine._tokenizer.chats[0][0]["content"]
+        self.assertIn("transcribe the speech with proper punctuation and capitalization.", content)
         self.assertIn("Keywords: Acme, PX-42, Granite", content)
 
     def test_only_new_tokens_are_decoded(self):

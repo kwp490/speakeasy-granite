@@ -989,6 +989,7 @@ class MainWindow(QMainWindow):
                     speech_task=self.settings.speech_task,
                     translation_target_language=self.settings.translation_target_language,
                     keyword_bias=self.settings.keyword_bias,
+                    formatting_style=self.settings.formatting_style,
                 )
 
             # Transcribe in-process

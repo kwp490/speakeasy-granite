@@ -47,6 +47,24 @@ def settings_widget(tmp_path, monkeypatch):
     return widget, settings, config_dir
 
 
+@pytest.fixture
+def advanced_settings_widget(tmp_path, monkeypatch):
+    """Construct an isolated AdvancedSettingsWidget with temp settings."""
+    from speakeasy.config import Settings
+    from speakeasy.settings_dialog import AdvancedSettingsWidget
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_DIR", config_dir)
+    monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_FILE", config_dir / "settings.json")
+    monkeypatch.setattr("speakeasy.config.DEFAULT_PRESETS_DIR", config_dir / "presets")
+    (config_dir / "presets").mkdir()
+
+    settings = Settings()
+    widget = AdvancedSettingsWidget(settings)
+    return widget, settings, config_dir
+
+
 class TestAllFieldsDeferred:
     """Every field enables Apply on change but does NOT save until Apply is clicked."""
 
@@ -76,6 +94,16 @@ class TestAllFieldsDeferred:
         widget._on_apply()
         assert settings.punctuation is (not initial)
 
+    def test_formatting_style_deferred(self, settings_widget):
+        widget, settings, _ = settings_widget
+        widget._formatting_style.setCurrentIndex(
+            widget._formatting_style.findData("plain_text")
+        )
+        assert settings.formatting_style == "sentence_case"
+        assert widget._btn_apply.isEnabled()
+        widget._on_apply()
+        assert settings.formatting_style == "plain_text"
+
     def test_hotkeys_enabled_toggle_deferred(self, settings_widget):
         widget, settings, _ = settings_widget
         initial = settings.hotkeys_enabled
@@ -94,8 +122,8 @@ class TestAllFieldsDeferred:
         widget._on_apply()
         assert settings.streaming_partials_enabled is (not initial)
 
-    def test_clear_logs_on_exit_toggle_deferred(self, settings_widget):
-        widget, settings, _ = settings_widget
+    def test_clear_logs_on_exit_toggle_deferred(self, advanced_settings_widget):
+        widget, settings, _ = advanced_settings_widget
         initial = settings.clear_logs_on_exit
         widget._clear_logs_on_exit.setChecked(not initial)
         assert settings.clear_logs_on_exit is initial
@@ -105,10 +133,10 @@ class TestAllFieldsDeferred:
 
 
 class TestRiskyFieldApply:
-    """Model path, device, sample_rate also require explicit Apply (no change)."""
+    """Runtime fields and device changes require explicit Apply."""
 
-    def test_risky_field_change_does_not_save_until_apply(self, settings_widget):
-        widget, settings, config_dir = settings_widget
+    def test_risky_field_change_does_not_save_until_apply(self, advanced_settings_widget):
+        widget, settings, config_dir = advanced_settings_widget
         old_path = settings.model_path
         widget._model_path.setText("C:\\some\\new\\path")
         # Not saved yet
@@ -118,13 +146,13 @@ class TestRiskyFieldApply:
         widget, settings, _ = settings_widget
         assert not widget._btn_apply.isEnabled()
 
-    def test_apply_button_enabled_when_risky_field_changed(self, settings_widget):
-        widget, settings, _ = settings_widget
+    def test_apply_button_enabled_when_risky_field_changed(self, advanced_settings_widget):
+        widget, settings, _ = advanced_settings_widget
         widget._model_path.setText("C:\\changed\\path")
         assert widget._btn_apply.isEnabled()
 
-    def test_apply_button_disabled_after_successful_apply(self, settings_widget):
-        widget, settings, _ = settings_widget
+    def test_apply_button_disabled_after_successful_apply(self, advanced_settings_widget):
+        widget, settings, _ = advanced_settings_widget
         widget._model_path.setText("C:\\changed\\path")
         assert widget._btn_apply.isEnabled()
         widget._on_apply()
@@ -139,8 +167,8 @@ class TestRiskyFieldApply:
         saved = json.loads(config_file.read_text(encoding="utf-8"))
         assert saved["device"] == "cpu"
 
-    def test_sample_rate_change_enables_apply(self, settings_widget):
-        widget, settings, _ = settings_widget
+    def test_sample_rate_change_enables_apply(self, advanced_settings_widget):
+        widget, settings, _ = advanced_settings_widget
         widget._sample_rate.setValue(44100)
         assert widget._btn_apply.isEnabled()
 
@@ -148,8 +176,8 @@ class TestRiskyFieldApply:
 class TestReloadSignals:
     """Apply emits reload_model_requested when model_path or device changes."""
 
-    def test_apply_emits_reload_for_model_path_change(self, settings_widget, qtbot):
-        widget, settings, _ = settings_widget
+    def test_apply_emits_reload_for_model_path_change(self, advanced_settings_widget, qtbot):
+        widget, settings, _ = advanced_settings_widget
         widget._model_path.setText("C:\\new\\model\\dir")
         with qtbot.waitSignal(widget.reload_model_requested, timeout=1000):
             widget._on_apply()
@@ -162,8 +190,8 @@ class TestReloadSignals:
         with qtbot.waitSignal(widget.reload_model_requested, timeout=1000):
             widget._on_apply()
 
-    def test_apply_does_not_emit_reload_for_sample_rate_only(self, settings_widget, qtbot):
-        widget, settings, _ = settings_widget
+    def test_apply_does_not_emit_reload_for_sample_rate_only(self, advanced_settings_widget, qtbot):
+        widget, settings, _ = advanced_settings_widget
         widget._sample_rate.setValue(44100)
         # Should NOT emit reload_model_requested for sample_rate-only change
         with qtbot.assertNotEmitted(widget.reload_model_requested):

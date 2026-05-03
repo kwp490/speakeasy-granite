@@ -62,6 +62,7 @@ class Settings:
     keyword_bias: str = ""
     inference_timeout: int = 30
     punctuation: bool = True
+    formatting_style: str = "sentence_case"
 
     # ── Dictation UX ─────────────────────────────────────────────────────────
     auto_copy: bool = True
@@ -89,7 +90,7 @@ class Settings:
 
     # ── Developer Panel ──────────────────────────────────────────────────────
     dev_panel_open: bool = False
-    dev_panel_active_tab: str = "settings"   # one of: settings, realtime, logs, pro
+    dev_panel_active_tab: str = "settings"   # one of: settings, advanced, realtime, logs, pro, history
     dev_panel_width: int = 629
     dev_panel_height: int = 1131
     dev_panel_snapped: bool = True           # True = follows main window's right edge
@@ -100,6 +101,11 @@ class Settings:
     _VALID_ENGINES = {"granite"}
     _VALID_DEVICES = {"cpu"} if VARIANT == "cpu" else {"cuda", "cpu"}
     _VALID_SPEECH_TASKS = {"transcribe", "translate"}
+    _VALID_LANGUAGES = {"auto", "en", "fr", "de", "es", "pt", "ja"}
+    _VALID_TRANSLATION_TARGETS = {
+        "English", "French", "German", "Spanish", "Japanese", "Italian", "Mandarin"
+    }
+    _VALID_FORMATTING_STYLES = {"plain_text", "sentence_case", "preserve_spoken_wording"}
 
     def validate(self) -> None:
         """Clamp/correct invalid field values to safe defaults."""
@@ -109,8 +115,17 @@ class Settings:
         if self.speech_task not in self._VALID_SPEECH_TASKS:
             log.warning("Unknown speech_task '%s'; falling back to 'transcribe'", self.speech_task)
             self.speech_task = "transcribe"
-        if not self.translation_target_language:
+        if self.language not in self._VALID_LANGUAGES:
+            log.warning("Unknown language '%s'; falling back to 'en'", self.language)
+            self.language = "en"
+        if self.translation_target_language not in self._VALID_TRANSLATION_TARGETS:
             self.translation_target_language = "English"
+        if self.formatting_style not in self._VALID_FORMATTING_STYLES:
+            log.warning(
+                "Unknown formatting_style '%s'; falling back to 'sentence_case'",
+                self.formatting_style,
+            )
+            self.formatting_style = "sentence_case"
         self.keyword_bias = str(self.keyword_bias or "").strip()
         if self.model_path != DEFAULT_MODELS_DIR and not os.path.isdir(self.model_path):
             log.warning("model_path '%s' does not exist; resetting to default", self.model_path)
@@ -126,7 +141,7 @@ class Settings:
             self.inference_timeout = 30
         if self.silence_threshold <= 0:
             self.silence_threshold = 0.0015
-        valid_tabs = {"settings", "realtime", "logs", "pro", "history"}
+        valid_tabs = {"settings", "advanced", "realtime", "logs", "pro", "history"}
         if self.dev_panel_active_tab not in valid_tabs:
             self.dev_panel_active_tab = "settings"
         if self.dev_panel_width < 540:

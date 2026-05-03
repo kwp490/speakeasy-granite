@@ -25,6 +25,7 @@ from .base import SpeechEngine
 log = logging.getLogger(__name__)
 
 GRANITE_REPO_ID = "ibm-granite/granite-speech-4.1-2b"
+GRANITE_FORMATTING_STYLES = {"plain_text", "sentence_case", "preserve_spoken_wording"}
 
 
 class GraniteTranscribeEngine(SpeechEngine):
@@ -45,6 +46,7 @@ class GraniteTranscribeEngine(SpeechEngine):
         self._speech_task: str = "transcribe"
         self._translation_target_language: str = "English"
         self._keyword_bias: str = ""
+        self._formatting_style: str = "sentence_case"
 
     @property
     def name(self) -> str:
@@ -64,11 +66,15 @@ class GraniteTranscribeEngine(SpeechEngine):
         speech_task: str = "transcribe",
         translation_target_language: str = "English",
         keyword_bias: str = "",
+        formatting_style: str = "sentence_case",
     ) -> None:
         """Set Granite prompt options for the next transcription call."""
         self._speech_task = speech_task if speech_task in {"transcribe", "translate"} else "transcribe"
         self._translation_target_language = translation_target_language or "English"
         self._keyword_bias = keyword_bias.strip()
+        self._formatting_style = (
+            formatting_style if formatting_style in GRANITE_FORMATTING_STYLES else "sentence_case"
+        )
 
     def load(self, model_path: str, device: str = "cuda") -> None:
         self._device = device
@@ -215,12 +221,17 @@ class GraniteTranscribeEngine(SpeechEngine):
             if punctuation:
                 prompt += " with proper punctuation and capitalization"
             prompt += "."
-        elif keywords:
-            prompt = "transcribe the speech to text."
-        elif punctuation:
-            prompt = "transcribe the speech with proper punctuation and capitalization."
-        else:
+        elif not punctuation:
             prompt = "can you transcribe the speech into a written format?"
+        elif self._formatting_style == "plain_text":
+            prompt = "Transcribe the speech as plain text."
+        elif self._formatting_style == "preserve_spoken_wording":
+            prompt = (
+                "Transcribe exactly what is spoken, preserving wording, "
+                "with proper punctuation and capitalization."
+            )
+        else:
+            prompt = "transcribe the speech with proper punctuation and capitalization."
 
         if keywords:
             prompt += f" Keywords: {keywords}"

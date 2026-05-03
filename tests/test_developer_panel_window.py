@@ -153,9 +153,9 @@ class TestDeveloperPanelStructureAST:
     def _method_names(self):
         return [n.name for n in ast.walk(self._dp_class) if isinstance(n, ast.FunctionDef)]
 
-    def test_panel_has_five_tabs(self):
+    def test_panel_has_six_tabs(self):
         src = self._method_source("_build_ui")
-        assert src.count("addTab") == 5
+        assert src.count("addTab") == 6
 
     def test_close_event_hides_instead_of_destroying(self):
         src = self._method_source("closeEvent")

@@ -76,11 +76,16 @@ Key settings live in `config/settings.json`:
 | --- | --- | --- |
 | `engine` | `granite` | Speech engine |
 | `device` | `cuda` in GPU builds, `cpu` in CPU builds | Inference device |
-| `language` | `en` | Spoken language for ASR |
+| `language` | `en` | Spoken language for ASR (`auto` is also available) |
 | `speech_task` | `transcribe` | `transcribe` or `translate` |
-| `translation_target_language` | `English` | Target language for translation mode |
-| `keyword_bias` | empty | Optional comma-separated bias words |
-| `punctuation` | `true` | Requests punctuation/capitalization in the Granite prompt |
+| `translation_target_language` | `English` | Target language for translation mode: English, French, German, Spanish, Japanese, Italian, or Mandarin |
+| `keyword_bias` | empty | Optional comma-separated Granite keyword bias list for names, acronyms, jargon, and product terms |
+| `punctuation` | `true` | Requests punctuation/capitalization through Granite prompt wording |
+| `formatting_style` | `sentence_case` | Granite prompt style: `sentence_case`, `plain_text`, or `preserve_spoken_wording` |
+
+Granite Speech 4.1 behavior is prompt-driven. Punctuation/capitalization, translation,
+and keyword biasing are expressed in the chat prompt sent with `<|audio|>` rather than
+as Whisper-style decoder switches.
 
 ## Architecture Notes
 

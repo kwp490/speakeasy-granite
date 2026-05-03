@@ -5,6 +5,36 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - Advanced Settings Tab, Formatting Style & Settings Refactor
+
+### Added
+- **`formatting_style` setting** (`config.py`): new field with three values — `sentence_case` (default), `plain_text`, `preserve_spoken_wording`; validated and clamped in `Settings.validate()`
+- **`AdvancedSettingsWidget`** (`settings_dialog.py`): new embeddable widget for developer/runtime controls (model path, inference timeout, silence threshold/margin, sample rate, clear-logs-on-exit); wired into the Developer Panel as a dedicated tab
+- **Developer Panel "Advanced Settings" tab** (tab index 1): `AdvancedSettingsWidget` wrapped in a scroll area; signals wired to `reload_model_requested` and `settings_applied`; `TAB_ADVANCED = "advanced"` constant; tab count 5 → 6
+- **`"advanced"` added to valid `dev_panel_active_tab` values**; tab key↔index maps updated for 6 tabs
+- **`"auto"` language option** added to `GRANITE_LANGUAGES` and `Settings._VALID_LANGUAGES`; `auto` detected and validated correctly
+- **`GRANITE_FORMATTING_STYLES`** constant in `settings_dialog.py`; formatting style combo in `SettingsWidget` Transcription Style section
+- **Transcription Style section** in `SettingsWidget`: groups punctuation toggle + formatting style combo; separate from the Model section
+
+### Changed
+- **`SettingsWidget`** (user-facing tab) trimmed: model path browse, silence threshold/margin, sample rate, clear-logs-on-exit, and inference timeout moved to `AdvancedSettingsWidget`; task row label renamed "Mode:" → hidden `Translate to:` row when transcribe is selected (using `setVisible`)
+- **`SettingsWidget.reload_model_requested`** now fires only on device change (model path is an Advanced setting); `_on_apply()` diff check simplified
+- **`GraniteTranscribeEngine.configure_prompt_options()`** gains `formatting_style` parameter; `_build_user_prompt()` uses it to select plain-text or preserve-spoken-wording prompt wording
+- **Granite prompt logic refactored**: the `elif keywords / elif punctuation / else` chain is replaced with cleaner branching; `plain_text` and `preserve_spoken_wording` style prompts added
+- **`Settings._VALID_TRANSLATION_TARGETS`** updated — "Portuguese" removed (not supported by Granite 4.1); validation now checks against the set and falls back to "English"
+- **`Settings._VALID_LANGUAGES`** added with explicit set; unknown language codes fall back to `"en"` with a warning
+- **`main_window.py`** passes `formatting_style` to `configure_prompt_options()` before transcription
+- **README** updated with `formatting_style` field, expanded language/translation notes, and Granite prompt-driven behavior description
+
+### Tests
+- `test_config.py`: added `formatting_style` round-trip, auto-language validation, invalid language/translation-target/formatting-style fallback tests
+- `test_config_persistence.py`: default width/height values updated; `advanced` tab added to parametrize; all width/height assertions updated
+- `test_developer_panel_live.py`: 5→6 tabs; tab indices shifted; advanced tab navigation tests added; `_advanced_settings_widget` signal tests added
+- `test_developer_panel_window.py`: 5→6 `addTab` assertion
+- `test_granite_transcribe.py`: tests for `plain_text`, `preserve_spoken_wording`, punctuation-off, translate-without-punctuation, and keyword prompt variants
+- `test_main_window_layout.py`: window size assertions updated; layout minimum height relaxed to 490
+- `test_settings_widget.py`: `advanced_settings_widget` fixture added; model path, sample rate, clear-logs, and reload signal tests moved to use advanced fixture; `formatting_style` deferred-apply test added
+
 ## [0.9.3] - Developer Panel Size Persistence Fix
 
 ### Fixed
