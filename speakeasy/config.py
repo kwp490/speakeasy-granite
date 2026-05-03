@@ -90,8 +90,8 @@ class Settings:
     # ── Developer Panel ──────────────────────────────────────────────────────
     dev_panel_open: bool = False
     dev_panel_active_tab: str = "settings"   # one of: settings, realtime, logs, pro
-    dev_panel_width: int = 600
-    dev_panel_height: int = 720
+    dev_panel_width: int = 629
+    dev_panel_height: int = 1131
     dev_panel_snapped: bool = True           # True = follows main window's right edge
     hotkey_dev_panel: str = "ctrl+alt+d"     # user-configurable in Hotkeys section
 
@@ -130,11 +130,11 @@ class Settings:
         if self.dev_panel_active_tab not in valid_tabs:
             self.dev_panel_active_tab = "settings"
         if self.dev_panel_width < 540:
-            self.dev_panel_width = 600
+            self.dev_panel_width = 629
         if self.dev_panel_width > 800:
             self.dev_panel_width = 800
         if self.dev_panel_height < 400:
-            self.dev_panel_height = 720
+            self.dev_panel_height = 1131
 
     def save(self, path: Path | None = None) -> None:
         """Persist settings to JSON file."""

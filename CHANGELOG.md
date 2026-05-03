@@ -5,6 +5,14 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - Developer Panel Size Persistence Fix
+
+### Fixed
+- **`show_snapped()` now respects saved panel height**: previously always resized to `geom.height()` (main window height), ignoring `settings.dev_panel_height`; now uses `settings.dev_panel_height` so the panel restores to its last-saved size on re-open
+
+### Changed
+- **Default `dev_panel_width`** updated 600 → 629 px and **`dev_panel_height`** 720 → 1131 px to match observed real-world usage; clamp floor values updated to match
+
 ## [0.9.2] - Record Button Typography & Window Sizing
 
 ### Changed

@@ -682,7 +682,7 @@ class DeveloperPanel(QWidget):
         target = QPoint(geom.right() + 1, geom.top())
         self._suppress_move_persist = True
         self.move(target)
-        self.resize(self.settings.dev_panel_width, geom.height())
+        self.resize(self.settings.dev_panel_width, self.settings.dev_panel_height)
         self._suppress_move_persist = False
 
     def on_main_window_moved(self) -> None:
