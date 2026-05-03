@@ -17,7 +17,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.11.0"
+#define MyAppVersion "0.11.1"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"
@@ -545,9 +545,6 @@ begin
     { Toggle between token-entry and model-found UI }
     TokenLblHeader.Visible     := not ModelExists;
     TokenLblSteps.Visible      := not ModelExists;
-    TokenLblPaste.Visible      := not ModelExists;
-    TokenEdit.Visible          := not ModelExists;
-    TokenLblDisclaimer.Visible := not ModelExists;
     ModelFoundHeader.Visible   := ModelExists;
     ModelFoundNote.Visible     := ModelExists;
   end;

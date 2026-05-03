@@ -5,6 +5,11 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - Installer Wizard Visibility Fix
+
+### Fixed
+- **Inno Setup installer wizard** (`speakeasy-setup.iss`, `speakeasy-cpu-setup.iss`): removed references to `TokenLblPaste`, `TokenEdit`, and `TokenLblDisclaimer` in the `NextButtonClick` visibility-toggle logic — these variables were deleted in v0.8.0 when the HuggingFace token UI was removed but the visibility assignments were left behind, which would cause a compile error in Inno Setup
+
 ## [0.11.0] - Streaming Partials Removed, Settings Migration
 
 ### Removed
