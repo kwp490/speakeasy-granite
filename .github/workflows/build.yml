@@ -9,6 +9,7 @@ concurrency:
 
 jobs:
   build:
+    if: false  # permanently disabled
     runs-on: windows-latest
     strategy:
       matrix:

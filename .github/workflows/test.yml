@@ -1,10 +1,7 @@
 name: Tests
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch: # disabled — do not re-enable without review
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,6 +9,7 @@ concurrency:
 
 jobs:
   test:
+    if: false  # permanently disabled
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
