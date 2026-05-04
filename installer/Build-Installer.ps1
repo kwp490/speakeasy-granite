@@ -183,14 +183,16 @@ $ErrorActionPreference = 'Stop'
 # kernel to return errors to the calling process instead of popping a dialog
 # when an inaccessible drive (e.g. a removed D:\ volume) is touched during
 # junction setup, torch swap, or PyInstaller I/O.
-Add-Type -TypeDefinition @'
+if (-not ('WinErrorMode' -as [type])) {
+    Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class WinErrorMode {
     [DllImport("kernel32.dll")]
     public static extern uint SetErrorMode(uint uMode);
 }
-'@ -ErrorAction SilentlyContinue
+'@
+}
 try {
     [WinErrorMode]::SetErrorMode(0x8001) | Out-Null   # SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX
 } catch { }
@@ -585,6 +587,19 @@ sys.exit(0 if ok else 1)
 if ($Mode -in @('Build', 'Release')) {
     Write-Step "Setting up RAM disk junctions..."
     Initialize-RamDiskJunctions
+
+    # Flush stale RAM disk contents when -Clean is requested.  PyInstaller's
+    # --clean only wipes its own cache dir; leftover AST / .pyc artifacts on
+    # the RAM disk (e.g. from a crashed torch swap) can cause
+    # "SystemError: unexpected expression" during modulegraph analysis.
+    if ($Clean) {
+        foreach ($dir in @("$RamDiskDrive\speakeasy-build", "$RamDiskDrive\speakeasy-dist")) {
+            if (Test-Path $dir) {
+                Remove-Item "$dir\*" -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Ok "Flushed $dir (stale cache prevention)"
+            }
+        }
+    }
 }
 
 
