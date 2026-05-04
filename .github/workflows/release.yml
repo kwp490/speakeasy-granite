@@ -4,61 +4,19 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: write
-
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
-        with:
-          version: "0.11.7"
-
-      - name: Install dependencies
-        run: uv sync --extra dev
-
-      - name: Install Inno Setup
-        run: choco install innosetup --version=6.7.1 -y --no-progress
-
-      - name: Build GPU binary
-        run: uv run pyinstaller speakeasy.spec
-
-      - name: Build GPU installer
-        run: |
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          & $iscc installer\speakeasy-setup.iss
-
-      - name: Build CPU binary
-        run: uv run pyinstaller speakeasy-cpu.spec
-
-      - name: Build CPU installer
-        run: |
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          & $iscc installer\speakeasy-cpu-setup.iss
-
-      - name: Generate checksums
-        run: |
-          $installers = Get-ChildItem "installer\Output\*.exe"
-          $lines = @()
-          foreach ($installer in $installers) {
-            $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
-            $lines += "$hash  $($installer.Name)"
-          }
-          $lines | Out-File -FilePath "installer\Output\SHA256SUMS.txt" -Encoding utf8
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: |
-            installer/Output/SpeakEasy-AI-Granite-Setup-*.exe
-            installer/Output/SpeakEasy-AI-Granite-CPU-Setup-*.exe
-            installer/Output/SHA256SUMS.txt
           generate_release_notes: true
-          draft: false
+          draft: true
