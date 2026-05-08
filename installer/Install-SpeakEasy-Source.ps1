@@ -522,7 +522,7 @@ if ((Test-Path (Join-Path $graniteDir "config.json"))) {
 } else {
     Write-Host "  Downloading Granite model (ibm-granite/granite-speech-4.1-2b)..."
     Push-Location $InstallDir
-    Invoke-StreamingCommand "Granite model download" { uv run speakeasy download-model --target-dir $ModelsDir }
+    Invoke-StreamingCommand "Granite model download" { uv run speakeasy download-model --target-dir $ModelsDir --progress-format text }
     Pop-Location
     Write-Ok "Granite model downloaded to $graniteDir"
 }

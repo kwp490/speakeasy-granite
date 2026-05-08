@@ -93,7 +93,7 @@ class TestDeveloperPanelConstruction:
 class TestDeveloperPanelTabNavigation:
     def test_switching_tabs_persists_active_tab(self, dev_panel, tmp_path, monkeypatch):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(2)  # Realtime Data
+        panel._tabs.setCurrentIndex(2)  # Metrics
         assert settings.dev_panel_active_tab == "realtime"
 
     def test_switching_to_advanced_tab(self, dev_panel):

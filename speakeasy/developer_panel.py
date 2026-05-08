@@ -1,6 +1,6 @@
 """
 Developer Panel — a snapped-but-movable side window with tabs for
-Settings, Advanced Settings, Realtime Data, Logs, Pro Mode, and History.
+Settings, Advanced, Metrics, Logs, Pro Mode, and History.
 
 Opened from the gear button on the main window or via a global hotkey.
 Closing the panel hides it; reopening restores the last active tab.
@@ -169,7 +169,7 @@ class TokenSparkline(QWidget):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Realtime Data widget
+# Metrics widget
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
@@ -587,16 +587,16 @@ class DeveloperPanel(QWidget):
         settings_scroll.setWidget(self._settings_widget)
         self._tabs.addTab(settings_scroll, "\u2699\ufe0f  Settings")
 
-        # Tab 1: Advanced Settings
+        # Tab 1: Advanced
         self._advanced_settings_widget = AdvancedSettingsWidget(self.settings, self)
         advanced_scroll = QScrollArea()
         advanced_scroll.setWidgetResizable(True)
         advanced_scroll.setWidget(self._advanced_settings_widget)
-        self._tabs.addTab(advanced_scroll, "Advanced Settings")
+        self._tabs.addTab(advanced_scroll, "Advanced")
 
-        # Tab 2: Realtime Data
+        # Tab 2: Metrics
         self.realtime_widget = RealtimeDataWidget(self)
-        self._tabs.addTab(self.realtime_widget, "\U0001f4ca  Realtime Data")
+        self._tabs.addTab(self.realtime_widget, "\U0001f4ca  Metrics")
 
         # Tab 3: Logs
         self.logs_widget = LogsWidget(self)
@@ -629,7 +629,7 @@ class DeveloperPanel(QWidget):
         # Settings tab
         self._settings_widget.reload_model_requested.connect(self._main_window._on_reload_model)
         self._settings_widget.settings_applied.connect(self._main_window._apply_settings)
-        # Advanced Settings tab
+        # Advanced tab
         self._advanced_settings_widget.reload_model_requested.connect(self._main_window._on_reload_model)
         self._advanced_settings_widget.settings_applied.connect(self._main_window._apply_settings)
         # Realtime tab

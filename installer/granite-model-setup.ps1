@@ -48,13 +48,70 @@ function Write-Instructions {
     Write-Host ''
 }
 
+function Write-DownloadOutputLine {
+    param(
+        [string]$Line,
+        [switch]$ErrorLine
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Line)) { return }
+
+    $prefix = 'SPEAKEASY_PROGRESS '
+    if ($Line.StartsWith($prefix)) {
+        try {
+            $payload = $Line.Substring($prefix.Length) | ConvertFrom-Json -ErrorAction Stop
+            $status = if ($payload.message) { [string]$payload.message } else { 'Downloading Granite model' }
+            if ($null -ne $payload.percent) {
+                $percent = [Math]::Max(0, [Math]::Min(100, [int]$payload.percent))
+                Write-Progress -Activity 'Downloading Granite model' -Status $status -PercentComplete $percent
+            } else {
+                Write-Progress -Activity 'Downloading Granite model' -Status $status
+            }
+        } catch {
+            Write-Host $Line -ForegroundColor DarkGray
+        }
+        return
+    }
+
+    if ($ErrorLine) {
+        Write-Host $Line -ForegroundColor Yellow
+    } else {
+        Write-Host $Line
+    }
+}
+
+function Write-ProcessOutput {
+    param(
+        [string]$StdoutPath,
+        [string]$StderrPath,
+        [ref]$StdoutIndex,
+        [ref]$StderrIndex
+    )
+
+    if (Test-Path $StdoutPath) {
+        $outLines = @(Get-Content $StdoutPath -ErrorAction SilentlyContinue)
+        for ($i = $StdoutIndex.Value; $i -lt $outLines.Count; $i++) {
+            Write-DownloadOutputLine -Line $outLines[$i]
+        }
+        $StdoutIndex.Value = $outLines.Count
+    }
+
+    if (Test-Path $StderrPath) {
+        $errLines = @(Get-Content $StderrPath -ErrorAction SilentlyContinue)
+        for ($i = $StderrIndex.Value; $i -lt $errLines.Count; $i++) {
+            Write-DownloadOutputLine -Line $errLines[$i] -ErrorLine
+        }
+        $StderrIndex.Value = $errLines.Count
+    }
+}
+
 function Start-Download {
     while ($true) {
         Write-Host ''
         Write-Host 'Downloading Granite model — this may take several minutes...' -ForegroundColor Cyan
 
         try {
-            $arguments = @('download-model')
+            $arguments = @('download-model', '--progress-format', 'jsonl')
             if ($TargetDir) {
                 $arguments += @('--target-dir', "`"$TargetDir`"")
             }
@@ -64,17 +121,23 @@ function Start-Download {
 
             $process = Start-Process -FilePath $Exe `
                 -ArgumentList $arguments `
-                -Wait -PassThru -NoNewWindow `
+                -PassThru -NoNewWindow `
                 -RedirectStandardOutput $tmpOut `
                 -RedirectStandardError  $tmpErr
 
-            $outLines = Get-Content $tmpOut -ErrorAction SilentlyContinue
-            $errLines = Get-Content $tmpErr -ErrorAction SilentlyContinue
-            Remove-Item $tmpOut, $tmpErr -ErrorAction SilentlyContinue
+            $outIndex = 0
+            $errIndex = 0
+            while (-not $process.HasExited) {
+                Write-ProcessOutput $tmpOut $tmpErr ([ref]$outIndex) ([ref]$errIndex)
+                Start-Sleep -Milliseconds 250
+                $process.Refresh()
+            }
 
-            foreach ($line in $outLines) { Write-Host $line }
-            foreach ($line in $errLines) { Write-Host $line -ForegroundColor Yellow }
+            Write-ProcessOutput $tmpOut $tmpErr ([ref]$outIndex) ([ref]$errIndex)
+            Write-Progress -Activity 'Downloading Granite model' -Completed
+            Remove-Item $tmpOut, $tmpErr -ErrorAction SilentlyContinue
         } catch {
+            Write-Progress -Activity 'Downloading Granite model' -Completed
             Write-Host ''
             Write-Host "ERROR: Failed to launch download: $_" -ForegroundColor Red
             Write-Host 'Would you like to try again?' -ForegroundColor White

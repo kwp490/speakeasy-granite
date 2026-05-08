@@ -286,6 +286,7 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.iss_text = _read("installer/speakeasy-setup.iss")
+        cls.cpu_iss_text = _read("installer/speakeasy-cpu-setup.iss")
 
     def test_iss_downloads_granite(self):
         """The ISS script must download the Granite model via download-model."""
@@ -300,6 +301,32 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
             re.search(r'granite-model-setup\.ps1', self.iss_text),
             "speakeasy-setup.iss must reference granite-model-setup.ps1 in the [Files] section.",
         )
+
+    def test_installers_request_jsonl_download_progress(self):
+        """Both installers must consume structured download progress."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("SPEAKEASY_PROGRESS", text)
+                self.assertIn("RunDownloadProcess", text)
+                self.assertIn("--progress-format", text)
+                self.assertIn("jsonl", text)
+                self.assertNotIn("SetProgress(0, 1)", text)
+                self.assertNotIn("SetProgress(1, 1)", text)
+
+    def test_installers_preflight_model_disk_space(self):
+        """Both installers must check free disk space before model download."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("CheckModelDiskSpace", text)
+                self.assertIn("5368709120", text)
+                self.assertIn("PSDrive", text)
+                self.assertIn("Not enough free disk space", text)
 
     def test_exit_code_constants_match_python(self):
         """The exit code comment in .iss must match the Python constants."""

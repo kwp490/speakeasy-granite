@@ -17,7 +17,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.11.1"
+#define MyAppVersion "0.12.0"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"
@@ -462,6 +462,207 @@ begin
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
+function PowerShellQuote(Value: String): String;
+begin
+  StringChangeEx(Value, #39, #39 + #39, True);
+  Result := #39 + Value + #39;
+end;
+
+function CheckModelDiskSpace(ModelsDir: String): Boolean;
+var
+  PsCmd: String;
+  ResultCode: Integer;
+begin
+  Result := True;
+  if not DirExists(ModelsDir) then
+    ForceDirectories(ModelsDir);
+
+  PsCmd := '$ErrorActionPreference = ''Stop''; ' +
+    '$path = ' + PowerShellQuote(ModelsDir) + '; ' +
+    '$required = 5368709120; ' +
+    '$drive = (Get-Item -LiteralPath $path).PSDrive; ' +
+    'if ($drive.Free -lt $required) { exit 1 } else { exit 0 }';
+
+  if Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' + PsCmd + '"',
+          '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if ResultCode = 1 then
+    begin
+      MsgBox('Not enough free disk space to download the IBM Granite Speech model.' + #13#10 + #13#10 +
+             'At least 5 GB of free disk space is required.' + #13#10 + #13#10 +
+             'Free disk space and run the installer again, or download the model later using granite-model-setup.ps1.',
+             mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;
+
+function JsonStringValue(Line, Key: String): String;
+var
+  Marker, Remainder: String;
+  StartPos, EndPos: Integer;
+begin
+  Result := '';
+  Marker := '"' + Key + '": "';
+  StartPos := Pos(Marker, Line);
+  if StartPos = 0 then Exit;
+
+  Remainder := Copy(Line, StartPos + Length(Marker), Length(Line));
+  EndPos := Pos('"', Remainder);
+  if EndPos = 0 then
+    Result := Remainder
+  else
+    Result := Copy(Remainder, 1, EndPos - 1);
+
+  StringChangeEx(Result, '\\', '\', True);
+  StringChangeEx(Result, '\"', '"', True);
+  StringChangeEx(Result, '\n', ' ', True);
+end;
+
+function JsonIntValue(Line, Key: String; Default: Integer): Integer;
+var
+  Marker, Remainder, Ch, Digits: String;
+  StartPos, I: Integer;
+begin
+  Result := Default;
+  Marker := '"' + Key + '": ';
+  StartPos := Pos(Marker, Line);
+  if StartPos = 0 then Exit;
+
+  Remainder := Copy(Line, StartPos + Length(Marker), Length(Line));
+  Digits := '';
+  for I := 1 to Length(Remainder) do
+  begin
+    Ch := Copy(Remainder, I, 1);
+    if (Ch >= '0') and (Ch <= '9') then
+      Digits := Digits + Ch
+    else
+      Break;
+  end;
+  if Digits <> '' then
+    Result := StrToIntDef(Digits, Default);
+end;
+
+procedure ApplyDownloadProgressLine(Line: String);
+var
+  Message, LabelText: String;
+  Percent: Integer;
+begin
+  if Pos('SPEAKEASY_PROGRESS ', Line) <> 1 then Exit;
+
+  Message := JsonStringValue(Line, 'message');
+  LabelText := JsonStringValue(Line, 'label');
+  Percent := JsonIntValue(Line, 'percent', -1);
+
+  if Message = '' then
+    Message := 'Downloading IBM Granite Speech model...';
+  if LabelText = '' then
+    LabelText := 'Source: huggingface.co/ibm-granite/granite-speech-4.1-2b';
+
+  DownloadPage.SetText(Message, LabelText);
+  if Percent >= 0 then
+    DownloadPage.SetProgress(Percent, 100);
+end;
+
+procedure ProcessDownloadProgressChunk(var Buffer: String; Chunk: String);
+var
+  Line: String;
+  LineEnd: Integer;
+begin
+  Buffer := Buffer + Chunk;
+  LineEnd := Pos(#10, Buffer);
+  while LineEnd > 0 do
+  begin
+    Line := Copy(Buffer, 1, LineEnd - 1);
+    if (Length(Line) > 0) and (Copy(Line, Length(Line), 1) = #13) then
+      Delete(Line, Length(Line), 1);
+    ApplyDownloadProgressLine(Line);
+    Delete(Buffer, 1, LineEnd);
+    LineEnd := Pos(#10, Buffer);
+  end;
+end;
+
+procedure PollDownloadOutput(OutputPath: String; var LastLength: Integer; var Buffer: String);
+var
+  Text: AnsiString;
+  Chunk: String;
+begin
+  if LoadStringFromFile(OutputPath, Text) then
+  begin
+    if Length(Text) > LastLength then
+    begin
+      Chunk := Copy(Text, LastLength + 1, Length(Text) - LastLength);
+      LastLength := Length(Text);
+      ProcessDownloadProgressChunk(Buffer, Chunk);
+    end;
+  end;
+end;
+
+function RunDownloadProcess(ExePath, ModelsDir: String; var ExitCode: Integer): Boolean;
+var
+  ScriptPath, OutPath, ErrPath, CodePath, DonePath: String;
+  Script, OutBuffer, ErrBuffer: String;
+  CodeText: AnsiString;
+  LaunchCode, OutLength, ErrLength: Integer;
+begin
+  Result := False;
+  ExitCode := 1;
+  ScriptPath := ExpandConstant('{tmp}\speakeasy-model-download.ps1');
+  OutPath := ExpandConstant('{tmp}\speakeasy-model-download.out');
+  ErrPath := ExpandConstant('{tmp}\speakeasy-model-download.err');
+  CodePath := ExpandConstant('{tmp}\speakeasy-model-download.code');
+  DonePath := ExpandConstant('{tmp}\speakeasy-model-download.done');
+
+  DeleteFile(ScriptPath);
+  DeleteFile(OutPath);
+  DeleteFile(ErrPath);
+  DeleteFile(CodePath);
+  DeleteFile(DonePath);
+
+  Script := '$ErrorActionPreference = ' + PowerShellQuote('Stop') + #13#10 +
+    '$exe = ' + PowerShellQuote(ExePath) + #13#10 +
+    '$arguments = @(' + PowerShellQuote('download-model') + ', ' +
+      PowerShellQuote('--target-dir') + ', ' + PowerShellQuote(ModelsDir) + ', ' +
+      PowerShellQuote('--progress-format') + ', ' + PowerShellQuote('jsonl') + ')' + #13#10 +
+    'try {' + #13#10 +
+    '  $process = Start-Process -FilePath $exe -ArgumentList $arguments -NoNewWindow -PassThru -RedirectStandardOutput ' + PowerShellQuote(OutPath) + ' -RedirectStandardError ' + PowerShellQuote(ErrPath) + #13#10 +
+    '  $process.WaitForExit()' + #13#10 +
+    '  Set-Content -Path ' + PowerShellQuote(CodePath) + ' -Value $process.ExitCode -Encoding ASCII' + #13#10 +
+    '} catch {' + #13#10 +
+    '  $_ | Out-String | Add-Content -Path ' + PowerShellQuote(ErrPath) + ' -Encoding UTF8' + #13#10 +
+    '  Set-Content -Path ' + PowerShellQuote(CodePath) + ' -Value 1 -Encoding ASCII' + #13#10 +
+    '} finally {' + #13#10 +
+    '  New-Item -ItemType File -Path ' + PowerShellQuote(DonePath) + ' -Force | Out-Null' + #13#10 +
+    '}' + #13#10;
+
+  if not SaveStringToFile(ScriptPath, Script, False) then Exit;
+  if not Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
+              '', SW_HIDE, ewNoWait, LaunchCode) then Exit;
+
+  Result := True;
+  OutLength := 0;
+  ErrLength := 0;
+  OutBuffer := '';
+  ErrBuffer := '';
+  while not FileExists(DonePath) do
+  begin
+    PollDownloadOutput(OutPath, OutLength, OutBuffer);
+    PollDownloadOutput(ErrPath, ErrLength, ErrBuffer);
+    WizardForm.Refresh;
+    Sleep(250);
+  end;
+
+  PollDownloadOutput(OutPath, OutLength, OutBuffer);
+  PollDownloadOutput(ErrPath, ErrLength, ErrBuffer);
+  if OutBuffer <> '' then
+    ProcessDownloadProgressChunk(OutBuffer, #10);
+  if ErrBuffer <> '' then
+    ProcessDownloadProgressChunk(ErrBuffer, #10);
+
+  if LoadStringFromFile(CodePath, CodeText) then
+    ExitCode := StrToIntDef(Trim(CodeText), 1);
+end;
+
 { download-model exit codes: 0 = success, 1 = failure, 2 = auth required }
 procedure DownloadModel;
 var
@@ -470,26 +671,34 @@ var
 begin
   ExePath := ExpandConstant('{app}\{#MyAppExeName}');
   ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models';
+  if not CheckModelDiskSpace(ModelsDir) then
+    Exit;
+
   DownloadPage := CreateOutputProgressPage('Downloading Model',
     'Downloading the IBM Granite Speech model that powers SpeakEasy AI Granite. This may take several minutes.');
   DownloadPage.Show;
   DownloadPage.SetText('Downloading IBM Granite Speech (ibm-granite/granite-speech-4.1-2b)...',
     'Source: huggingface.co/ibm-granite/granite-speech-4.1-2b');
-  DownloadPage.SetProgress(0, 1);
+  DownloadPage.SetProgress(0, 100);
   try
-    Exec(ExePath, 'download-model --target-dir "' + ModelsDir + '"',
-         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    if ResultCode <> 0 then
+    if RunDownloadProcess(ExePath, ModelsDir, ResultCode) then
+    begin
+      if ResultCode = 0 then
+        DownloadPage.SetProgress(100, 100)
+      else
+        MsgBox('Model download failed (exit code ' + IntToStr(ResultCode) + ').' + #13#10 + #13#10 +
+               'You can download it later using granite-model-setup.ps1' + #13#10 +
+               'or the model will be downloaded on first launch.',
+               mbError, MB_OK);
+    end else
       MsgBox('Model download failed (exit code ' + IntToStr(ResultCode) + ').' + #13#10 + #13#10 +
-             'You can download it later using granite-model-setup.ps1' + #13#10 +
-             'or the model will be downloaded on first launch.',
+             'Could not start the download process. You can download it later using granite-model-setup.ps1.',
              mbError, MB_OK);
   except
     MsgBox('Could not start model download.' + #13#10 +
            'You can download the model later using granite-model-setup.ps1.',
            mbError, MB_OK);
   end;
-  DownloadPage.SetProgress(1, 1);
   DownloadPage.Hide;
 end;
 

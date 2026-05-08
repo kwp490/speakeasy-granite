@@ -1452,17 +1452,12 @@ class MainWindow(QMainWindow):
             "before local transcription can run."
         )
         msg.setInformativeText(
-            "<b>Setup steps:</b><br><br>"
-            "1. Create a free account at:<br>"
-            '&nbsp;&nbsp;&nbsp;<a href="https://huggingface.co/join">'
-            "https://huggingface.co/join</a><br><br>"
-            "2. Visit the model page:<br>"
+            "The model is publicly available — no HuggingFace account or "
+            "access token is required.<br><br>"
+            "Model page:<br>"
             '&nbsp;&nbsp;&nbsp;<a href="https://huggingface.co/ibm-granite/granite-speech-4.1-2b">'
             "https://huggingface.co/ibm-granite/granite-speech-4.1-2b</a><br><br>"
-            "3. Create an access token if HuggingFace requests one:<br>"
-            '&nbsp;&nbsp;&nbsp;<a href="https://huggingface.co/settings/tokens">'
-            "https://huggingface.co/settings/tokens</a><br><br>"
-            "Would you like to run the Granite model setup now?"
+            "Would you like to download the Granite model now?"
         )
         msg.setStandardButtons(
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
@@ -1481,51 +1476,21 @@ class MainWindow(QMainWindow):
         return self._run_granite_setup_script()
 
     def _run_source_model_download(self) -> bool:
-        """Collect a HuggingFace token via dialog and download directly."""
-        from PySide6.QtWidgets import QInputDialog, QLineEdit
+        """Download the public Granite model directly (no token required)."""
+        self._log_ui("Downloading Granite model (this may take several minutes)...")
+        from .model_download_dialog import run_model_download_dialog
 
-        token, ok = QInputDialog.getText(
-            self,
-            "HuggingFace Token",
-            "Paste your HuggingFace access token\n"
-            "(Read permission, from https://huggingface.co/settings/tokens):",
-            QLineEdit.EchoMode.Password,
-        )
-        if not ok or not token.strip():
-            self._log_ui("Model download cancelled — no token provided", error=True)
-            return False
-
-        self._log_ui("Downloading Granite model (this may take several minutes)…")
-        # Force a repaint so the log message is visible before the blocking call
-        from PySide6.QtWidgets import QApplication
-        QApplication.processEvents()
-
-        from .model_downloader import download_model, EXIT_SUCCESS, EXIT_AUTH_REQUIRED
-
-        rc = download_model("granite", self.settings.model_path, token=token.strip())
-        if rc == EXIT_SUCCESS:
+        if run_model_download_dialog(self.settings.model_path, self):
             self._log_ui("Granite model downloaded successfully")
             return True
-        elif rc == EXIT_AUTH_REQUIRED:
-            QMessageBox.warning(
-                self,
-                "Authentication Failed",
-                "The token was rejected. Possible causes:\n\n"
-                "• Invalid or expired token\n"
-                "• HuggingFace denied access to:\n"
-                "  https://huggingface.co/ibm-granite/granite-speech-4.1-2b\n\n"
-                "Please verify your token and repo access, then try again.",
-            )
-            return False
-        else:
-            QMessageBox.warning(
-                self,
-                "Download Failed",
-                "The model download failed. Check the log for details.\n\n"
-                "You can retry from Settings or run:\n"
-                "  uv run python -m speakeasy download-model --token <TOKEN>",
-            )
-            return False
+        QMessageBox.warning(
+            self,
+            "Download Failed",
+            "The model download failed. Check the log for details.\n\n"
+            "You can retry from Settings or run:\n"
+            "  uv run python -m speakeasy download-model",
+        )
+        return False
 
     def _run_granite_setup_script(self) -> bool:
         """Launch ``granite-model-setup.ps1`` and return True if the model

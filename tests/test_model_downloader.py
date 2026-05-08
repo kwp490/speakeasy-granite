@@ -1,5 +1,7 @@
 ﻿"""Tests for the model downloader module."""
 
+import io
+import json
 import os
 import tempfile
 import unittest
@@ -11,8 +13,11 @@ from speakeasy.model_downloader import (
     EXIT_AUTH_REQUIRED,
     EXIT_FAILURE,
     EXIT_SUCCESS,
+    MODEL_DOWNLOAD_MIN_FREE_BYTES,
+    PROGRESS_PREFIX,
     _ENGINE_REPO_MAP,
     _is_gated_repo_error,
+    DownloadProgress,
     download_model,
     launch_granite_setup_script,
     model_ready,
@@ -160,6 +165,110 @@ class TestDownloadModelExitCodes(unittest.TestCase):
                 call_kwargs = mock_hf.snapshot_download.call_args
                 self.assertEqual(call_kwargs.kwargs.get("token"), "hf_test123",
                     "snapshot_download must receive the exact token string passed to download_model")
+
+
+class TestDownloadProgress(unittest.TestCase):
+    """download_model should expose structured progress for callers."""
+
+    def test_jsonl_progress_for_already_present_model(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            engine_dir = Path(temporary_dir) / "granite"
+            engine_dir.mkdir()
+            (engine_dir / "config.json").write_text("{}")
+
+            stdout = io.StringIO()
+            with patch("sys.stdout", stdout):
+                result = download_model(
+                    "granite",
+                    temporary_dir,
+                    progress_format="jsonl",
+                )
+
+        self.assertEqual(result, EXIT_SUCCESS)
+        progress_lines = [
+            line for line in stdout.getvalue().splitlines()
+            if line.startswith(PROGRESS_PREFIX)
+        ]
+        payloads = [
+            json.loads(line[len(PROGRESS_PREFIX):]) for line in progress_lines
+        ]
+        self.assertEqual(payloads[0]["phase"], "checking")
+        self.assertEqual(payloads[-1]["phase"], "already_present")
+        self.assertEqual(payloads[-1]["percent"], 100)
+
+    def test_callback_receives_download_lifecycle_events(self):
+        mock_hf = MagicMock()
+
+        def fake_snapshot_download(**kwargs):
+            target_dir = Path(kwargs["local_dir"])
+            target_dir.mkdir(parents=True, exist_ok=True)
+            (target_dir / "config.json").write_text("{}")
+            return str(target_dir)
+
+        mock_hf.snapshot_download.side_effect = fake_snapshot_download
+        events: list[DownloadProgress] = []
+        with patch.dict("sys.modules", {"huggingface_hub": mock_hf}):
+            with tempfile.TemporaryDirectory() as temporary_dir:
+                result = download_model(
+                    "granite",
+                    temporary_dir,
+                    progress_callback=events.append,
+                    progress_format="none",
+                )
+
+        self.assertEqual(result, EXIT_SUCCESS)
+        self.assertEqual(
+            [event.phase for event in events],
+            ["checking", "preflight", "downloading", "verifying", "complete"],
+        )
+        self.assertEqual(events[-1].percent, 100)
+
+    def test_insufficient_disk_space_returns_failure_before_download(self):
+        mock_hf = MagicMock()
+        events: list[DownloadProgress] = []
+        with patch.dict("sys.modules", {"huggingface_hub": mock_hf}):
+            with patch(
+                "speakeasy.model_downloader._check_disk_space",
+                return_value=(False, 1024, MODEL_DOWNLOAD_MIN_FREE_BYTES),
+            ):
+                with tempfile.TemporaryDirectory() as temporary_dir:
+                    result = download_model(
+                        "granite",
+                        temporary_dir,
+                        progress_callback=events.append,
+                        progress_format="none",
+                    )
+
+        self.assertEqual(result, EXIT_FAILURE)
+        mock_hf.snapshot_download.assert_not_called()
+        self.assertEqual(events[-1].phase, "error")
+        self.assertIn("Not enough free disk space", events[-1].message)
+
+    def test_progress_format_none_suppresses_stdout(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            engine_dir = Path(temporary_dir) / "granite"
+            engine_dir.mkdir()
+            (engine_dir / "config.json").write_text("{}")
+
+            stdout = io.StringIO()
+            with patch("sys.stdout", stdout):
+                result = download_model(
+                    "granite",
+                    temporary_dir,
+                    progress_format="none",
+                )
+
+        self.assertEqual(result, EXIT_SUCCESS)
+        self.assertEqual(stdout.getvalue(), "")
+
+    def test_invalid_progress_format_raises(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            with self.assertRaises(ValueError):
+                download_model(
+                    "granite",
+                    temporary_dir,
+                    progress_format="xml",  # type: ignore[arg-type]
+                )
 
 
 class TestGraniteSetupLauncher(unittest.TestCase):

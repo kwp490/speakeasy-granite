@@ -131,6 +131,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="HuggingFace access token (not required for Granite — public model)",
     )
+    dl.add_argument(
+        "--progress-format",
+        choices=("text", "jsonl", "none"),
+        default="text",
+        help="Download progress output format for scripts and installers",
+    )
 
     return parser
 
@@ -143,7 +149,12 @@ def _cmd_download_model(args: argparse.Namespace) -> int:
     target_dir = args.target_dir or DEFAULT_MODELS_DIR
     os.makedirs(target_dir, exist_ok=True)
 
-    return download_model("granite", target_dir, token=args.token)
+    return download_model(
+        "granite",
+        target_dir,
+        token=args.token,
+        progress_format=args.progress_format,
+    )
 
 
 def _ensure_startup_model_ready(settings) -> bool:
@@ -259,6 +270,12 @@ def main() -> int:
         return 1
 
     _setup_logging()
+
+    # Set Windows AppUserModelID so the taskbar shows our icon, not Python's.
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+        "SpeakEasyAI.Granite.SpeechToText"
+    )
 
     from PySide6.QtWidgets import QApplication
     from PySide6.QtGui import QIcon
