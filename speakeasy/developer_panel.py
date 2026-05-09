@@ -1,6 +1,6 @@
 """
 Developer Panel — a snapped-but-movable side window with tabs for
-Settings, Advanced, Metrics, Logs, Pro Mode, and History.
+Settings, Pro Mode, Metrics, Logs, History, and Advanced.
 
 Opened from the gear button on the main window or via a global hotkey.
 Closing the panel hides it; reopening restores the last active tab.
@@ -601,22 +601,7 @@ class DeveloperPanel(QWidget):
         settings_scroll.setWidget(self._settings_widget)
         self._tabs.addTab(settings_scroll, "\u2699\ufe0f  Settings")
 
-        # Tab 1: Advanced
-        self._advanced_settings_widget = AdvancedSettingsWidget(self.settings, self)
-        advanced_scroll = QScrollArea()
-        advanced_scroll.setWidgetResizable(True)
-        advanced_scroll.setWidget(self._advanced_settings_widget)
-        self._tabs.addTab(advanced_scroll, "Advanced")
-
-        # Tab 2: Metrics
-        self.realtime_widget = RealtimeDataWidget(self)
-        self._tabs.addTab(self.realtime_widget, "\U0001f4ca  Metrics")
-
-        # Tab 3: Logs
-        self.logs_widget = LogsWidget(self)
-        self._tabs.addTab(self.logs_widget, "\U0001f4cb  Logs")
-
-        # Tab 4: Pro Mode
+        # Tab 1: Pro Mode
         from .pro_mode_widget import ProModeWidget  # noqa: F811
 
         self.pro_mode_widget = ProModeWidget(
@@ -629,11 +614,26 @@ class DeveloperPanel(QWidget):
         pro_scroll.setWidget(self.pro_mode_widget)
         self._tabs.addTab(pro_scroll, "\U0001f4bc  Pro Mode")
 
-        # Tab 5: History
+        # Tab 2: Metrics
+        self.realtime_widget = RealtimeDataWidget(self)
+        self._tabs.addTab(self.realtime_widget, "\U0001f4ca  Metrics")
+
+        # Tab 3: Logs
+        self.logs_widget = LogsWidget(self)
+        self._tabs.addTab(self.logs_widget, "\U0001f4cb  Logs")
+
+        # Tab 4: History
         from .history_widget import HistoryWidget
 
         self.history_widget = HistoryWidget(self)
         self._tabs.addTab(self.history_widget, "\U0001f552  History")
+
+        # Tab 5: Advanced
+        self._advanced_settings_widget = AdvancedSettingsWidget(self.settings, self)
+        advanced_scroll = QScrollArea()
+        advanced_scroll.setWidgetResizable(True)
+        advanced_scroll.setWidget(self._advanced_settings_widget)
+        self._tabs.addTab(advanced_scroll, "Advanced")
 
         # Restore last active tab
         self._tabs.setCurrentIndex(self._tab_key_to_index(self.settings.dev_panel_active_tab))
@@ -721,16 +721,16 @@ class DeveloperPanel(QWidget):
     def _tab_key_to_index(key: str) -> int:
         return {
             TAB_SETTINGS: 0,
-            TAB_ADVANCED: 1,
+            TAB_PRO: 1,
             TAB_REALTIME: 2,
             TAB_LOGS: 3,
-            TAB_PRO: 4,
-            TAB_HISTORY: 5,
+            TAB_HISTORY: 4,
+            TAB_ADVANCED: 5,
         }.get(key, 0)
 
     @staticmethod
     def _index_to_tab_key(idx: int) -> str:
-        tabs = [TAB_SETTINGS, TAB_ADVANCED, TAB_REALTIME, TAB_LOGS, TAB_PRO, TAB_HISTORY]
+        tabs = [TAB_SETTINGS, TAB_PRO, TAB_REALTIME, TAB_LOGS, TAB_HISTORY, TAB_ADVANCED]
         return tabs[idx] if 0 <= idx < len(tabs) else TAB_SETTINGS
 
     def _on_tab_changed(self, idx: int) -> None:

@@ -76,6 +76,18 @@ class TestDeveloperPanelConstruction:
         panel, _ = dev_panel
         assert panel._tabs.count() == 6
 
+    def test_panel_tab_order(self, dev_panel):
+        panel, _ = dev_panel
+        labels = [panel._tabs.tabText(i).strip() for i in range(panel._tabs.count())]
+        assert labels == [
+            "⚙️  Settings",
+            "💼  Pro Mode",
+            "📊  Metrics",
+            "📋  Logs",
+            "🕒  History",
+            "Advanced",
+        ]
+
     def test_panel_default_tab_is_settings(self, dev_panel):
         panel, settings = dev_panel
         assert settings.dev_panel_active_tab == "settings"
@@ -98,7 +110,7 @@ class TestDeveloperPanelTabNavigation:
 
     def test_switching_to_advanced_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(1)
+        panel._tabs.setCurrentIndex(5)
         assert settings.dev_panel_active_tab == "advanced"
 
     def test_switching_to_logs_tab(self, dev_panel):
@@ -108,8 +120,13 @@ class TestDeveloperPanelTabNavigation:
 
     def test_switching_to_pro_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(4)
+        panel._tabs.setCurrentIndex(1)
         assert settings.dev_panel_active_tab == "pro"
+
+    def test_switching_to_history_tab(self, dev_panel):
+        panel, settings = dev_panel
+        panel._tabs.setCurrentIndex(4)
+        assert settings.dev_panel_active_tab == "history"
 
     def test_switching_back_to_settings(self, dev_panel):
         panel, settings = dev_panel
@@ -226,7 +243,7 @@ class TestDeveloperPanelActivateTab:
     def test_activate_tab_advanced(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("advanced")
-        assert panel._tabs.currentIndex() == 1
+        assert panel._tabs.currentIndex() == 5
 
     def test_activate_tab_logs(self, dev_panel):
         panel, _ = dev_panel
@@ -236,6 +253,11 @@ class TestDeveloperPanelActivateTab:
     def test_activate_tab_pro(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("pro")
+        assert panel._tabs.currentIndex() == 1
+
+    def test_activate_tab_history(self, dev_panel):
+        panel, _ = dev_panel
+        panel.activate_tab("history")
         assert panel._tabs.currentIndex() == 4
 
 
