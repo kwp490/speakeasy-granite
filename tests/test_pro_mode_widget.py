@@ -202,6 +202,25 @@ class TestProModeWidgetLive:
         widget, _ = pro_widget
         assert hasattr(widget, "_pro_api_key")
 
+    def test_model_dropdowns_include_gpt_5_5_and_existing_models(self, pro_widget):
+        widget, _ = pro_widget
+        default_models = [
+            widget._pro_model.itemText(index)
+            for index in range(widget._pro_model.count())
+        ]
+        preset_models = [
+            widget._preset_model.itemText(index)
+            for index in range(widget._preset_model.count())
+        ]
+
+        assert default_models == ["gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano"]
+        assert preset_models == [
+            "(use default)",
+            "gpt-5.5",
+            "gpt-5.4-mini",
+            "gpt-5.4-nano",
+        ]
+
     def test_eye_button_toggles_visibility(self, pro_widget):
         widget, _ = pro_widget
         from PySide6.QtWidgets import QLineEdit

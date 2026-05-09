@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from .config import DEFAULT_PRESETS_DIR, Settings
 from .pro_preset import (
     BUILTIN_PRESET_NAMES,
+    PRO_MODE_MODEL_OPTIONS,
     ProPreset,
     delete_preset,
     load_all_presets,
@@ -94,7 +95,7 @@ class ProModeWidget(QWidget):
 
         self._pro_model = QComboBox()
         self._pro_model.setEditable(True)
-        self._pro_model.addItems(["gpt-5.4-mini", "gpt-5.4-nano"])
+        self._pro_model.addItems(list(PRO_MODE_MODEL_OPTIONS))
         api_form.addRow("Default model:", self._pro_model)
 
         key_row = QHBoxLayout()
@@ -158,7 +159,7 @@ class ProModeWidget(QWidget):
 
         self._preset_model = QComboBox()
         self._preset_model.setEditable(True)
-        self._preset_model.addItems(["(use default)", "gpt-5.4-mini", "gpt-5.4-nano"])
+        self._preset_model.addItems(["(use default)", *PRO_MODE_MODEL_OPTIONS])
         presets_form.addRow("Model override:", self._preset_model)
 
         self._preset_fix_tone = ToggleSwitch("Fix tone")

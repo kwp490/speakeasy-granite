@@ -89,6 +89,10 @@ class TextProcessorProcessTests(unittest.TestCase):
         proc._client = MagicMock()
         return proc
 
+    def test_default_model_is_gpt_5_5(self):
+        proc = TextProcessor(api_key="")
+        self.assertEqual(proc._model, "gpt-5.5")
+
     def test_empty_text_returns_empty(self):
         proc = self._make_processor()
         self.assertEqual(proc.process(""), "")

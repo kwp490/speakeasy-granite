@@ -5,6 +5,12 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - GPT-5.5 Pro Mode Default
+
+### Changed
+- **Professional Mode** now defaults OpenAI text cleanup to `gpt-5.5` while keeping `gpt-5.4-mini` and `gpt-5.4-nano` available in the model selectors
+- **Version metadata** updated across the Python package and both installer variants for the 0.13.0 release
+
 ## [0.12.1] - App Identity & Release Notes
 
 ### Added

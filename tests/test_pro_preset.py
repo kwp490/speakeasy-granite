@@ -7,6 +7,8 @@ from pathlib import Path
 
 from speakeasy.pro_preset import (
     BUILTIN_PRESET_NAMES,
+    DEFAULT_PRO_MODEL,
+    PRO_MODE_MODEL_OPTIONS,
     ProPreset,
     _safe_filename,
     bootstrap_presets,
@@ -62,7 +64,16 @@ class ProPresetSerializationTests(unittest.TestCase):
     def test_validate_empty_model(self):
         preset = ProPreset(model="")
         preset.validate()
-        self.assertEqual(preset.model, "gpt-5.4-mini")
+        self.assertEqual(preset.model, DEFAULT_PRO_MODEL)
+
+    def test_default_model_is_gpt_5_5(self):
+        self.assertEqual(ProPreset().model, "gpt-5.5")
+
+    def test_model_options_keep_existing_models(self):
+        self.assertEqual(
+            PRO_MODE_MODEL_OPTIONS,
+            ("gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano"),
+        )
 
 
 class BuiltinPresetsTests(unittest.TestCase):

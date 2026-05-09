@@ -60,7 +60,7 @@ from .engine import ENGINES
 from .engine.granite_transcribe import GraniteTranscribeEngine
 from .hotkeys import HotkeyManager
 from ._resource_monitor import ResourceMonitor
-from .pro_preset import ProPreset, bootstrap_presets, load_all_presets
+from .pro_preset import DEFAULT_PRO_MODEL, ProPreset, bootstrap_presets, load_all_presets
 from .status_pills import ProMode, StatusPillBar
 from .text_processor import TextProcessor, load_api_key_from_keyring
 from .workers import DedicatedWorkerPool, Worker
@@ -308,7 +308,7 @@ class MainWindow(QMainWindow):
         if settings.professional_mode and self._api_key and self._active_preset:
             self._text_processor = TextProcessor(
                 api_key=self._api_key,
-                model=self._active_preset.model or "gpt-5.4-mini",
+                model=self._active_preset.model or DEFAULT_PRO_MODEL,
             )
         elif settings.professional_mode and not self._api_key:
             log.warning("Professional Mode enabled but no API key configured")
@@ -1591,7 +1591,7 @@ class MainWindow(QMainWindow):
             self._device_fallback_to_cpu = False
         self._active_preset = self._pro_presets.get(s.pro_active_preset)
         if s.professional_mode and self._api_key and self._active_preset:
-            model = self._active_preset.model or "gpt-5.4-mini"
+            model = self._active_preset.model or DEFAULT_PRO_MODEL
             self._text_processor = TextProcessor(
                 api_key=self._api_key, model=model,
             )
@@ -1630,7 +1630,7 @@ class MainWindow(QMainWindow):
 
         # Re-create or destroy TextProcessor based on new state
         if self.settings.professional_mode and self._api_key and self._active_preset:
-            model = self._active_preset.model or "gpt-5.4-mini"
+            model = self._active_preset.model or DEFAULT_PRO_MODEL
             self._text_processor = TextProcessor(
                 api_key=self._api_key, model=model,
             )
@@ -1672,7 +1672,7 @@ class MainWindow(QMainWindow):
         self.settings.pro_active_preset = name
         self._active_preset = preset
         if self.settings.professional_mode and self._api_key and self._text_processor is not None:
-            model = preset.model or "gpt-5.4-mini"
+            model = preset.model or DEFAULT_PRO_MODEL
             self._text_processor = TextProcessor(api_key=self._api_key, model=model)
             self._log_ui(f'Pro preset changed to "{name}"')
         self.settings.save()
@@ -1751,7 +1751,7 @@ class MainWindow(QMainWindow):
                 self.settings.pro_disclosure_accepted = True
             # All prerequisites met — enable
             self.settings.professional_mode = True
-            model = self._active_preset.model or "gpt-5.4-mini"
+            model = self._active_preset.model or DEFAULT_PRO_MODEL
             self._text_processor = TextProcessor(
                 api_key=self._api_key, model=model,
             )

@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Optional
 
 from openai import AuthenticationError, OpenAI, OpenAIError
 
+from .pro_preset import DEFAULT_PRO_MODEL
+
 if TYPE_CHECKING:
     from .pro_preset import ProPreset
 
@@ -107,7 +109,7 @@ class TextProcessor:
     It is **never** logged, printed, or included in error messages.
     """
 
-    def __init__(self, api_key: str, model: str = "gpt-5.4-mini") -> None:
+    def __init__(self, api_key: str, model: str = DEFAULT_PRO_MODEL) -> None:
         self._api_key = api_key
         self._model = model
         self._client: Optional[OpenAI] = None

@@ -37,7 +37,7 @@ The Open ASR Leaderboard tracks benchmark performance across multiple speech-rec
 
 Professional Mode is optional. It sends the completed text transcript, not the raw audio, to an external text API using a user-provided API key.
 
-Professional Mode can rewrite dictated text to make it clearer, more polished, or more intentionally styled. Built-in presets include professional workplace cleanup, technical communication, casual-friendly tone, email correspondence, simplified writing, Medieval Bard, Wise Galactic Sage, and Unhinged Mode. You can also create custom presets, preserve domain vocabulary, and choose the OpenAI model used for cleanup.
+Professional Mode can rewrite dictated text to make it clearer, more polished, or more intentionally styled. Built-in presets include professional workplace cleanup, technical communication, casual-friendly tone, email correspondence, simplified writing, Medieval Bard, Wise Galactic Sage, and Unhinged Mode. You can also create custom presets, preserve domain vocabulary, and choose the OpenAI model used for cleanup. The default model is `gpt-5.5`, with `gpt-5.4-mini` and `gpt-5.4-nano` kept available for lower-latency or lower-cost cleanup.
 
 Use cases include removing filler words, neutralizing passive-aggressive language, improving grammar and punctuation, turning rough dictation into professional correspondence, or applying a creative voice. External API usage only happens when Professional Mode is enabled and configured with an API key. API keys can be kept in Windows Credential Manager.
 
@@ -125,7 +125,7 @@ Local Mode is the default behavior. Audio capture, preprocessing, Granite infere
 
 ### Professional Mode
 
-Professional Mode keeps transcription local, then optionally sends the completed transcript text to an external API for rewriting. Raw audio is not sent through this path. If the API call fails or times out, SpeakEasy falls back to the original local transcript.
+Professional Mode keeps transcription local, then optionally sends the completed transcript text to an external API for rewriting. Raw audio is not sent through this path. If the API call fails or times out, SpeakEasy falls back to the original local transcript. New presets default to OpenAI `gpt-5.5`; existing `gpt-5.4-mini` and `gpt-5.4-nano` options remain selectable for users who prefer faster or lower-cost cleanup.
 
 ## Requirements
 

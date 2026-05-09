@@ -20,6 +20,9 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+DEFAULT_PRO_MODEL = "gpt-5.5"
+PRO_MODE_MODEL_OPTIONS = (DEFAULT_PRO_MODEL, "gpt-5.4-mini", "gpt-5.4-nano")
+
 
 @dataclass
 class ProPreset:
@@ -31,7 +34,7 @@ class ProPreset:
     fix_grammar: bool = True
     fix_punctuation: bool = True
     vocabulary: str = ""
-    model: str = "gpt-5.4-mini"
+    model: str = DEFAULT_PRO_MODEL
 
     # ── Serialisation ────────────────────────────────────────────────────
 
@@ -57,7 +60,7 @@ class ProPreset:
         if not self.name or not self.name.strip():
             self.name = "Untitled Preset"
         if not self.model or not self.model.strip():
-            self.model = "gpt-5.4-mini"
+            self.model = DEFAULT_PRO_MODEL
 
 
 # ── Built-in presets ─────────────────────────────────────────────────────────
