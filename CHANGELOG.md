@@ -5,6 +5,20 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1] - App Identity & Release Notes
+
+### Added
+- **`app_identity.py`** module centralizing `APP_USER_MODEL_ID` and `app_icon_path()` for consistent window/taskbar identity across the app
+- **Developer panel** now displays the application icon in its title bar
+- **`.github/RELEASE_NOTES.md`** — SmartScreen pre-warning note included in GitHub Release body via `body_path`
+- **`test_window_icon.py`** — test coverage for the `app_icon_path()` helper
+
+### Changed
+- **`__main__.py`** and **`main_window.py`** refactored to use `app_identity` helpers instead of inline icon/ID logic
+- **`developer_panel.py`** uses a `_section_layout()` helper for type-safe `QVBoxLayout` access on section widgets
+- **`release.yml`** workflow now checks out the repo and passes `body_path` to `action-gh-release`
+- **`RELEASE.md`** checklist updated with SmartScreen verification step
+
 ## [0.11.1] - Installer Wizard Visibility Fix
 
 ### Fixed

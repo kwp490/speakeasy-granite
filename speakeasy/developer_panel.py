@@ -12,7 +12,7 @@ import logging
 from typing import Optional, TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QPoint, QSize, Signal, QTimer
-from PySide6.QtGui import QCloseEvent, QColor, QFont, QPainter, QPen, QResizeEvent, QMoveEvent, QTextCharFormat, QTextCursor
+from PySide6.QtGui import QCloseEvent, QColor, QFont, QIcon, QPainter, QPen, QResizeEvent, QMoveEvent, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .app_identity import app_icon_path
 from .config import Settings
 from .settings_dialog import AdvancedSettingsWidget, SettingsWidget
 
@@ -191,6 +192,13 @@ class RealtimeDataWidget(QWidget):
         self._last_llm_seq: int = 0
         self._build_ui()
 
+    @staticmethod
+    def _section_layout(section: QWidget) -> QVBoxLayout:
+        section_layout = section.layout()
+        if not isinstance(section_layout, QVBoxLayout):
+            raise RuntimeError("Developer panel section missing QVBoxLayout")
+        return section_layout
+
     def _build_ui(self) -> None:
         from .theme import Color, Font, Size, Spacing, make_section
 
@@ -200,6 +208,7 @@ class RealtimeDataWidget(QWidget):
 
         # ── Model Engine section ─────────────────────────────────────────────
         engine_sec, engine_form = make_section("Model Engine", self)
+        engine_layout = self._section_layout(engine_sec)
 
         self._lbl_engine = QLabel("Engine: —  \u00b7  Device: —")
         self._lbl_engine.setFont(QFont(Font.FAMILY, Font.BODY[0]))
@@ -242,12 +251,13 @@ class RealtimeDataWidget(QWidget):
         btn_row_engine.addWidget(self._btn_reload)
         btn_row_engine.addWidget(self._btn_validate)
         btn_row_engine.addStretch()
-        engine_sec.layout().addLayout(btn_row_engine)
+        engine_layout.addLayout(btn_row_engine)
 
         layout.addWidget(engine_sec)
 
         # ── ASR Throughput section (Granite) ────────────────────────────────
         asr_sec, asr_form = make_section("ASR Throughput (Granite)", self)
+        asr_layout = self._section_layout(asr_sec)
 
         self._lbl_asr_rtf = QLabel("0.0x realtime")
         self._lbl_asr_rtf.setFont(QFont(Font.FAMILY, Font.BODY[0]))
@@ -270,7 +280,7 @@ class RealtimeDataWidget(QWidget):
         )
         self._lbl_asr_sparkline_title.setFont(QFont(Font.FAMILY, Font.LABEL[0]))
         self._lbl_asr_sparkline_title.setStyleSheet(f"color: {Color.TEXT_MUTED};")
-        asr_sec.layout().addWidget(self._lbl_asr_sparkline_title)
+        asr_layout.addWidget(self._lbl_asr_sparkline_title)
         # Plot RTF: more meaningful than tok/s for ASR.  Reference line at
         # 1.0x marks "realtime"; values above are faster than realtime.
         self._asr_sparkline = TokenSparkline(
@@ -281,12 +291,13 @@ class RealtimeDataWidget(QWidget):
             reference_line=1.0,
             reference_label="1.0x realtime",
         )
-        asr_sec.layout().addWidget(self._asr_sparkline)
+        asr_layout.addWidget(self._asr_sparkline)
 
         layout.addWidget(asr_sec)
 
         # ── LLM Throughput section (Professional Mode) ───────────────────
         tok_sec, tok_form = make_section("LLM Throughput (Pro Mode)", self)
+        tok_layout = self._section_layout(tok_sec)
 
         self._lbl_tok_rate = QLabel("0 tok/s")
         self._lbl_tok_rate.setFont(QFont(Font.FAMILY, Font.BODY[0]))
@@ -303,14 +314,14 @@ class RealtimeDataWidget(QWidget):
         self._lbl_llm_sparkline_title = QLabel("Token rate over time (tok/s)")
         self._lbl_llm_sparkline_title.setFont(QFont(Font.FAMILY, Font.LABEL[0]))
         self._lbl_llm_sparkline_title.setStyleSheet(f"color: {Color.TEXT_MUTED};")
-        tok_sec.layout().addWidget(self._lbl_llm_sparkline_title)
+        tok_layout.addWidget(self._lbl_llm_sparkline_title)
         self._sparkline = TokenSparkline(
             self,
             value_unit=" tok/s",
             value_fmt="{:.0f}",
             min_scale=50.0,
         )
-        tok_sec.layout().addWidget(self._sparkline)
+        tok_layout.addWidget(self._sparkline)
 
         layout.addWidget(tok_sec)
 
@@ -558,6 +569,9 @@ class DeveloperPanel(QWidget):
     def __init__(self, settings: Settings, main_window: "MainWindow") -> None:
         super().__init__(None, Qt.WindowType.Window)
         self.setWindowTitle("Developer Panel")
+        _icon_path = app_icon_path()
+        if _icon_path.is_file():
+            self.setWindowIcon(QIcon(str(_icon_path)))
         self.settings = settings
         self._main_window = main_window
         self._snapped = settings.dev_panel_snapped

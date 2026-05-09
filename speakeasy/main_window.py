@@ -9,15 +9,13 @@ from __future__ import annotations
 
 import datetime
 import logging
-import os
-import sys
 import time
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from PySide6.QtCore import QEasingCurve, QObject, QPoint, QPropertyAnimation, QRect, QThreadPool, QTimer, Qt, Property, Signal, Slot
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -42,6 +40,7 @@ from PySide6.QtWidgets import (
 import numpy as np
 
 from .audio import AudioRecorder, play_beep
+from .app_identity import app_icon_path
 from .clipboard import set_clipboard_text, simulate_paste
 from ._constants import (
     LOADING_TICK_MS,
@@ -316,6 +315,9 @@ class MainWindow(QMainWindow):
 
         # ── Build UI ─────────────────────────────────────────────────────────
         self.setWindowTitle("SpeakEasy AI Granite — Voice to Text")
+        _icon_path = app_icon_path()
+        if _icon_path.is_file():
+            self.setWindowIcon(QIcon(str(_icon_path)))
         self.setMinimumSize(640, 485)
         self.resize(720, 485)
         self._build_ui()

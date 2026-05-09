@@ -44,5 +44,8 @@ which:
 
 - [ ] **Verify the GitHub Release** — confirm both installers and `SHA256SUMS.txt`
       are listed and download links work.
+- [ ] **Verify the SmartScreen pre-warning** — confirm the release body starts with
+  the "Before You Install" note from `.github/RELEASE_NOTES.md` before any
+  download links are shared.
 - [ ] **Hide the previous release** — mark the prior GitHub Release as a draft or
       pre-release so the README download badge points to the new version only.

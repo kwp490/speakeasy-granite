@@ -272,10 +272,8 @@ def main() -> int:
     _setup_logging()
 
     # Set Windows AppUserModelID so the taskbar shows our icon, not Python's.
-    import ctypes
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-        "SpeakEasyAI.Granite.SpeechToText"
-    )
+    from speakeasy.app_identity import APP_USER_MODEL_ID, app_icon_path
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
 
     from PySide6.QtWidgets import QApplication
     from PySide6.QtGui import QIcon
@@ -289,12 +287,9 @@ def main() -> int:
     app.setStyleSheet(app_stylesheet())
 
     # Set application icon (taskbar + window title bar)
-    _icon_path = os.path.join(
-        getattr(sys, '_MEIPASS', os.path.dirname(__file__)),
-        'assets', 'app.ico',
-    )
-    if os.path.isfile(_icon_path):
-        app.setWindowIcon(QIcon(_icon_path))
+    _icon_path = app_icon_path()
+    if _icon_path.is_file():
+        app.setWindowIcon(QIcon(str(_icon_path)))
 
     settings = Settings.load()
 
