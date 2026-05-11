@@ -27,6 +27,15 @@ _KEYRING_USERNAME = "openai_api_key"
 
 # Timeout for API requests (connect, read) in seconds.
 _REQUEST_TIMEOUT = 15.0
+_DEFAULT_TEMPERATURE_ONLY_MODELS = ("gpt-5.5",)
+
+
+def _uses_default_temperature(model: str) -> bool:
+    normalized = model.strip().lower()
+    return any(
+        normalized == base or normalized.startswith(f"{base}-")
+        for base in _DEFAULT_TEMPERATURE_ONLY_MODELS
+    )
 
 
 def _sanitize_error(exc: BaseException, api_key: str) -> str:
@@ -182,14 +191,16 @@ class TextProcessor:
         try:
             import time as _time
             _t0 = _time.monotonic()
-            response = self._client.chat.completions.create(
-                model=model,
-                messages=[
+            request_kwargs = {
+                "model": model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": text},
                 ],
-                temperature=0.3,
-            )
+            }
+            if not _uses_default_temperature(model):
+                request_kwargs["temperature"] = 0.3
+            response = self._client.chat.completions.create(**request_kwargs)
             _elapsed = _time.monotonic() - _t0
 
             # Track token usage for Developer Panel throughput display

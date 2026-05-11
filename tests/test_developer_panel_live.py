@@ -247,6 +247,13 @@ class TestDeveloperPanelActivateTab:
         panel.activate_tab("providers")
         assert panel._tabs.currentIndex() == 1
 
+    def test_ai_providers_can_focus_api_key(self, dev_panel):
+        panel, _ = dev_panel
+        panel.activate_tab("providers")
+        panel.ai_providers_widget._api_key_edit.setText("sk-test")
+        panel.ai_providers_widget.focus_api_key()
+        assert panel.ai_providers_widget._api_key_edit.selectedText() == "sk-test"
+
     def test_activate_tab_realtime(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("realtime")

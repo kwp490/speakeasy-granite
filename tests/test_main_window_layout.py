@@ -219,6 +219,14 @@ class TestLayoutStructure(unittest.TestCase):
         ]
         self.assertIn("_on_open_pro_settings", method_names)
 
+    def test_on_open_ai_providers_method_exists(self):
+        """_on_open_ai_providers must be defined in MainWindow."""
+        method_names = [
+            n.name for n in ast.walk(self._mw_class)
+            if isinstance(n, ast.FunctionDef)
+        ]
+        self.assertIn("_on_open_ai_providers", method_names)
+
     def test_no_refresh_preset_combo_method(self):
         """_refresh_preset_combo must not be in MainWindow (moved to ProSettingsDialog)."""
         method_names = [
@@ -289,18 +297,46 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertIn("_suspend_mic_stream_for_processing", method_names)
         self.assertIn("_resume_mic_stream_after_processing", method_names)
 
-    # â”€â”€ v2 UI overhaul: AI Writing Profiles section removed from main window â”€â”€
+    # â”€â”€ Main-window transcription mode controls â”€â”€
 
-    def test_ai_writing_profiles_section_removed_from_main_window(self):
-        """The standalone AI Writing Profiles section must NOT exist on the main window."""
+    def test_transcription_mode_controls_exist(self):
+        """Main window exposes an activation toggle and profile selection."""
         src = self._get_method_source("_build_ui")
         self.assertNotIn("self._chk_professional", src)
-        self.assertNotIn("self._combo_pro_preset", src)
+        self.assertIn("self._chk_transcription_mode", src)
+        self.assertIn("self._combo_pro_preset", src)
         self.assertNotIn("self._combo_pro_model", src)
-        self.assertNotIn("Enable AI Writing Profiles", src)
+        self.assertIn('"Transcription Mode"', src)
+        self.assertIn('"Enabled"', src)
+        self.assertIn('"Profile"', src)
+
+    def test_transcription_mode_toggle_handler_exists(self):
+        method_names = [
+            n.name for n in ast.walk(self._mw_class)
+            if isinstance(n, ast.FunctionDef)
+        ]
+        self.assertIn("_on_transcription_mode_toggled", method_names)
+
+    def test_profile_selection_prompts_for_missing_api_key(self):
+        """Selecting a profile without a key must guide the user to AI Providers."""
+        src = self._get_method_source("_on_main_profile_selected")
+        self.assertIn("not self._api_key", src)
+        self.assertIn("_prompt_for_missing_api_key()", src)
+
+    def test_missing_api_key_prompt_opens_providers_tab(self):
+        src = "\n".join(
+            self._get_method_source(name) for name in (
+                "_prompt_for_missing_api_key",
+                "_on_open_ai_providers",
+            )
+        )
+        self.assertIn("QMessageBox.information", src)
+        self.assertIn("TAB_PROVIDERS", src)
+        self.assertIn("activate_tab(TAB_PROVIDERS)", src)
+        self.assertIn("focus_api_key()", src)
 
     def test_no_pending_professional_enable_state(self):
-        """Pending-enable boolean must be removed (profile dropdown is the source of truth)."""
+        """Pending-enable boolean must be removed."""
         src = "\n".join(
             self._get_method_source(name) for name in (
                 "_on_pro_mode_applied",
@@ -359,6 +395,8 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         # Use a temp dir for presets so tests don't need C:\Program Files access
         self._tmp = tempfile.mkdtemp()
         tmp_presets = Path(self._tmp) / "presets"
+        tmp_models = Path(self._tmp) / "models"
+        settings.model_path = str(tmp_models)
 
         import speakeasy.main_window as _mw
         orig = _mw.DEFAULT_PRESETS_DIR
@@ -442,15 +480,26 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         finally:
             win.close()
 
-    # â”€â”€ v2 UI overhaul: AI Writing Profiles section removed from main window â”€â”€
+    # â”€â”€ Main-window transcription mode controls â”€â”€
 
-    def test_no_chk_professional_attribute(self):
-        """The standalone enable toggle is gone."""
+    def test_main_transcription_mode_controls(self):
+        """The legacy professional toggle is gone, but mode controls are available."""
         win = self._make_window()
         try:
             self.assertFalse(hasattr(win, "_chk_professional"))
-            self.assertFalse(hasattr(win, "_combo_pro_preset"))
+            self.assertTrue(hasattr(win, "_chk_transcription_mode"))
+            self.assertTrue(hasattr(win, "_combo_pro_preset"))
             self.assertFalse(hasattr(win, "_combo_pro_model"))
+        finally:
+            win.close()
+
+    def test_transcription_mode_defaults_off(self):
+        """Transcription mode is off by default while the profile selector is available."""
+        win = self._make_window()
+        try:
+            self.assertEqual(win._combo_pro_preset.currentText(), win.settings.pro_active_preset)
+            self.assertFalse(win._chk_transcription_mode.isChecked())
+            self.assertFalse(win.settings.professional_mode)
         finally:
             win.close()
 
@@ -490,6 +539,8 @@ class TestFinalHistoryEntries(unittest.TestCase):
 
         self._tmp = tempfile.mkdtemp()
         tmp_presets = Path(self._tmp) / "presets"
+        tmp_models = Path(self._tmp) / "models"
+        settings.model_path = str(tmp_models)
 
         import speakeasy.main_window as _mw
         orig = _mw.DEFAULT_PRESETS_DIR

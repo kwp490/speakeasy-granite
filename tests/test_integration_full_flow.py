@@ -80,11 +80,29 @@ class TestIntegrationMainWindowLayout:
         src = self._method_source("_ensure_dev_panel")
         assert "_flush_log_buffer()" in src
 
-    # ── v2 UI overhaul: AI Writing Profiles section removed from main window ──
+    # ── Main-window transcription mode controls ────────────────────────────
 
     def test_no_chk_professional(self):
         src = self._method_source("_build_ui")
         assert "self._chk_professional" not in src
+
+    def test_main_profile_selector_exists(self):
+        src = self._method_source("_build_ui")
+        assert "self._chk_transcription_mode" in src
+        assert "self._combo_pro_preset" in src
+        assert "_on_transcription_mode_toggled" in src
+        assert "_on_main_profile_selected" in src
+
+    def test_missing_api_key_routes_to_providers_tab(self):
+        src = "\n".join(
+            self._method_source(name) for name in (
+                "_on_main_profile_selected",
+                "_on_open_ai_providers",
+            )
+        )
+        assert "not self._api_key" in src
+        assert "TAB_PROVIDERS" in src
+        assert "activate_tab(TAB_PROVIDERS)" in src
 
     def test_no_on_professional_toggled(self):
         assert "_on_professional_toggled" not in self._method_names()

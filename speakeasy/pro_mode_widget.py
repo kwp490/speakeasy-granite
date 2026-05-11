@@ -14,7 +14,7 @@ import logging
 from dataclasses import asdict
 from typing import Optional, Callable
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -82,6 +83,10 @@ class ProModeWidget(QWidget):
         outer.setSpacing(Spacing.MD)
 
         profile_section, profile_form = make_section("AI Writing Profiles", self)
+        profile_section.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Maximum,
+        )
 
         # ── Profile dropdown + CRUD buttons ──────────────────────────────
         profile_row = QHBoxLayout()
@@ -130,20 +135,34 @@ class ProModeWidget(QWidget):
         profile_form.addRow(rewrite_row)
 
         # ── Protected Terms ──────────────────────────────────────────────
-        protected_label = QLabel("Protected Terms")
-        protected_label.setStyleSheet(f"color: {Color.TEXT_HEADING}; font-weight: 600;")
-        profile_form.addRow(protected_label)
+        self._protected_terms_group = QWidget(self)
+        protected_layout = QVBoxLayout(self._protected_terms_group)
+        protected_layout.setContentsMargins(0, 0, 0, 0)
+        protected_layout.setSpacing(Spacing.SM)
 
-        protected_help = QLabel("Terms Speakeasy should preserve exactly during rewriting.")
-        protected_help.setStyleSheet(f"color: {Color.TEXT_MUTED};")
-        profile_form.addRow(protected_help)
+        self._protected_label = QLabel("Protected Terms")
+        self._protected_label.setStyleSheet(
+            f"color: {Color.TEXT_HEADING}; font-weight: 600;"
+        )
+        protected_layout.addWidget(self._protected_label)
+
+        self._protected_help = QLabel(
+            "Terms Speakeasy should preserve exactly during rewriting."
+        )
+        self._protected_help.setStyleSheet(f"color: {Color.TEXT_MUTED};")
+        protected_layout.addWidget(self._protected_help)
 
         self._vocab_edit = QPlainTextEdit()
         self._vocab_edit.setPlaceholderText("Kubernetes, gRPC, OAuth2, CI/CD")
         # ~3 visible rows; vertical resize allowed via parent scroll area.
         self._vocab_edit.setFixedHeight(64)
+        self._vocab_edit.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
         self._vocab_edit.textChanged.connect(self._on_field_changed)
-        profile_form.addRow(self._vocab_edit)
+        protected_layout.addWidget(self._vocab_edit)
+        profile_form.addRow(self._protected_terms_group)
 
         # ── Advanced Rewrite Instructions (collapsed by default) ─────────
         self._advanced_toggle = QPushButton("Advanced Rewrite Instructions  \u25b8")
@@ -167,12 +186,16 @@ class ProModeWidget(QWidget):
         )
         self._instructions_edit.setMinimumHeight(88)
         self._instructions_edit.setMaximumHeight(140)
+        self._instructions_edit.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
         self._instructions_edit.textChanged.connect(self._on_field_changed)
         adv_layout.addWidget(self._instructions_edit)
         self._advanced_content.setVisible(False)
         profile_form.addRow(self._advanced_content)
 
-        outer.addWidget(profile_section)
+        outer.addWidget(profile_section, 0, Qt.AlignmentFlag.AlignTop)
         outer.addStretch()
 
     # ── Populate ─────────────────────────────────────────────────────────

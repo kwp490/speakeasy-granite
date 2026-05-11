@@ -87,6 +87,10 @@ class TestProModeWidgetStructure:
     def test_protected_terms_label_present(self):
         assert "Protected Terms" in self._source
 
+    def test_protected_terms_uses_compact_group(self):
+        assert "_protected_terms_group" in self._source
+        assert "_protected_help" in self._source
+
     def test_profile_none_constant(self):
         assert "PROFILE_NONE" in self._source
 
@@ -202,6 +206,39 @@ class TestProModeWidgetLive:
         widget, _ = pro_widget
         # Approximately 3 visible rows
         assert widget._vocab_edit.maximumHeight() <= 100
+
+    def test_protected_terms_label_help_and_editor_are_grouped(self, pro_widget):
+        widget, _ = pro_widget
+        layout = widget._protected_terms_group.layout()
+        assert widget._protected_label.parent() is widget._protected_terms_group
+        assert widget._protected_help.parent() is widget._protected_terms_group
+        assert widget._vocab_edit.parent() is widget._protected_terms_group
+        assert layout.indexOf(widget._protected_label) < layout.indexOf(widget._protected_help)
+        assert layout.indexOf(widget._protected_help) < layout.indexOf(widget._vocab_edit)
+        assert layout.spacing() <= 10
+
+    def test_loaded_rewrite_switches_match_visual_state(self, pro_widget):
+        widget, _ = pro_widget
+        widget._preset_combo.setCurrentText("General Professional")
+        preset = widget.presets["General Professional"]
+
+        assert widget._preset_fix_tone.isChecked() is preset.fix_tone
+        assert widget._preset_fix_grammar.isChecked() is preset.fix_grammar
+        assert widget._preset_fix_punctuation.isChecked() is preset.fix_punctuation
+        assert widget._preset_fix_tone._knob_pos == pytest.approx(1.0)
+        assert widget._preset_fix_grammar._knob_pos == pytest.approx(1.0)
+        assert widget._preset_fix_punctuation._knob_pos == pytest.approx(1.0)
+
+    def test_toggle_switch_syncs_when_signals_are_blocked(self):
+        from speakeasy.main_window import ToggleSwitch
+
+        switch = ToggleSwitch("Tone")
+        switch.blockSignals(True)
+        switch.setChecked(True)
+        switch.blockSignals(False)
+
+        assert switch.isChecked() is True
+        assert switch._knob_pos == pytest.approx(1.0)
 
     def test_sync_from_settings_refreshes_none(self, pro_widget):
         widget, settings = pro_widget

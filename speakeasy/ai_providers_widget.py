@@ -11,7 +11,7 @@ import logging
 from typing import Optional
 
 from PySide6.QtCore import QThreadPool, Signal
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QStandardItemModel
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -77,9 +77,10 @@ class AIProvidersWidget(QWidget):
         )
         # Local Granite isn't wired yet; show but disable selecting it.
         model = self._provider.model()
-        local_item = model.item(1) if model is not None else None
-        if local_item is not None:
-            local_item.setEnabled(False)
+        if isinstance(model, QStandardItemModel):
+            local_item = model.item(1)
+            if local_item is not None:
+                local_item.setEnabled(False)
         form.addRow("Provider:", self._provider)
 
         # API key + reveal + paste
@@ -258,6 +259,10 @@ class AIProvidersWidget(QWidget):
         self._btn_validate.setEnabled(True)
         self._lbl_status.setText(f"\u274c {err}")
         self._lbl_status.setStyleSheet(f"color: {Color.DANGER};")
+
+    def focus_api_key(self) -> None:
+        self._api_key_edit.setFocus()
+        self._api_key_edit.selectAll()
 
     # ── Properties ───────────────────────────────────────────────────────
 

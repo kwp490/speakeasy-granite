@@ -126,6 +126,34 @@ class TextProcessorProcessTests(unittest.TestCase):
         self.assertEqual(result, "I am having a difficult day at work.")
         proc._client.chat.completions.create.assert_called_once()
 
+    def test_temperature_sent_for_gpt_5_4_mini(self):
+        proc = self._make_processor()
+        mock_choice = MagicMock()
+        mock_choice.message.content = "Cleaned text."
+        proc._client.chat.completions.create.return_value = MagicMock(
+            choices=[mock_choice]
+        )
+
+        proc.process("messy text", fix_tone=True)
+
+        call_kwargs = proc._client.chat.completions.create.call_args.kwargs
+        self.assertEqual(call_kwargs.get("temperature"), 0.3)
+
+    def test_gpt_5_5_uses_default_temperature(self):
+        proc = TextProcessor(api_key="sk-test-key", model="gpt-5.5")
+        proc._client = MagicMock()
+        mock_choice = MagicMock()
+        mock_choice.message.content = "Cleaned text."
+        proc._client.chat.completions.create.return_value = MagicMock(
+            choices=[mock_choice]
+        )
+
+        proc.process("messy text", fix_tone=True)
+
+        call_kwargs = proc._client.chat.completions.create.call_args.kwargs
+        self.assertEqual(call_kwargs.get("model"), "gpt-5.5")
+        self.assertNotIn("temperature", call_kwargs)
+
     def test_api_error_returns_original(self):
         proc = self._make_processor()
         proc._client.chat.completions.create.side_effect = Exception("API down")

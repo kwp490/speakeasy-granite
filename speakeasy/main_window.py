@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import sys
 import time
 from enum import Enum
 from pathlib import Path
@@ -61,6 +62,7 @@ from .engine.granite_transcribe import GraniteTranscribeEngine
 from .hotkeys import HotkeyManager
 from ._resource_monitor import ResourceMonitor
 from .pro_preset import ProPreset, bootstrap_presets, load_all_presets
+from .pro_mode_widget import PROFILE_NONE
 from .status_pills import ProMode, StatusPillBar
 from .text_processor import TextProcessor, load_api_key_from_keyring
 from .workers import DedicatedWorkerPool, Worker
@@ -170,6 +172,16 @@ class ToggleSwitch(QAbstractButton):
         self._anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
 
         self.toggled.connect(self._on_toggled)
+
+    def setChecked(self, checked: bool) -> None:
+        previous = self.isChecked()
+        super().setChecked(checked)
+        if not hasattr(self, "_anim"):
+            return
+        if self.signalsBlocked() or previous == self.isChecked():
+            self._anim.stop()
+            self._knob_pos = 1.0 if self.isChecked() else 0.0
+            self.update()
 
     # ── Qt property for animation ─────────────────────────────────────────────
 
@@ -442,6 +454,34 @@ class MainWindow(QMainWindow):
         self._update_global_status()
         self._refresh_dictation_buttons()
 
+        # ── Transcription Mode ───────────────────────────────────────────────
+        transcription_section, transcription_layout = make_section_panel(
+            "Transcription Mode", central, icon_name="sparkles",
+        )
+        self._chk_transcription_mode = ToggleSwitch()
+        self._chk_transcription_mode.setChecked(self.settings.professional_mode)
+        self._chk_transcription_mode.toggled.connect(self._on_transcription_mode_toggled)
+        transcription_layout.addWidget(make_setting_row(
+            "Enabled", self._chk_transcription_mode, transcription_section,
+        ))
+
+        profile_row_widget = QWidget(transcription_section)
+        profile_row = QHBoxLayout(profile_row_widget)
+        profile_row.setContentsMargins(0, 0, 0, 0)
+        profile_row.setSpacing(Spacing.SM)
+        profile_label = QLabel("Profile")
+        profile_label.setStyleSheet(f"color: {Color.TEXT_HEADING};")
+        self._combo_pro_preset = QComboBox()
+        self._combo_pro_preset.setMinimumWidth(260)
+        self._combo_pro_preset.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._combo_pro_preset.setToolTip("Select the profile used when Transcription Mode is enabled.")
+        self._combo_pro_preset.currentTextChanged.connect(self._on_main_profile_selected)
+        self._refresh_main_profile_combo()
+        profile_row.addWidget(profile_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        profile_row.addWidget(self._combo_pro_preset, 1, Qt.AlignmentFlag.AlignVCenter)
+        transcription_layout.addWidget(profile_row_widget)
+        root.addWidget(transcription_section)
+
         # ── Automation ───────────────────────────────────────────────────────
         automation_section, automation_layout = make_section_panel("Automation", central, icon_name="keyboard")
         self._chk_auto_copy = ToggleSwitch()
@@ -455,11 +495,6 @@ class MainWindow(QMainWindow):
         automation_layout.addWidget(make_setting_row("Auto-paste (Ctrl+V)", self._chk_auto_paste, automation_section))
         automation_layout.addWidget(make_setting_row("Global hotkeys", self._chk_hotkeys, automation_section, show_separator=False))
         root.addWidget(automation_section)
-
-        # NOTE: The standalone "AI Writing Profiles" section was removed from
-        # the main window in the v2 UI overhaul.  Profile state is now
-        # surfaced via the status pill (clicking it opens the Developer
-        # Panel's AI Writing Profiles tab).  See spec sections 6 & 13.
 
         # ── Hidden metric labels (updated by _on_metrics_result / _set_model_status,
         #    forwarded to the Developer Panel when open) ──────────────────────
@@ -526,6 +561,176 @@ class MainWindow(QMainWindow):
             pro_mode = ProMode.OFF
             preset_name = None
         self._status_bar.set_pro_mode(pro_mode, preset_name)
+
+    def _refresh_main_profile_combo(self) -> None:
+        if not hasattr(self, "_combo_pro_preset"):
+            return
+
+        selected = (
+            self.settings.pro_active_preset
+            if self.settings.pro_active_preset in self._pro_presets
+            else PROFILE_NONE
+        )
+        self._combo_pro_preset.blockSignals(True)
+        self._combo_pro_preset.clear()
+        self._combo_pro_preset.addItem(PROFILE_NONE)
+        for name in sorted(self._pro_presets.keys()):
+            self._combo_pro_preset.addItem(name)
+        idx = self._combo_pro_preset.findText(selected)
+        self._combo_pro_preset.setCurrentIndex(idx if idx >= 0 else 0)
+        self._combo_pro_preset.blockSignals(False)
+
+    def _sync_profile_controls_from_settings(self) -> None:
+        if hasattr(self, "_chk_transcription_mode"):
+            self._chk_transcription_mode.blockSignals(True)
+            self._chk_transcription_mode.setChecked(self.settings.professional_mode)
+            self._chk_transcription_mode.blockSignals(False)
+        self._refresh_main_profile_combo()
+        if self._dev_panel is not None:
+            self._dev_panel.pro_mode_widget.sync_from_settings()
+            ap = getattr(self._dev_panel, "ai_providers_widget", None)
+            if ap is not None:
+                ap.sync_from_settings()
+
+    def _apply_profile_runtime_state(self) -> None:
+        self._active_preset = self._pro_presets.get(self.settings.pro_active_preset)
+        if self.settings.professional_mode and self._api_key and self._active_preset:
+            self._text_processor = TextProcessor(
+                api_key=self._api_key,
+                model=self.settings.pro_default_model,
+            )
+            self._log_ui("AI Writing Profiles enabled")
+        else:
+            self._text_processor = None
+            if self.settings.professional_mode and not self._api_key:
+                self._log_ui(
+                    "AI Writing Profiles enabled but no API key configured",
+                    error=True,
+                )
+
+    @Slot(bool)
+    def _on_transcription_mode_toggled(self, checked: bool) -> None:
+        if not checked:
+            self.settings.professional_mode = False
+            self.settings.save()
+            self._apply_profile_runtime_state()
+            self._sync_profile_controls_from_settings()
+            self._update_global_status()
+            return
+
+        selected = self._combo_pro_preset.currentText() if hasattr(self, "_combo_pro_preset") else ""
+        preset = self._pro_presets.get(selected) or self._pro_presets.get(self.settings.pro_active_preset)
+        if preset is None and self._pro_presets:
+            preset = self._pro_presets[sorted(self._pro_presets.keys())[0]]
+
+        if preset is None:
+            self._sync_profile_controls_from_settings()
+            return
+
+        if not self.settings.pro_disclosure_accepted and not self._show_pro_disclosure():
+            self._sync_profile_controls_from_settings()
+            return
+
+        self.settings.pro_active_preset = preset.name
+        self.settings.professional_mode = True
+        self.settings.save()
+        self._apply_profile_runtime_state()
+        self._sync_profile_controls_from_settings()
+        self._update_global_status()
+        if not self._api_key:
+            self._prompt_for_missing_api_key()
+
+    @Slot(str)
+    def _on_main_profile_selected(self, text: str) -> None:
+        if not text:
+            return
+
+        if text == PROFILE_NONE:
+            self.settings.pro_active_preset = ""
+            self.settings.professional_mode = False
+            self.settings.save()
+            self._apply_profile_runtime_state()
+            self._sync_profile_controls_from_settings()
+            self._update_global_status()
+            return
+
+        preset = self._pro_presets.get(text)
+        if preset is None:
+            self._refresh_main_profile_combo()
+            return
+
+        if not self.settings.professional_mode:
+            self.settings.pro_active_preset = preset.name
+            self.settings.save()
+            self._sync_profile_controls_from_settings()
+            self._update_global_status()
+            return
+
+        if not self.settings.pro_disclosure_accepted and not self._show_pro_disclosure():
+            self._refresh_main_profile_combo()
+            return
+
+        self.settings.pro_active_preset = preset.name
+        self.settings.professional_mode = True
+        self.settings.save()
+        self._apply_profile_runtime_state()
+        self._sync_profile_controls_from_settings()
+        self._update_global_status()
+        if not self._api_key:
+            self._prompt_for_missing_api_key()
+
+    def _show_pro_disclosure(self) -> bool:
+        disc = QMessageBox(self)
+        disc.setIcon(QMessageBox.Icon.Warning)
+        disc.setWindowTitle("Data Privacy Notice: Optional AI Writing Profiles")
+        disc.setText(
+            "All transcription is local to this machine and is not stored, "
+            "externally transmitted, or logged."
+        )
+        disc.setInformativeText(
+            "If you choose to use <b>AI Writing Profiles</b>, dictation results will "
+            "be transmitted to <b>api.openai.com</b> under your specified "
+            "OpenAI API key.<br><br>"
+            "&#x26a0;&#xfe0f;&nbsp; Do not dictate confidential content, "
+            "including personal data (PII/PHI), financial records, "
+            "proprietary business information, or content that identifies "
+            "colleagues or customers.<br><br>"
+            "By clicking <b>I Understand</b> you acknowledge this notice. "
+            "It will not be shown again."
+        )
+        disc.setStandardButtons(
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+        )
+        disc.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        disc.button(QMessageBox.StandardButton.Ok).setText("I Understand")
+        if disc.exec() == QMessageBox.StandardButton.Ok:
+            self.settings.pro_disclosure_accepted = True
+            self.settings.save()
+            return True
+        return False
+
+    def _prompt_for_missing_api_key(self) -> None:
+        QMessageBox.information(
+            self,
+            "OpenAI API Key Required",
+            "AI Writing Profiles need an OpenAI API key before rewriting can run. "
+            "Enter your key in AI Providers to finish setup.",
+        )
+        self._on_open_ai_providers()
+
+    @Slot()
+    def _on_open_ai_providers(self) -> None:
+        """Open the Developer Panel on the AI Providers tab."""
+        from .developer_panel import TAB_PROVIDERS
+
+        if self._dev_panel is None:
+            self._on_toggle_dev_panel()
+        if self._dev_panel is not None:
+            self._dev_panel.show_snapped()
+            self._dev_panel.activate_tab(TAB_PROVIDERS)
+            ap = getattr(self._dev_panel, "ai_providers_widget", None)
+            if ap is not None:
+                ap.focus_api_key()
 
     # ═════════════════════════════════════════════════════════════════════════
     # LOGGING INTEGRATION
@@ -999,9 +1204,10 @@ class MainWindow(QMainWindow):
                 self._log_ui("Cleaning up text…")
 
                 preset = self._active_preset
+                processor = self._text_processor
 
                 def _cleanup():
-                    result = self._text_processor.process(
+                    result = processor.process(
                         text,
                         preset=preset,
                     )
@@ -1249,8 +1455,9 @@ class MainWindow(QMainWindow):
             layout = self._dev_panel.history_widget.history_layout
             while layout.count() > 1:
                 item = layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
+                widget = item.widget() if item is not None else None
+                if widget is not None:
+                    widget.deleteLater()
         self._log_ui("History cleared")
 
     @Slot()
@@ -1354,12 +1561,15 @@ class MainWindow(QMainWindow):
     def _on_toggle_dev_panel(self) -> None:
         """Show or hide the Developer Panel; create it lazily."""
         self._ensure_dev_panel()
-        if self._dev_panel.isVisible():
-            self._dev_panel.hide()
+        panel = self._dev_panel
+        if panel is None:
+            return
+        if panel.isVisible():
+            panel.hide()
             self._btn_dev_panel.setChecked(False)
             self.settings.dev_panel_open = False
         else:
-            self._dev_panel.show_snapped()
+            panel.show_snapped()
             self._btn_dev_panel.setChecked(True)
             self.settings.dev_panel_open = True
         self.settings.save()
@@ -1369,12 +1579,15 @@ class MainWindow(QMainWindow):
         from .developer_panel import TAB_HISTORY
 
         self._ensure_dev_panel()
-        if not self._dev_panel.isVisible():
-            self._dev_panel.show_snapped()
+        panel = self._dev_panel
+        if panel is None:
+            return
+        if not panel.isVisible():
+            panel.show_snapped()
             self._btn_dev_panel.setChecked(True)
             self.settings.dev_panel_open = True
             self.settings.save()
-        self._dev_panel.activate_tab(TAB_HISTORY)
+        panel.activate_tab(TAB_HISTORY)
 
     def _flush_history_buffer(self) -> None:
         """Replay buffered history entries into the Developer Panel's History tab."""
@@ -1569,19 +1782,8 @@ class MainWindow(QMainWindow):
         # AI Writing Profiles
         if s.device != "cuda":
             self._device_fallback_to_cpu = False
-        self._active_preset = self._pro_presets.get(s.pro_active_preset)
-        if s.professional_mode and self._api_key and self._active_preset:
-            self._text_processor = TextProcessor(
-                api_key=self._api_key, model=s.pro_default_model,
-            )
-            self._log_ui("AI Writing Profiles enabled")
-        else:
-            self._text_processor = None
-            if s.professional_mode and not self._api_key:
-                self._log_ui(
-                    "AI Writing Profiles enabled but no API key configured",
-                    error=True,
-                )
+        self._apply_profile_runtime_state()
+        self._sync_profile_controls_from_settings()
 
         self._log_ui("Settings applied")
         self._update_global_status()
@@ -1601,9 +1803,9 @@ class MainWindow(QMainWindow):
         """Handle settings_applied from the AI Writing Profiles or AI Providers tab.
 
         Re-syncs internal state (api key, presets, active preset, text
-        processor) and refreshes the status pill.  Profile selection in the
-        Pro Mode widget is the *single source of truth* for whether
-        rewriting is enabled.
+        processor) and refreshes the status pill.  The main window exposes
+        an explicit on/off toggle while the profile selector chooses which
+        rewrite profile to use when enabled.
         """
         if self._dev_panel is not None:
             pw = self._dev_panel.pro_mode_widget
@@ -1613,21 +1815,9 @@ class MainWindow(QMainWindow):
             if ap is not None:
                 self._api_key = ap.api_key
 
-        # Re-create or destroy TextProcessor based on new state
-        if self.settings.professional_mode and self._api_key and self._active_preset:
-            self._text_processor = TextProcessor(
-                api_key=self._api_key, model=self.settings.pro_default_model,
-            )
-            self._log_ui("AI Writing Profiles enabled")
-        else:
-            self._text_processor = None
-            if self.settings.professional_mode and not self._api_key:
-                self._log_ui(
-                    "AI Writing Profiles enabled but no API key configured",
-                    error=True,
-                )
+        self._apply_profile_runtime_state()
 
-        self._sync_pro_mode_widget_from_settings()
+        self._sync_profile_controls_from_settings()
         self._update_global_status()
 
     @Slot(str)
@@ -1640,23 +1830,21 @@ class MainWindow(QMainWindow):
             )
         else:
             self._text_processor = None
+        self._sync_profile_controls_from_settings()
         self._update_global_status()
 
     def _sync_pro_mode_widget_from_settings(self) -> None:
-        if self._dev_panel is not None:
-            self._dev_panel.pro_mode_widget.sync_from_settings()
-            ap = getattr(self._dev_panel, "ai_providers_widget", None)
-            if ap is not None:
-                ap.sync_from_settings()
+        self._sync_profile_controls_from_settings()
 
     def _populate_pro_preset_combo(self) -> None:
         """Refresh the in-memory presets dict and the Pro Mode widget combo.
 
-        The standalone preset combo on the main window was removed in the v2
-        UI overhaul; this hook exists so the developer-panel ProModeWidget
-        can announce preset CRUD changes back to the main window.
+        The main window selector and developer-panel ProModeWidget both use
+        the shared settings object; this hook keeps their option lists aligned
+        after preset CRUD changes.
         """
         self._pro_presets = load_all_presets(DEFAULT_PRESETS_DIR)
+        self._refresh_main_profile_combo()
         if self._dev_panel is not None:
             self._dev_panel.pro_mode_widget.sync_from_settings()
         self._update_global_status()
@@ -1755,4 +1943,6 @@ class MainWindow(QMainWindow):
         event.accept()
         # Explicitly quit the application so that any open modal dialogs
         # (e.g. Settings) don't keep the process alive.
-        QApplication.instance().quit()
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
