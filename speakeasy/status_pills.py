@@ -263,7 +263,7 @@ class StatusPillBar(QWidget):
         layout.addWidget(self._make_separator())
 
         self._pro_segment = _StatusSegment(
-            "sparkles", "Mode", clickable=True, accessible_name="Professional Mode",
+            "sparkles", "Profile", clickable=True, accessible_name="AI Writing Profiles",
         )
         self._pro_segment.clicked.connect(self.pro_mode_clicked.emit)
         layout.addWidget(self._pro_segment, stretch=1)
@@ -328,9 +328,9 @@ class StatusPillBar(QWidget):
         self._pro_segment.set_values("", state_text, _pro_dot_color(mode), pulsing)
         if mode == ProMode.PROCESSING:
             preset = preset_name or "active"
-            tooltip = f"Cleaning up the latest transcription with the '{preset}' preset."
+            tooltip = f"Rewriting the latest transcription with the '{preset}' profile."
         elif mode == ProMode.ACTIVE:
-            tooltip = f"Professional Mode is active with the '{state_text}' preset."
+            tooltip = f"AI Writing Profiles are active with the '{state_text}' profile."
         else:
-            tooltip = "Professional Mode is off."
-        self._pro_segment.set_state_accessibility(tooltip, f"Professional Mode, {state_text}")
+            tooltip = "AI Writing Profiles are off."
+        self._pro_segment.set_state_accessibility(tooltip, f"AI Writing Profiles, {state_text}")

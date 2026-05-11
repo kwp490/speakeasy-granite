@@ -61,12 +61,12 @@ class Color:
 class Spacing:
     """All margins, padding, and gaps must use these values. No exceptions."""
     XS = 4    # tight (icon-to-text, inline label-to-control)
-    SM = 8    # base unit (default gap)
-    MD = 12   # small section internal gap
-    LG = 16   # standard padding (card interior, panel padding)
-    SECTION = 20  # vertical gap between sections (per UI correction spec; intentionally off 8px grid)
-    XL = 24   # section separation
-    XXL = 32  # major separation
+    SM = 6    # base unit (default gap) — reduced for compactness
+    MD = 10   # small section internal gap
+    LG = 12   # standard padding (card interior, panel padding)
+    SECTION = 14  # vertical gap between sections (final UI overhaul — was 20)
+    XL = 18   # section separation (was 24)
+    XXL = 24  # major separation
 
 
 # ── Typography tokens ─────────────────────────────────────────────────────────

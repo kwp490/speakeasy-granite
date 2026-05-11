@@ -74,6 +74,7 @@ class SettingsConfigTests(unittest.TestCase):
         # Professional Mode defaults
         self.assertFalse(s.professional_mode)
         self.assertEqual(s.pro_active_preset, "General Professional")
+        self.assertEqual(s.pro_default_model, "gpt-5.5")
         self.assertFalse(s.store_api_key)
 
     def test_removed_transcription_preview_settings_are_ignored_and_migrated(self):
@@ -119,6 +120,7 @@ class SettingsConfigTests(unittest.TestCase):
             settings = Settings(
                 professional_mode=True,
                 pro_active_preset="Technical / Engineering",
+                pro_default_model="gpt-5.4-mini",
                 store_api_key=True,
             )
             settings.save(config_path)
@@ -126,7 +128,70 @@ class SettingsConfigTests(unittest.TestCase):
 
             self.assertTrue(loaded.professional_mode)
             self.assertEqual(loaded.pro_active_preset, "Technical / Engineering")
+            self.assertEqual(loaded.pro_default_model, "gpt-5.4-mini")
             self.assertTrue(loaded.store_api_key)
+
+    def test_active_profile_id_migration_enables_profile(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "settings.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "active_profile_id": "Technical / Engineering",
+                        "pro_default_model": "gpt-5.4-mini",
+                        "store_api_key": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            loaded = Settings.load(config_path)
+
+            self.assertTrue(loaded.professional_mode)
+            self.assertEqual(loaded.pro_active_preset, "Technical / Engineering")
+            self.assertEqual(loaded.pro_default_model, "gpt-5.4-mini")
+            self.assertTrue(loaded.store_api_key)
+
+    def test_active_profile_id_none_migration_disables_rewriting(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "settings.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "active_profile_id": None,
+                        "pro_active_preset": "General Professional",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            loaded = Settings.load(config_path)
+
+            self.assertFalse(loaded.professional_mode)
+            self.assertEqual(loaded.pro_active_preset, "General Professional")
+
+    def test_professional_mode_enabled_migration_preserves_profile(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "settings.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "professional_mode_enabled": True,
+                        "pro_active_preset": "General Professional",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            loaded = Settings.load(config_path)
+
+            self.assertTrue(loaded.professional_mode)
+            self.assertEqual(loaded.pro_active_preset, "General Professional")
+
+    def test_invalid_pro_default_model_resets_to_default(self):
+        settings = Settings(pro_default_model="not-a-real-model")
+        settings.validate()
+        self.assertEqual(settings.pro_default_model, "gpt-5.5")
 
     def test_api_key_never_in_settings_json(self):
         """The actual API key value must NEVER be serialised into settings.json."""
@@ -140,7 +205,11 @@ class SettingsConfigTests(unittest.TestCase):
             # no field that could hold an actual API key string value.
             self.assertNotIn("openai_api_key", data)
             self.assertNotIn("api_key", data)        # no bare 'api_key' field
-            self.assertNotIn("openai", raw.lower().replace("store_api_key", ""))
+            # The provider field may legitimately contain the string 'openai'
+            # (it is a provider identifier, not a credential).
+            data_without_provider = {k: v for k, v in data.items() if k != "provider"}
+            stripped_raw = json.dumps(data_without_provider)
+            self.assertNotIn("openai", stripped_raw.lower().replace("store_api_key", ""))
             # Verify no string value looks like an API key
             for v in data.values():
                 if isinstance(v, str):

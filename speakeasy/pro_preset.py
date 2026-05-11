@@ -3,7 +3,7 @@ Professional Mode preset management.
 
 Each preset defines a reusable set of AI text-cleanup instructions:
 tone, grammar, punctuation flags, a custom system prompt, domain
-vocabulary to preserve, and the OpenAI model to use.
+vocabulary to preserve.
 
 Presets are stored as individual JSON files in the ``config/presets/``
 directory.  Five built-in presets are always available even when no
@@ -34,7 +34,6 @@ class ProPreset:
     fix_grammar: bool = True
     fix_punctuation: bool = True
     vocabulary: str = ""
-    model: str = DEFAULT_PRO_MODEL
 
     # ── Serialisation ────────────────────────────────────────────────────
 
@@ -59,8 +58,6 @@ class ProPreset:
         """Clamp invalid values to safe defaults."""
         if not self.name or not self.name.strip():
             self.name = "Untitled Preset"
-        if not self.model or not self.model.strip():
-            self.model = DEFAULT_PRO_MODEL
 
 
 # ── Built-in presets ─────────────────────────────────────────────────────────

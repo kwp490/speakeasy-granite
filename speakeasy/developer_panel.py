@@ -1,6 +1,6 @@
 """
 Developer Panel — a snapped-but-movable side window with tabs for
-Settings, Pro Mode, Metrics, Logs, History, and Advanced.
+Settings, AI Writing Profiles, Metrics, Logs, History, and Advanced.
 
 Opened from the gear button on the main window or via a global hotkey.
 Closing the panel hides it; reopening restores the last active tab.
@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 
 # Tab keys — must match Settings.dev_panel_active_tab valid values
 TAB_SETTINGS = "settings"
+TAB_PROVIDERS = "providers"
 TAB_ADVANCED = "advanced"
 TAB_REALTIME = "realtime"
 TAB_LOGS = "logs"
@@ -295,8 +296,8 @@ class RealtimeDataWidget(QWidget):
 
         layout.addWidget(asr_sec)
 
-        # ── LLM Throughput section (Professional Mode) ───────────────────
-        tok_sec, tok_form = make_section("LLM Throughput (Pro Mode)", self)
+        # ── LLM Throughput section (AI Writing Profiles) ─────────────────
+        tok_sec, tok_form = make_section("LLM Throughput (AI Writing Profiles)", self)
         tok_layout = self._section_layout(tok_sec)
 
         self._lbl_tok_rate = QLabel("0 tok/s")
@@ -437,7 +438,7 @@ class RealtimeDataWidget(QWidget):
 
     def update_tokens(self, tok_per_sec: float, tokens_in: int, tokens_out: int,
                       seq: int = 0) -> None:
-        """Update LLM (Professional Mode) throughput section.
+        """Update LLM (AI Writing Profiles) throughput section.
 
         See :meth:`update_asr_tokens` for the seq / spike-and-zero semantics.
         For LLMs the plotted metric is the conventional ``tok/s``.
@@ -601,7 +602,20 @@ class DeveloperPanel(QWidget):
         settings_scroll.setWidget(self._settings_widget)
         self._tabs.addTab(settings_scroll, "\u2699\ufe0f  Settings")
 
-        # Tab 1: Pro Mode
+        # Tab 1: AI Providers
+        from .ai_providers_widget import AIProvidersWidget
+
+        self.ai_providers_widget = AIProvidersWidget(
+            settings=self.settings,
+            parent=self,
+            api_key=getattr(self._main_window, "_api_key", ""),
+        )
+        providers_scroll = QScrollArea()
+        providers_scroll.setWidgetResizable(True)
+        providers_scroll.setWidget(self.ai_providers_widget)
+        self._tabs.addTab(providers_scroll, "\U0001f511  AI Providers")
+
+        # Tab 2: AI Writing Profiles
         from .pro_mode_widget import ProModeWidget  # noqa: F811
 
         self.pro_mode_widget = ProModeWidget(
@@ -612,23 +626,23 @@ class DeveloperPanel(QWidget):
         pro_scroll = QScrollArea()
         pro_scroll.setWidgetResizable(True)
         pro_scroll.setWidget(self.pro_mode_widget)
-        self._tabs.addTab(pro_scroll, "\U0001f4bc  Pro Mode")
+        self._tabs.addTab(pro_scroll, "\U0001f4bc  AI Writing Profiles")
 
-        # Tab 2: Metrics
+        # Tab 3: Metrics
         self.realtime_widget = RealtimeDataWidget(self)
         self._tabs.addTab(self.realtime_widget, "\U0001f4ca  Metrics")
 
-        # Tab 3: Logs
+        # Tab 4: Logs
         self.logs_widget = LogsWidget(self)
         self._tabs.addTab(self.logs_widget, "\U0001f4cb  Logs")
 
-        # Tab 4: History
+        # Tab 5: History
         from .history_widget import HistoryWidget
 
         self.history_widget = HistoryWidget(self)
         self._tabs.addTab(self.history_widget, "\U0001f552  History")
 
-        # Tab 5: Advanced
+        # Tab 6: Advanced
         self._advanced_settings_widget = AdvancedSettingsWidget(self.settings, self)
         advanced_scroll = QScrollArea()
         advanced_scroll.setWidgetResizable(True)
@@ -652,9 +666,12 @@ class DeveloperPanel(QWidget):
         # Logs tab
         self.logs_widget.clear_requested.connect(self._main_window._on_clear_logs)
         self.logs_widget.copy_requested.connect(self._main_window._on_copy_logs)
-        # Pro Mode tab
+        # AI Writing Profiles tab
         self.pro_mode_widget.settings_applied.connect(self._main_window._on_pro_mode_applied)
         self.pro_mode_widget.presets_changed.connect(self._main_window._populate_pro_preset_combo)
+        # AI Providers tab
+        self.ai_providers_widget.settings_applied.connect(self._main_window._on_pro_mode_applied)
+        self.ai_providers_widget.api_key_changed.connect(self._main_window._on_api_key_changed)
         # History tab
         self.history_widget.clear_requested.connect(self._main_window._on_clear_history)
 
@@ -664,13 +681,13 @@ class DeveloperPanel(QWidget):
 
         disc = QMessageBox(self)
         disc.setIcon(QMessageBox.Icon.Warning)
-        disc.setWindowTitle("Data Privacy Notice: Optional Professional Mode")
+        disc.setWindowTitle("Data Privacy Notice: Optional AI Writing Profiles")
         disc.setText(
             "All transcription is local to this machine and is not stored, "
             "externally transmitted, or logged."
         )
         disc.setInformativeText(
-            "If you choose to enable <b>Professional Mode</b>, dictation results will "
+            "If you choose to use <b>AI Writing Profiles</b>, dictation results will "
             "be transmitted to <b>api.openai.com</b> under your specified "
             "OpenAI API key.<br><br>"
             "&#x26a0;&#xfe0f;&nbsp; Do not dictate confidential content, "
@@ -721,16 +738,17 @@ class DeveloperPanel(QWidget):
     def _tab_key_to_index(key: str) -> int:
         return {
             TAB_SETTINGS: 0,
-            TAB_PRO: 1,
-            TAB_REALTIME: 2,
-            TAB_LOGS: 3,
-            TAB_HISTORY: 4,
-            TAB_ADVANCED: 5,
+            TAB_PROVIDERS: 1,
+            TAB_PRO: 2,
+            TAB_REALTIME: 3,
+            TAB_LOGS: 4,
+            TAB_HISTORY: 5,
+            TAB_ADVANCED: 6,
         }.get(key, 0)
 
     @staticmethod
     def _index_to_tab_key(idx: int) -> str:
-        tabs = [TAB_SETTINGS, TAB_PRO, TAB_REALTIME, TAB_LOGS, TAB_HISTORY, TAB_ADVANCED]
+        tabs = [TAB_SETTINGS, TAB_PROVIDERS, TAB_PRO, TAB_REALTIME, TAB_LOGS, TAB_HISTORY, TAB_ADVANCED]
         return tabs[idx] if 0 <= idx < len(tabs) else TAB_SETTINGS
 
     def _on_tab_changed(self, idx: int) -> None:

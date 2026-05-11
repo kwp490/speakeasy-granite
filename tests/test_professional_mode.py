@@ -569,6 +569,7 @@ class TestBackwardCompatibility(unittest.TestCase):
             self.assertTrue(loaded.store_api_key)
             # New field gets its default
             self.assertEqual(loaded.pro_active_preset, "General Professional")
+            self.assertEqual(loaded.pro_default_model, "gpt-5.5")
             # Removed fields must NOT be attributes
             self.assertFalse(hasattr(loaded, "pro_fix_tone"))
             self.assertFalse(hasattr(loaded, "pro_model"))
@@ -588,6 +589,7 @@ class TestBackwardCompatibility(unittest.TestCase):
             self.assertNotIn("pro_fix_punctuation", raw)
             self.assertNotIn("pro_model", raw)
             self.assertIn("pro_active_preset", raw)
+            self.assertIn("pro_default_model", raw)
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -598,9 +600,8 @@ class TestBackwardCompatibility(unittest.TestCase):
 class TestTextProcessorPresetIntegration(unittest.TestCase):
     """Verify TextProcessor.process() correctly uses ProPreset objects."""
 
-    def test_preset_model_overrides_constructor_model(self):
-        """When a preset specifies a model, it should be used instead of
-        the constructor model."""
+    def test_preset_uses_constructor_model(self):
+        """Preset cleanup should use the shared processor/default model."""
         from unittest.mock import MagicMock
         from speakeasy.text_processor import TextProcessor
         from speakeasy.pro_preset import ProPreset
@@ -613,27 +614,7 @@ class TestTextProcessorPresetIntegration(unittest.TestCase):
             choices=[mock_choice]
         )
 
-        preset = ProPreset(name="Test", model="gpt-5.4-nano", fix_tone=True)
-        proc.process("test", preset=preset)
-
-        call_kwargs = proc._client.chat.completions.create.call_args
-        self.assertEqual(call_kwargs.kwargs.get("model"), "gpt-5.4-nano")
-
-    def test_preset_empty_model_falls_back_to_constructor(self):
-        """When preset.model is empty, fall back to the constructor model."""
-        from unittest.mock import MagicMock
-        from speakeasy.text_processor import TextProcessor
-        from speakeasy.pro_preset import ProPreset
-
-        proc = TextProcessor(api_key="sk-test", model="gpt-5.4-mini")
-        proc._client = MagicMock()
-        mock_choice = MagicMock()
-        mock_choice.message.content = "cleaned"
-        proc._client.chat.completions.create.return_value = MagicMock(
-            choices=[mock_choice]
-        )
-
-        preset = ProPreset(name="Test", model="", fix_tone=True)
+        preset = ProPreset(name="Test", fix_tone=True)
         proc.process("test", preset=preset)
 
         call_kwargs = proc._client.chat.completions.create.call_args

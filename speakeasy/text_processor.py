@@ -1,5 +1,5 @@
 """
-Professional Mode text processor — OpenAI API integration.
+AI Writing Profiles text processor — OpenAI API integration.
 
 Cleans up dictated text by fixing tone, grammar, and punctuation
 via the OpenAI chat-completion API.  The API key is held **only** in
@@ -159,7 +159,7 @@ class TextProcessor:
             fix_punctuation = preset.fix_punctuation
             custom_prompt = preset.system_prompt
             vocabulary = preset.vocabulary
-            model = preset.model or self._model
+            model = self._model
         else:
             custom_prompt = ""
             vocabulary = ""
@@ -176,7 +176,7 @@ class TextProcessor:
 
         self._ensure_client()
         if self._client is None:
-            log.warning("Professional Mode: no API key configured — skipping cleanup")
+            log.warning("AI Writing Profiles: no API key configured — skipping cleanup")
             return text
 
         try:
@@ -212,7 +212,7 @@ class TextProcessor:
             return cleaned.strip() if cleaned else text
         except Exception as exc:
             log.error(
-                "Professional Mode API error: %s",
+                "AI Writing Profiles API error: %s",
                 _sanitize_error(exc, self._api_key),
             )
             return text

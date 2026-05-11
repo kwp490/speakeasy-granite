@@ -34,16 +34,19 @@ git push origin vX.Y.Z
 ```
 
 Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml),
-which:
+which creates a draft GitHub Release using `.github/RELEASE_NOTES.md` as the
+release body.
 
-1. Builds both GPU and CPU installers in CI
-2. Generates `SHA256SUMS.txt` for both `.exe` files
-3. Creates a public GitHub Release with all assets attached
+Installer builds are local-only. Attach the locally generated GPU and CPU
+installer `.exe` files, plus their checksum file, to the draft release before
+publishing it.
 
 ## Post-release
 
+- [ ] **Upload release assets** — attach both locally built installers and
+  `SHA256SUMS.txt` to the draft release.
 - [ ] **Verify the GitHub Release** — confirm both installers and `SHA256SUMS.txt`
-      are listed and download links work.
+  are listed and download links work before publishing.
 - [ ] **Verify the SmartScreen pre-warning** — confirm the release body starts with
   the "Before You Install" note from `.github/RELEASE_NOTES.md` before any
   download links are shared.

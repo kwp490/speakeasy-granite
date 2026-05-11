@@ -7,7 +7,6 @@ from pathlib import Path
 
 from speakeasy.pro_preset import (
     BUILTIN_PRESET_NAMES,
-    DEFAULT_PRO_MODEL,
     PRO_MODE_MODEL_OPTIONS,
     ProPreset,
     _safe_filename,
@@ -32,7 +31,6 @@ class ProPresetSerializationTests(unittest.TestCase):
                 fix_grammar=True,
                 fix_punctuation=False,
                 vocabulary="API, gRPC, OAuth2",
-                model="gpt-5.4-nano",
             )
             preset.save(path)
             loaded = ProPreset.load(path)
@@ -43,7 +41,6 @@ class ProPresetSerializationTests(unittest.TestCase):
             self.assertTrue(loaded.fix_grammar)
             self.assertFalse(loaded.fix_punctuation)
             self.assertEqual(loaded.vocabulary, "API, gRPC, OAuth2")
-            self.assertEqual(loaded.model, "gpt-5.4-nano")
 
     def test_load_ignores_unknown_fields(self):
         with tempfile.TemporaryDirectory() as td:
@@ -56,18 +53,21 @@ class ProPresetSerializationTests(unittest.TestCase):
             self.assertEqual(loaded.name, "Test")
             self.assertFalse(hasattr(loaded, "unknown_field"))
 
+    def test_load_ignores_removed_model_field(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "test.json"
+            path.write_text(
+                json.dumps({"name": "Test", "model": "gpt-5.4-nano"}),
+                encoding="utf-8",
+            )
+            loaded = ProPreset.load(path)
+            self.assertEqual(loaded.name, "Test")
+            self.assertFalse(hasattr(loaded, "model"))
+
     def test_validate_empty_name(self):
         preset = ProPreset(name="")
         preset.validate()
         self.assertEqual(preset.name, "Untitled Preset")
-
-    def test_validate_empty_model(self):
-        preset = ProPreset(model="")
-        preset.validate()
-        self.assertEqual(preset.model, DEFAULT_PRO_MODEL)
-
-    def test_default_model_is_gpt_5_5(self):
-        self.assertEqual(ProPreset().model, "gpt-5.5")
 
     def test_model_options_keep_existing_models(self):
         self.assertEqual(

@@ -1,0 +1,3 @@
+# Workflow changes require explicit owner review.
+.github/workflows/** @kwp490
+.github/disabled-workflows/** @kwp490

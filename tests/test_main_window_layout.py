@@ -289,42 +289,42 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertIn("_suspend_mic_stream_for_processing", method_names)
         self.assertIn("_resume_mic_stream_after_processing", method_names)
 
-    # â”€â”€ Phase 6 (professional mode quick-toggle checkbox) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â”€â”€ v2 UI overhaul: AI Writing Profiles section removed from main window â”€â”€
 
-    def test_chk_professional_in_build_ui(self):
-        """_chk_professional toggle must be created in _build_ui."""
+    def test_ai_writing_profiles_section_removed_from_main_window(self):
+        """The standalone AI Writing Profiles section must NOT exist on the main window."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("self._chk_professional", src)
-        self.assertIn("self._chk_professional = ToggleSwitch()", src)
+        self.assertNotIn("self._chk_professional", src)
+        self.assertNotIn("self._combo_pro_preset", src)
+        self.assertNotIn("self._combo_pro_model", src)
+        self.assertNotIn("Enable AI Writing Profiles", src)
 
-    def test_chk_professional_connected_to_toggled(self):
-        """_chk_professional must be connected to _on_professional_toggled."""
-        src = self._get_method_source("_build_ui")
-        self.assertIn("_chk_professional.toggled.connect(self._on_professional_toggled)", src)
+    def test_no_pending_professional_enable_state(self):
+        """Pending-enable boolean must be removed (profile dropdown is the source of truth)."""
+        src = "\n".join(
+            self._get_method_source(name) for name in (
+                "_on_pro_mode_applied",
+            )
+        )
+        self.assertNotIn("_pending_professional_enable_after_api_key", src)
 
-    def test_on_professional_toggled_method_exists(self):
-        """_on_professional_toggled must be defined in MainWindow."""
+    def test_on_pro_mode_applied_method_exists(self):
         method_names = [
             n.name for n in ast.walk(self._mw_class)
             if isinstance(n, ast.FunctionDef)
         ]
-        self.assertIn("_on_professional_toggled", method_names)
+        self.assertIn("_on_pro_mode_applied", method_names)
+        self.assertIn("_on_api_key_changed", method_names)
 
-    def test_on_professional_toggled_handles_no_api_key(self):
-        """_on_professional_toggled must handle the no-API-key case."""
-        src = self._get_method_source("_on_professional_toggled")
-        self.assertIn("API Key Required", src)
-
-    def test_on_professional_toggled_handles_no_preset(self):
-        """_on_professional_toggled must handle the no-preset case."""
-        src = self._get_method_source("_on_professional_toggled")
-        self.assertIn("No Preset Configured", src)
-
-    def test_on_pro_mode_applied_syncs_checkbox(self):
-        """_on_pro_mode_applied must sync _chk_professional."""
-        src = self._get_method_source("_on_pro_mode_applied")
-        self.assertIn("_chk_professional.setChecked", src)
-        self.assertIn("_chk_professional.blockSignals", src)
+    def test_obsolete_handlers_removed(self):
+        """Quick-toggle / quick-model handlers were removed in the v2 overhaul."""
+        method_names = [
+            n.name for n in ast.walk(self._mw_class)
+            if isinstance(n, ast.FunctionDef)
+        ]
+        self.assertNotIn("_on_professional_toggled", method_names)
+        self.assertNotIn("_on_pro_model_quick_select", method_names)
+        self.assertNotIn("_on_pro_preset_quick_select", method_names)
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -442,105 +442,29 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         finally:
             win.close()
 
-    # â”€â”€ Phase 6 (professional mode quick-toggle live tests) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â”€â”€ v2 UI overhaul: AI Writing Profiles section removed from main window â”€â”€
 
-    def test_chk_professional_exists(self):
-        """Professional Mode checkbox must exist on the main window."""
+    def test_no_chk_professional_attribute(self):
+        """The standalone enable toggle is gone."""
         win = self._make_window()
         try:
-            self.assertIsNotNone(win._chk_professional)
-            self.assertEqual(win._chk_professional.text(), "")
+            self.assertFalse(hasattr(win, "_chk_professional"))
+            self.assertFalse(hasattr(win, "_combo_pro_preset"))
+            self.assertFalse(hasattr(win, "_combo_pro_model"))
         finally:
             win.close()
 
-    def test_chk_professional_default_unchecked(self):
-        """Professional Mode checkbox defaults to unchecked (pro mode off)."""
+    def test_status_bar_pro_segment_off_when_no_profile(self):
+        """Status pill shows 'Off' when professional_mode is False."""
         win = self._make_window()
         try:
-            self.assertFalse(win._chk_professional.isChecked())
-        finally:
-            win.close()
-
-    def test_chk_professional_reflects_settings(self):
-        """Professional Mode checkbox reflects settings.professional_mode."""
-        from unittest.mock import MagicMock, PropertyMock, patch
-        from speakeasy.config import Settings
-        import tempfile
-
-        settings = Settings()
-        settings.professional_mode = True
-        settings.hotkeys_enabled = False
-
-        engine = MagicMock()
-        engine.name = "mock"
-        type(engine).is_loaded = PropertyMock(return_value=False)
-
-        tmp = tempfile.mkdtemp()
-        import speakeasy.main_window as _mw
-        orig = _mw.DEFAULT_PRESETS_DIR
-        _mw.DEFAULT_PRESETS_DIR = Path(tmp) / "presets"
-        try:
-            from speakeasy.main_window import MainWindow
-            win = MainWindow(settings, engine=engine)
-            try:
-                self.assertTrue(win._chk_professional.isChecked())
-            finally:
-                win.close()
-        finally:
-            _mw.DEFAULT_PRESETS_DIR = orig
-
-    def test_toggle_on_without_api_key_reverts(self):
-        """Enabling Professional Mode without an API key must revert the checkbox."""
-        from unittest.mock import patch
-        win = self._make_window()
-        try:
-            win._api_key = ""
-            # Patch QMessageBox to auto-click No (cancel)
-            with patch(
-                "speakeasy.main_window.QMessageBox.question",
-                return_value=QMessageBox.StandardButton.No,
-            ):
-                win._chk_professional.setChecked(True)
-            self.assertFalse(win._chk_professional.isChecked())
+            from speakeasy.status_pills import ProMode
             self.assertFalse(win.settings.professional_mode)
+            # _update_global_status was called in __init__; ensure no crash
+            win._update_global_status()
         finally:
             win.close()
 
-    def test_toggle_on_with_api_key_enables(self):
-        """Enabling Professional Mode with API key and preset must succeed."""
-        from unittest.mock import MagicMock
-        from speakeasy.pro_preset import ProPreset
-
-        win = self._make_window()
-        try:
-            win._api_key = "sk-test-key"
-            win._active_preset = ProPreset(name="Test")
-            win.settings.pro_disclosure_accepted = True
-            win._chk_professional.setChecked(True)
-            self.assertTrue(win.settings.professional_mode)
-            self.assertIsNotNone(win._text_processor)
-        finally:
-            win.close()
-
-    def test_toggle_off_disables(self):
-        """Disabling Professional Mode must clear TextProcessor."""
-        from unittest.mock import MagicMock
-        from speakeasy.pro_preset import ProPreset
-
-        win = self._make_window()
-        try:
-            # First enable
-            win._api_key = "sk-test-key"
-            win._active_preset = ProPreset(name="Test")
-            win.settings.pro_disclosure_accepted = True
-            win._chk_professional.setChecked(True)
-            self.assertIsNotNone(win._text_processor)
-            # Then disable
-            win._chk_professional.setChecked(False)
-            self.assertFalse(win.settings.professional_mode)
-            self.assertIsNone(win._text_processor)
-        finally:
-            win.close()
 
 
 @unittest.skipUnless(_qt_available(), "PySide6 not available")

@@ -37,9 +37,9 @@ def mock_main_window(tmp_path, monkeypatch, qtbot):
     monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_FILE", config_dir / "settings.json")
     monkeypatch.setattr("speakeasy.config.DEFAULT_PRESETS_DIR", presets_dir)
     # Mock keyring
-    monkeypatch.setattr("speakeasy.pro_mode_widget.load_api_key_from_keyring", lambda: "")
-    monkeypatch.setattr("speakeasy.pro_mode_widget.save_api_key_to_keyring", lambda k: None)
-    monkeypatch.setattr("speakeasy.pro_mode_widget.delete_api_key_from_keyring", lambda: None)
+    monkeypatch.setattr("speakeasy.ai_providers_widget.load_api_key_from_keyring", lambda: "")
+    monkeypatch.setattr("speakeasy.ai_providers_widget.save_api_key_to_keyring", lambda k: None)
+    monkeypatch.setattr("speakeasy.ai_providers_widget.delete_api_key_from_keyring", lambda: None)
 
     mw = QWidget()
     mw.resize(720, 640)
@@ -53,6 +53,7 @@ def mock_main_window(tmp_path, monkeypatch, qtbot):
     mw._on_pro_mode_applied = MagicMock()
     mw._populate_pro_preset_combo = MagicMock()
     mw._on_clear_history = MagicMock()
+    mw._on_api_key_changed = MagicMock()
     qtbot.addWidget(mw)
     return mw
 
@@ -72,16 +73,17 @@ class TestDeveloperPanelConstruction:
         panel, _ = dev_panel
         assert panel is not None
 
-    def test_panel_has_six_tabs(self, dev_panel):
+    def test_panel_has_seven_tabs(self, dev_panel):
         panel, _ = dev_panel
-        assert panel._tabs.count() == 6
+        assert panel._tabs.count() == 7
 
     def test_panel_tab_order(self, dev_panel):
         panel, _ = dev_panel
         labels = [panel._tabs.tabText(i).strip() for i in range(panel._tabs.count())]
         assert labels == [
             "⚙️  Settings",
-            "💼  Pro Mode",
+            "🔑  AI Providers",
+            "💼  AI Writing Profiles",
             "📊  Metrics",
             "📋  Logs",
             "🕒  History",
@@ -99,38 +101,43 @@ class TestDeveloperPanelConstruction:
 
         settings = Settings(dev_panel_active_tab="logs")
         panel = DeveloperPanel(settings, mock_main_window)
-        assert panel._tabs.currentIndex() == 3  # logs tab index
+        assert panel._tabs.currentIndex() == 4  # logs tab index in new layout
 
 
 class TestDeveloperPanelTabNavigation:
     def test_switching_tabs_persists_active_tab(self, dev_panel, tmp_path, monkeypatch):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(2)  # Metrics
+        panel._tabs.setCurrentIndex(3)  # Metrics in new layout
         assert settings.dev_panel_active_tab == "realtime"
 
     def test_switching_to_advanced_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(5)
+        panel._tabs.setCurrentIndex(6)
         assert settings.dev_panel_active_tab == "advanced"
 
     def test_switching_to_logs_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(3)
+        panel._tabs.setCurrentIndex(4)
         assert settings.dev_panel_active_tab == "logs"
 
     def test_switching_to_pro_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(1)
+        panel._tabs.setCurrentIndex(2)
         assert settings.dev_panel_active_tab == "pro"
+
+    def test_switching_to_providers_tab(self, dev_panel):
+        panel, settings = dev_panel
+        panel._tabs.setCurrentIndex(1)
+        assert settings.dev_panel_active_tab == "providers"
 
     def test_switching_to_history_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(4)
+        panel._tabs.setCurrentIndex(5)
         assert settings.dev_panel_active_tab == "history"
 
     def test_switching_back_to_settings(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(2)
+        panel._tabs.setCurrentIndex(3)
         panel._tabs.setCurrentIndex(0)
         assert settings.dev_panel_active_tab == "settings"
 
@@ -235,30 +242,35 @@ class TestDeveloperPanelActivateTab:
         panel.activate_tab("settings")
         assert panel._tabs.currentIndex() == 0
 
+    def test_activate_tab_providers(self, dev_panel):
+        panel, _ = dev_panel
+        panel.activate_tab("providers")
+        assert panel._tabs.currentIndex() == 1
+
     def test_activate_tab_realtime(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("realtime")
-        assert panel._tabs.currentIndex() == 2
+        assert panel._tabs.currentIndex() == 3
 
     def test_activate_tab_advanced(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("advanced")
-        assert panel._tabs.currentIndex() == 5
+        assert panel._tabs.currentIndex() == 6
 
     def test_activate_tab_logs(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("logs")
-        assert panel._tabs.currentIndex() == 3
+        assert panel._tabs.currentIndex() == 4
 
     def test_activate_tab_pro(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("pro")
-        assert panel._tabs.currentIndex() == 1
+        assert panel._tabs.currentIndex() == 2
 
     def test_activate_tab_history(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("history")
-        assert panel._tabs.currentIndex() == 4
+        assert panel._tabs.currentIndex() == 5
 
 
 class TestTokenSparklinePainting:

@@ -1,6 +1,7 @@
-"""Tests for the ProModeWidget (replacement for the modal ProSettingsDialog).
+"""Tests for the ProModeWidget (AI Writing Profiles editor) — v2 UI overhaul.
 
-Validates construction, enable toggle behaviour, and disclosure callback.
+Profile selection is the *single* source of truth for whether rewriting is
+enabled.  The API/model fields have moved to :mod:`speakeasy.ai_providers_widget`.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ _PRO_MODE_WIDGET_PATH = _REPO_ROOT / "speakeasy" / "pro_mode_widget.py"
 
 def _qt_available() -> bool:
     try:
-        from PySide6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication  # noqa: F401
         return True
     except ImportError:
         return False
@@ -45,23 +46,33 @@ class TestProModeWidgetStructure:
     def _method_names(self):
         return [n.name for n in ast.walk(self._pw_class) if isinstance(n, ast.FunctionDef)]
 
-    def _method_source(self, name: str) -> str:
-        for node in ast.walk(self._pw_class):
-            if isinstance(node, ast.FunctionDef) and node.name == name:
-                return ast.get_source_segment(self._source, node) or ""
-        pytest.fail(f"Method '{name}' not found in ProModeWidget")
-
     def test_settings_applied_signal_defined(self):
         assert "settings_applied" in self._source
 
     def test_presets_changed_signal_defined(self):
         assert "presets_changed" in self._source
 
-    def test_has_on_enable_toggled(self):
-        assert "_on_enable_toggled" in self._method_names()
+    def test_no_enable_toggle(self):
+        # Profile selection alone controls enable state
+        assert "_chk_enable" not in self._source
+        assert "Enable Professional Mode" not in self._source
+        assert "Enable AI Writing Profiles" not in self._source
 
-    def test_has_on_apply(self):
-        assert "_on_apply" in self._method_names()
+    def test_no_apply_button(self):
+        # Auto-apply only — no separate Apply button on this tab
+        assert "_btn_apply" not in self._source
+        assert "_on_apply" not in self._method_names()
+
+    def test_no_api_section(self):
+        # API key/model/validation moved to AI Providers tab
+        assert "_pro_api_key" not in self._source
+        assert "_btn_eye" not in self._source
+        assert "_btn_validate_key" not in self._source
+        assert "_pro_model" not in self._source
+        assert "Developer API Settings" not in self._source
+
+    def test_has_sync_from_settings(self):
+        assert "sync_from_settings" in self._method_names()
 
     def test_has_preset_crud_methods(self):
         names = self._method_names()
@@ -69,9 +80,15 @@ class TestProModeWidgetStructure:
         assert "_on_duplicate_preset" in names
         assert "_on_delete_preset" in names
 
-    def test_disclosure_callback_stored(self):
-        src = self._method_source("__init__")
-        assert "_on_disclosure_required" in src
+    def test_has_advanced_collapsible(self):
+        assert "_advanced_toggle" in self._source
+        assert "_advanced_content" in self._source
+
+    def test_protected_terms_label_present(self):
+        assert "Protected Terms" in self._source
+
+    def test_profile_none_constant(self):
+        assert "PROFILE_NONE" in self._source
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -81,190 +98,140 @@ class TestProModeWidgetStructure:
 
 @pytest.mark.skipif(not _qt_available(), reason="PySide6 not available")
 class TestProModeWidgetLive:
-    """Integration tests for ProModeWidget with mocked keyring."""
+    """Integration tests for ProModeWidget."""
 
     @pytest.fixture
     def pro_widget(self, tmp_path, monkeypatch):
         from speakeasy.config import Settings
         from speakeasy.pro_mode_widget import ProModeWidget
+        import speakeasy.pro_preset as pp
 
         config_dir = tmp_path / "config"
         config_dir.mkdir()
         presets_dir = config_dir / "presets"
         presets_dir.mkdir()
+        # Seed built-in presets so the combo has > 1 entry
+        pp.bootstrap_presets(presets_dir)
         monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_DIR", config_dir)
         monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_FILE", config_dir / "settings.json")
         monkeypatch.setattr("speakeasy.config.DEFAULT_PRESETS_DIR", presets_dir)
         monkeypatch.setattr("speakeasy.pro_mode_widget.DEFAULT_PRESETS_DIR", presets_dir)
-        # Mock keyring to avoid OS credential store access
-        monkeypatch.setattr("speakeasy.pro_mode_widget.load_api_key_from_keyring", lambda: "")
-        monkeypatch.setattr("speakeasy.pro_mode_widget.save_api_key_to_keyring", lambda k: None)
-        monkeypatch.setattr("speakeasy.pro_mode_widget.delete_api_key_from_keyring", lambda: None)
 
-        settings = Settings()
+        settings = Settings(pro_disclosure_accepted=True)
         widget = ProModeWidget(settings=settings, on_disclosure_required=None)
         return widget, settings
 
-    def test_pro_mode_widget_constructs_without_disclosure_callback(self, pro_widget):
+    def test_widget_constructs_without_disclosure_callback(self, pro_widget):
         widget, _ = pro_widget
         assert widget is not None
 
-    def test_pro_mode_widget_constructs_with_disclosure_callback(self, tmp_path, monkeypatch):
+    def test_widget_constructs_with_disclosure_callback(self, tmp_path, monkeypatch):
         from speakeasy.config import Settings
         from speakeasy.pro_mode_widget import ProModeWidget
+        import speakeasy.pro_preset as pp
 
-        config_dir = tmp_path / "config2"
+        config_dir = tmp_path / "cfg"
         config_dir.mkdir()
         presets_dir = config_dir / "presets"
         presets_dir.mkdir()
+        pp.bootstrap_presets(presets_dir)
         monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_DIR", config_dir)
         monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_FILE", config_dir / "settings.json")
         monkeypatch.setattr("speakeasy.config.DEFAULT_PRESETS_DIR", presets_dir)
-        monkeypatch.setattr("speakeasy.pro_mode_widget.load_api_key_from_keyring", lambda: "")
+        monkeypatch.setattr("speakeasy.pro_mode_widget.DEFAULT_PRESETS_DIR", presets_dir)
 
         spy = MagicMock(return_value=True)
-        settings = Settings()
-        widget = ProModeWidget(settings=settings, on_disclosure_required=spy)
+        widget = ProModeWidget(settings=Settings(), on_disclosure_required=spy)
         assert widget is not None
 
-    def test_enabling_pro_mode_invokes_disclosure_when_not_accepted(self, tmp_path, monkeypatch):
+    def test_preset_combo_first_item_is_none(self, pro_widget):
+        widget, _ = pro_widget
+        assert widget._preset_combo.count() > 1
+        assert widget._preset_combo.itemText(0) == "None"
+
+    def test_selecting_profile_enables_pro_mode(self, pro_widget):
+        widget, settings = pro_widget
+        # find first non-None entry
+        widget._preset_combo.setCurrentIndex(1)
+        assert settings.professional_mode is True
+        assert settings.pro_active_preset == widget._preset_combo.currentText()
+
+    def test_selecting_none_disables_pro_mode(self, pro_widget):
+        widget, settings = pro_widget
+        widget._preset_combo.setCurrentIndex(1)
+        assert settings.professional_mode is True
+        widget._preset_combo.setCurrentText("None")
+        assert settings.professional_mode is False
+
+    def test_disclosure_invoked_when_not_accepted(self, tmp_path, monkeypatch):
         from speakeasy.config import Settings
         from speakeasy.pro_mode_widget import ProModeWidget
+        import speakeasy.pro_preset as pp
 
-        config_dir = tmp_path / "config3"
+        config_dir = tmp_path / "cfg2"
         config_dir.mkdir()
         presets_dir = config_dir / "presets"
         presets_dir.mkdir()
+        pp.bootstrap_presets(presets_dir)
         monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_DIR", config_dir)
         monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_FILE", config_dir / "settings.json")
         monkeypatch.setattr("speakeasy.config.DEFAULT_PRESETS_DIR", presets_dir)
-        monkeypatch.setattr("speakeasy.pro_mode_widget.load_api_key_from_keyring", lambda: "")
+        monkeypatch.setattr("speakeasy.pro_mode_widget.DEFAULT_PRESETS_DIR", presets_dir)
 
-        spy = MagicMock(return_value=False)  # decline disclosure
+        spy = MagicMock(return_value=False)  # decline
         settings = Settings(pro_disclosure_accepted=False)
         widget = ProModeWidget(settings=settings, on_disclosure_required=spy)
 
-        widget._pro_enabled.setChecked(True)
+        widget._preset_combo.setCurrentIndex(1)
         spy.assert_called_once()
-        # Should NOT be enabled because disclosure was declined
         assert settings.professional_mode is False
+        assert widget._preset_combo.currentText() == "None"
 
-    def test_disclosure_callback_not_invoked_when_already_accepted(self, tmp_path, monkeypatch):
-        from speakeasy.config import Settings
-        from speakeasy.pro_mode_widget import ProModeWidget
-
-        config_dir = tmp_path / "config4"
-        config_dir.mkdir()
-        presets_dir = config_dir / "presets"
-        presets_dir.mkdir()
-        monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_DIR", config_dir)
-        monkeypatch.setattr("speakeasy.config.DEFAULT_CONFIG_FILE", config_dir / "settings.json")
-        monkeypatch.setattr("speakeasy.config.DEFAULT_PRESETS_DIR", presets_dir)
-        monkeypatch.setattr("speakeasy.pro_mode_widget.load_api_key_from_keyring", lambda: "")
-
-        spy = MagicMock(return_value=True)
-        settings = Settings(pro_disclosure_accepted=True)
-        widget = ProModeWidget(settings=settings, on_disclosure_required=spy)
-
-        widget._pro_enabled.setChecked(True)
-        spy.assert_not_called()
-
-    def test_enabling_pro_mode_saves_settings(self, pro_widget):
-        """Toggling enable should auto-apply (save immediately)."""
+    def test_disclosure_not_invoked_when_already_accepted(self, pro_widget):
         widget, settings = pro_widget
-        settings.pro_disclosure_accepted = True
-        widget._pro_enabled.setChecked(True)
+        # pro_widget fixture already sets pro_disclosure_accepted=True
+        widget._preset_combo.setCurrentIndex(1)
         assert settings.professional_mode is True
 
-    def test_disabling_pro_mode_saves_settings(self, pro_widget):
+    def test_advanced_collapsed_by_default(self, pro_widget):
+        widget, _ = pro_widget
+        assert not widget._advanced_content.isVisible() or not widget._advanced_toggle.isChecked()
+        assert widget._advanced_toggle.isCheckable()
+
+    def test_protected_terms_compact_height(self, pro_widget):
+        widget, _ = pro_widget
+        # Approximately 3 visible rows
+        assert widget._vocab_edit.maximumHeight() <= 100
+
+    def test_sync_from_settings_refreshes_none(self, pro_widget):
         widget, settings = pro_widget
-        settings.pro_disclosure_accepted = True
-        # First enable it
-        widget._pro_enabled.setChecked(True)
-        assert settings.professional_mode is True
-        # Then disable it
-        widget._pro_enabled.setChecked(False)
-        assert settings.professional_mode is False
+        settings.professional_mode = False
+        widget.sync_from_settings()
+        assert widget._preset_combo.currentText() == "None"
 
-    def test_preset_combo_populated(self, pro_widget):
-        widget, _ = pro_widget
-        assert widget._preset_combo.count() > 0
-
-    def test_selecting_preset_updates_detail_fields(self, pro_widget):
-        widget, _ = pro_widget
-        # Select a different preset
-        if widget._preset_combo.count() > 1:
-            widget._preset_combo.setCurrentIndex(1)
-            name = widget._preset_combo.currentText()
-            assert widget._preset_name_edit.text() == name
-
-    def test_api_key_field_exists(self, pro_widget):
-        widget, _ = pro_widget
-        assert hasattr(widget, "_pro_api_key")
-
-    def test_model_dropdowns_include_gpt_5_5_and_existing_models(self, pro_widget):
-        widget, _ = pro_widget
-        default_models = [
-            widget._pro_model.itemText(index)
-            for index in range(widget._pro_model.count())
-        ]
-        preset_models = [
-            widget._preset_model.itemText(index)
-            for index in range(widget._preset_model.count())
-        ]
-
-        assert default_models == ["gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano"]
-        assert preset_models == [
-            "(use default)",
-            "gpt-5.5",
-            "gpt-5.4-mini",
-            "gpt-5.4-nano",
-        ]
-
-    def test_eye_button_toggles_visibility(self, pro_widget):
-        widget, _ = pro_widget
-        from PySide6.QtWidgets import QLineEdit
-        assert widget._pro_api_key.echoMode() == QLineEdit.EchoMode.Password
-        widget._btn_eye.setChecked(True)
-        assert widget._pro_api_key.echoMode() == QLineEdit.EchoMode.Normal
-        widget._btn_eye.setChecked(False)
-        assert widget._pro_api_key.echoMode() == QLineEdit.EchoMode.Password
-
-    def test_apply_emits_settings_applied(self, pro_widget, qtbot):
-        widget, _ = pro_widget
-        with qtbot.waitSignal(widget.settings_applied, timeout=1000):
-            widget._on_apply()
-
-    def test_apply_emits_presets_changed(self, pro_widget, qtbot):
-        widget, _ = pro_widget
-        with qtbot.waitSignal(widget.presets_changed, timeout=1000):
-            widget._on_apply()
+    def test_sync_from_settings_refreshes_active_preset(self, pro_widget):
+        widget, settings = pro_widget
+        target = widget._preset_combo.itemText(1)
+        settings.pro_active_preset = target
+        settings.professional_mode = True
+        widget.sync_from_settings()
+        assert widget._preset_combo.currentText() == target
 
     def test_presets_property(self, pro_widget):
         widget, _ = pro_widget
         assert isinstance(widget.presets, dict)
         assert len(widget.presets) > 0
 
-    def test_api_key_property(self, pro_widget):
+    def test_no_api_key_attribute(self, pro_widget):
         widget, _ = pro_widget
-        assert isinstance(widget.api_key, str)
+        assert not hasattr(widget, "_pro_api_key")
+        assert not hasattr(widget, "api_key")
 
-    def test_validate_api_key_no_key(self, pro_widget):
+    def test_rewrite_options_present(self, pro_widget):
         widget, _ = pro_widget
-        widget._pro_api_key.setText("")
-        widget._on_validate_api_key()
-        assert "No API key" in widget._lbl_validate_result.text()
-
-    def test_flush_preset_edits_for_builtin(self, pro_widget):
-        widget, _ = pro_widget
-        # Ensure a preset is selected and flush works
-        if widget._preset_combo.count() > 0:
-            widget._preset_combo.setCurrentIndex(0)
-            name = widget._preset_combo.currentText()
-            widget._flush_preset_edits_for(name)
-            # No crash expected
-
-    def test_flush_preset_edits_for_nonexistent(self, pro_widget):
-        widget, _ = pro_widget
-        widget._flush_preset_edits_for("nonexistent_preset")
-        # Should be a no-op, no crash
+        assert widget._preset_fix_tone is not None
+        assert widget._preset_fix_grammar is not None
+        assert widget._preset_fix_punctuation is not None
+        assert widget._preset_fix_tone.text() == "Tone"
+        assert widget._preset_fix_grammar.text() == "Grammar"
+        assert widget._preset_fix_punctuation.text() == "Punctuation"

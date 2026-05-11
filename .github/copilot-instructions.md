@@ -63,6 +63,19 @@ uv run python -m speakeasy                                # Run from source (nee
 .\installer\Build-Installer.ps1 -Mode Install            # Silent-install latest build (requires admin)
 ```
 
+## GitHub Actions policy
+
+- Do not create, enable, rename, move, or edit files under `.github/workflows/`
+  unless the user explicitly asks for GitHub Actions workflow changes.
+- Disabled workflow examples live under `.github/disabled-workflows/` with the
+  `.yml.disabled` extension for reference only. Do not move them back into
+  `.github/workflows/` or rename them to `.yml` without explicit approval.
+- Do not run `gh workflow enable`, `gh workflow run`, or any API command that
+  enables or dispatches GitHub Actions workflows unless explicitly requested.
+- SpeakEasy builds and tests are local-first. Use `uv run ...` and
+  `installer/Build-Installer.ps1`; do not restore CI build/test workflows to
+  reconcile stale documentation or release checklists.
+
 ## Architecture rules
 
 ### Threading

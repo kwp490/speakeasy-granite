@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 from ._build_variant import VARIANT
+from .pro_preset import DEFAULT_PRO_MODEL, PRO_MODE_MODEL_OPTIONS
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +35,8 @@ _REMOVED_TRANSCRIPTION_PREVIEW_SETTINGS = {
     "partial" "Transcript",
     "preview" "Transcript",
 }
+
+_MISSING = object()
 
 INSTALL_DIR = Path(os.environ.get("SPEAKEASY_HOME", r"C:\Program Files\SpeakEasy AI Granite"))
 
@@ -92,15 +95,17 @@ class Settings:
     silence_threshold: float = 0.0015
     silence_margin_ms: int = 500
 
-    # ── Professional Mode ─────────────────────────────────────────────────────
+    # ── AI Writing Profiles + Providers ──────────────────────────────────────
     professional_mode: bool = False
     pro_active_preset: str = "General Professional"
+    pro_default_model: str = DEFAULT_PRO_MODEL
     store_api_key: bool = False
     pro_disclosure_accepted: bool = False  # True once user acknowledges data-privacy notice
+    provider: str = "openai"               # AI Providers tab: openai | local_granite (future)
 
     # ── Developer Panel ──────────────────────────────────────────────────────
     dev_panel_open: bool = False
-    dev_panel_active_tab: str = "settings"   # one of: settings, advanced, realtime, logs, pro, history
+    dev_panel_active_tab: str = "settings"   # one of: settings, providers, pro, realtime, logs, history, advanced
     dev_panel_width: int = 629
     dev_panel_height: int = 880
     dev_panel_snapped: bool = True           # True = follows main window's right edge
@@ -151,9 +156,13 @@ class Settings:
             self.inference_timeout = 30
         if self.silence_threshold <= 0:
             self.silence_threshold = 0.0015
-        valid_tabs = {"settings", "advanced", "realtime", "logs", "pro", "history"}
+        valid_tabs = {"settings", "providers", "advanced", "realtime", "logs", "pro", "history"}
+        if self.provider not in {"openai", "local_granite"}:
+            self.provider = "openai"
         if self.dev_panel_active_tab not in valid_tabs:
             self.dev_panel_active_tab = "settings"
+        if self.pro_default_model not in PRO_MODE_MODEL_OPTIONS:
+            self.pro_default_model = DEFAULT_PRO_MODEL
         if self.dev_panel_width < 540:
             self.dev_panel_width = 629
         if self.dev_panel_width > 800:
@@ -196,6 +205,17 @@ class Settings:
                             "Could not rewrite settings file after removing deprecated keys",
                             exc_info=True,
                         )
+                if "professional_mode_enabled" in data and "professional_mode" not in data:
+                    data["professional_mode"] = bool(data["professional_mode_enabled"])
+
+                active_profile_id = data.get("active_profile_id", _MISSING)
+                if active_profile_id is not _MISSING:
+                    if active_profile_id in (None, "", "None"):
+                        data["professional_mode"] = False
+                        data.setdefault("pro_active_preset", cls.pro_active_preset)
+                    else:
+                        data["professional_mode"] = True
+                        data["pro_active_preset"] = str(active_profile_id)
             known = {f.name for f in fields(cls)}
             instance = cls(**{k: v for k, v in data.items() if k in known})
             instance.validate()

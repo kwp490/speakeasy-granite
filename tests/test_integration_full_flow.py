@@ -80,14 +80,14 @@ class TestIntegrationMainWindowLayout:
         src = self._method_source("_ensure_dev_panel")
         assert "_flush_log_buffer()" in src
 
-    # ── Phase 6: Pro mode toggle on main window ─────────────────────────────
+    # ── v2 UI overhaul: AI Writing Profiles section removed from main window ──
 
-    def test_chk_professional_in_build_ui(self):
+    def test_no_chk_professional(self):
         src = self._method_source("_build_ui")
-        assert "self._chk_professional" in src
+        assert "self._chk_professional" not in src
 
-    def test_professional_toggled_method_exists(self):
-        assert "_on_professional_toggled" in self._method_names()
+    def test_no_on_professional_toggled(self):
+        assert "_on_professional_toggled" not in self._method_names()
 
     # ── No regressions ───────────────────────────────────────────────────────
 

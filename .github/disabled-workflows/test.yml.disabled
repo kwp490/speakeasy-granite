@@ -1,7 +1,7 @@
 name: Tests
 
 on:
-  workflow_dispatch: # disabled — do not re-enable without review
+  workflow_dispatch: # disabled - do not re-enable without review
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
