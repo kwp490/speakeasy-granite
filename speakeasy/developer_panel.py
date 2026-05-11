@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, TYPE_CHECKING
 
-from PySide6.QtCore import Qt, QPoint, QSize, Signal, QTimer
+from PySide6.QtCore import QEvent, Qt, QPoint, QSize, Signal, QTimer
 from PySide6.QtGui import QCloseEvent, QColor, QFont, QIcon, QPainter, QPen, QResizeEvent, QMoveEvent, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -568,7 +568,7 @@ class DeveloperPanel(QWidget):
     SNAP_THRESHOLD_PX = 30  # within this distance of the main window's right edge → re-snap
 
     def __init__(self, settings: Settings, main_window: "MainWindow") -> None:
-        super().__init__(None, Qt.WindowType.Window)
+        super().__init__(main_window, Qt.WindowType.Window)
         self.setWindowTitle("Developer Panel")
         _icon_path = app_icon_path()
         if _icon_path.is_file():
@@ -715,8 +715,12 @@ class DeveloperPanel(QWidget):
         if self._snapped:
             self._snap_to_main()
         self.show()
-        self.raise_()
-        self.activateWindow()
+        raise_group = getattr(self._main_window, "_raise_window_group", None)
+        if callable(raise_group):
+            raise_group(preferred="panel")
+        else:
+            self.raise_()
+            self.activateWindow()
 
     def _snap_to_main(self) -> None:
         mw = self._main_window
@@ -766,6 +770,13 @@ class DeveloperPanel(QWidget):
         event.ignore()
         self.hide()
         self.closed.emit()
+
+    def event(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.WindowActivate:
+            raise_group = getattr(self._main_window, "_raise_window_group", None)
+            if callable(raise_group):
+                raise_group(preferred="panel")
+        return super().event(event)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)

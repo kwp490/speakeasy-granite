@@ -76,6 +76,24 @@ class TestDevPanelLayoutAST:
     def test_on_dev_panel_closed_method_exists(self):
         assert "_on_dev_panel_closed" in self._mw_method_names()
 
+    def test_window_group_raise_helper_exists(self):
+        assert "_raise_window_group" in self._mw_method_names()
+
+    def test_main_window_activation_links_window_group(self):
+        src = self._mw_method_source("event")
+        assert "QEvent.Type.WindowActivate" in src
+        assert "_raise_window_group(preferred=\"main\")" in src
+
+    def test_window_group_raise_guarded_against_recursion(self):
+        src = self._mw_method_source("_raise_window_group")
+        assert "self._raising_window_group" in src
+        assert "finally" in src
+
+    def test_window_group_can_prefer_panel(self):
+        src = self._mw_method_source("_raise_window_group")
+        assert "preferred == \"panel\"" in src
+        assert "panel.activateWindow()" in src
+
     # ── Panel persists state ─────────────────────────────────────────────────
 
     def test_toggle_saves_settings(self):
@@ -184,6 +202,20 @@ class TestDeveloperPanelStructureAST:
 
     def test_show_snapped_method_exists(self):
         assert "show_snapped" in self._method_names()
+
+    def test_panel_is_constructed_as_owned_top_level_window(self):
+        src = self._method_source("__init__")
+        assert "super().__init__(main_window, Qt.WindowType.Window)" in src
+
+    def test_show_snapped_uses_group_raise_when_available(self):
+        src = self._method_source("show_snapped")
+        assert "_raise_window_group" in src
+        assert "raise_group(preferred=\"panel\")" in src
+
+    def test_panel_activation_links_window_group(self):
+        src = self._method_source("event")
+        assert "QEvent.Type.WindowActivate" in src
+        assert "raise_group(preferred=\"panel\")" in src
 
     def test_move_event_tracks_snap(self):
         src = self._method_source("moveEvent")

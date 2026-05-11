@@ -73,6 +73,11 @@ class TestDeveloperPanelConstruction:
         panel, _ = dev_panel
         assert panel is not None
 
+    def test_panel_is_owned_top_level_window(self, dev_panel, mock_main_window):
+        panel, _ = dev_panel
+        assert panel.parentWidget() is mock_main_window
+        assert panel.isWindow()
+
     def test_panel_has_seven_tabs(self, dev_panel):
         panel, _ = dev_panel
         assert panel._tabs.count() == 7
@@ -192,6 +197,23 @@ class TestDeveloperPanelSnapping:
         assert settings.dev_panel_snapped is True
         panel.show_snapped()
         assert panel.isVisible()
+
+    def test_show_snapped_uses_main_window_group_raise(self, mock_main_window):
+        from speakeasy.config import Settings
+        from speakeasy.developer_panel import DeveloperPanel
+
+        mock_main_window._raise_window_group = MagicMock()
+        panel = DeveloperPanel(Settings(), mock_main_window)
+        panel.show_snapped()
+        mock_main_window._raise_window_group.assert_called_with(preferred="panel")
+
+    def test_window_activate_uses_main_window_group_raise(self, dev_panel):
+        from PySide6.QtCore import QEvent
+
+        panel, _ = dev_panel
+        panel._main_window._raise_window_group = MagicMock()
+        panel.event(QEvent(QEvent.Type.WindowActivate))
+        panel._main_window._raise_window_group.assert_called_with(preferred="panel")
 
     def test_on_main_window_moved_repositions(self, dev_panel):
         panel, settings = dev_panel

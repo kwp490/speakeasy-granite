@@ -15,7 +15,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from PySide6.QtCore import QEasingCurve, QObject, QPoint, QPropertyAnimation, QRect, QThreadPool, QTimer, Qt, Property, Signal, Slot
+from PySide6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QRect, QThreadPool, QTimer, Qt, Property, Signal, Slot
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -262,6 +262,7 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self._dev_panel: Optional["DeveloperPanel"] = None
         self._log_buffer: list[str] = []  # holds lines until panel exists
+        self._raising_window_group = False
         self._pool = QThreadPool.globalInstance()
         self._engine_pool = engine_pool if engine_pool is not None else DedicatedWorkerPool(self)
         self._engine_pool.setMaxThreadCount(1)
@@ -1874,6 +1875,32 @@ class MainWindow(QMainWindow):
             except Exception:
                 log.debug("nativeEvent parsing failed", exc_info=True)
         return super().nativeEvent(event_type, message)
+
+    def event(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.WindowActivate and hasattr(self, "_raising_window_group"):
+            self._raise_window_group(preferred="main")
+        return super().event(event)
+
+    def _raise_window_group(self, preferred: str = "main") -> None:
+        if self._raising_window_group:
+            return
+
+        self._raising_window_group = True
+        try:
+            panel = self._dev_panel
+
+            if preferred == "panel" and panel is not None and panel.isVisible():
+                self.raise_()
+                panel.raise_()
+                panel.activateWindow()
+                return
+
+            self.raise_()
+            self.activateWindow()
+            if panel is not None and panel.isVisible():
+                panel.raise_()
+        finally:
+            self._raising_window_group = False
 
     def _on_system_resume(self) -> None:
         """Re-register hotkeys and re-open the mic stream after sleep/wake."""
