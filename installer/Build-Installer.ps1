@@ -810,6 +810,29 @@ function Build-Variant {
         Write-Ok "Installer built: $($setupExe.FullName)"
         Write-Host ""
         Write-Host "  File size: $([math]::Round($setupExe.Length / 1MB, 1)) MB" -ForegroundColor DarkGray
+
+        # â”€â”€ Step 3: SHA256 checksum â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Unsigned installers trigger SmartScreen warnings; publishing SHA256
+        # hashes alongside each release lets users verify integrity.
+        Write-Step "[$label] Generating SHA256 checksum..."
+        $hashObj = Get-FileHash -Algorithm SHA256 -Path $setupExe.FullName
+        $hashLine = "{0}  {1}" -f $hashObj.Hash.ToLower(), $setupExe.Name
+
+        # Per-file sidecar (matches `sha256sum -c` format)
+        $sidecar = "$($setupExe.FullName).sha256"
+        Set-Content -Path $sidecar -Value $hashLine -Encoding ascii -NoNewline
+        Write-Ok "Wrote $sidecar"
+
+        # Consolidated SHA256SUMS.txt (rebuild each run so it always matches Output\)
+        $sumsPath = "installer\Output\SHA256SUMS.txt"
+        $allExe = Get-ChildItem "installer\Output\*.exe" | Sort-Object Name
+        $sumsContent = foreach ($f in $allExe) {
+            $h = Get-FileHash -Algorithm SHA256 -Path $f.FullName
+            "{0}  {1}" -f $h.Hash.ToLower(), $f.Name
+        }
+        Set-Content -Path $sumsPath -Value $sumsContent -Encoding ascii
+        Write-Ok "Wrote $sumsPath ($($allExe.Count) entries)"
+        Write-Host "  SHA256: $($hashObj.Hash.ToLower())" -ForegroundColor DarkGray
     } else {
         Write-Warn "Expected output not found in installer\Output\"
     }
