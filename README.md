@@ -6,9 +6,24 @@ SpeakEasy records a completed utterance, transcribes it locally, copies the fina
 
 ## Screenshots
 
-<img src="docs/images/Speakeasy%20AI%20Main%20UI.png" alt="SpeakEasy AI main window" width="760" />
-
-<img src="docs/images/Speakeasy%20AI%20Developer%20Panel.png" alt="SpeakEasy AI Developer Panel" width="760" />
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="docs/images/Speakeasy%20AI%20Main%20UI.png">
+        <img src="docs/images/Speakeasy%20AI%20Main%20UI.png" alt="SpeakEasy AI main window" width="360" />
+      </a>
+      <br />
+      <strong>Main Dictation Window</strong>
+    </td>
+    <td width="50%" align="center">
+      <a href="docs/images/Speakeasy%20AI%20Developer%20Panel.png">
+        <img src="docs/images/Speakeasy%20AI%20Developer%20Panel.png" alt="SpeakEasy AI Developer Panel" width="360" />
+      </a>
+      <br />
+      <strong>Developer Panel</strong>
+    </td>
+  </tr>
+</table>
 
 ## Accuracy
 
