@@ -4,6 +4,12 @@ SpeakEasy AI Granite is a native Windows speech-to-text application built around
 
 SpeakEasy records a completed utterance, transcribes it locally, copies the final text to the clipboard, and can paste it directly into the active application.
 
+## Screenshots
+
+<img src="docs/images/Speakeasy%20AI%20Main%20UI.png" alt="SpeakEasy AI main window" width="760" />
+
+<img src="docs/images/Speakeasy%20AI%20Developer%20Panel.png" alt="SpeakEasy AI Developer Panel" width="760" />
+
 ## Accuracy
 
 SpeakEasy uses [ibm-granite/granite-speech-4.1-2b](https://huggingface.co/ibm-granite/granite-speech-4.1-2b), one of the most accurate speech-to-text models currently available on the Hugging Face Open ASR Leaderboard. The app runs this model locally through Hugging Face Transformers and PyTorch.
