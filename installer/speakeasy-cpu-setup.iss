@@ -1,7 +1,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 ; SpeakEasy AI v3 Inno Setup Installer Script — CPU-Only Variant
 ;
-; Produces a single SpeakEasy-AI-Granite-CPU-Setup-0.8.0.exe that handles:
+; Produces a single versioned SpeakEasy-AI-Granite-CPU-Setup executable that handles:
 ;   - File extraction (from PyInstaller dist/speakeasy-cpu/ output)
 ;   - IBM Granite Speech model download (public — no token required)
 ;   - Desktop + Start Menu shortcuts
@@ -21,7 +21,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.13.0"
+#define MyAppVersion "0.13.1"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"

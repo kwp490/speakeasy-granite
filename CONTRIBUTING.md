@@ -4,8 +4,8 @@
 
 ```bash
 # Clone and install all dependencies (including dev tools)
-git clone https://github.com/kwp490/SpeakEasyAI.git
-cd SpeakEasyAI
+git clone https://github.com/kwp490/speakeasy-granite.git
+cd speakeasy-granite
 uv sync --extra dev
 ```
 
@@ -58,7 +58,7 @@ After building the binary, compile the Inno Setup installer:
 ```bash
 # Requires Inno Setup 6.x — https://jrsoftware.org/isdl.php
 iscc installer\speakeasy-setup.iss
-# Output: installer/Output/SpeakEasy-AI-Granite-Setup-0.7.1.exe
+# Output: installer/Output/SpeakEasy-AI-Granite-Setup-<version>.exe
 ```
 
 Or run the combined build script:
@@ -79,7 +79,7 @@ See [RELEASE.md](RELEASE.md) for the full version-bump → tag → publish check
 
 ## Filing Issues
 
-Please use the [GitHub Issues](https://github.com/kwp490/SpeakEasyAI/issues) page. Include:
+Please use the [GitHub Issues](https://github.com/kwp490/speakeasy-granite/issues) page. Include:
 
 - SpeakEasy AI version
 - Windows version

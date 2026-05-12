@@ -12,7 +12,7 @@ If you discover a security vulnerability in SpeakEasy AI, please report it respo
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, email the maintainer directly or use [GitHub's private vulnerability reporting](https://github.com/kwp490/SpeakEasyAI/security/advisories/new).
+Please use [GitHub's private vulnerability reporting](https://github.com/kwp490/speakeasy-granite/security/advisories/new) to report the issue privately to the maintainer.
 
 ### What to include
 

@@ -348,7 +348,7 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
 class TestReadmeLinks(unittest.TestCase):
     """README.md download links must use the correct GitHub repo slug and current version."""
 
-    _REPO_SLUG = "kwp490/speakeasy-ai"
+    _REPO_SLUG = "kwp490/speakeasy-granite"
 
     @classmethod
     def setUpClass(cls):
@@ -359,9 +359,9 @@ class TestReadmeLinks(unittest.TestCase):
         cls.version = m.group(1)
 
     def test_no_wrong_repo_slug_in_links(self):
-        """No github.com URL in README should use a repo name other than kwp490/speakeasy-ai."""
+        """No github.com URL in README should use a repo name other than kwp490/speakeasy-granite."""
         wrong = re.findall(
-            r"https://github\.com/kwp490/(?!speakeasy-ai(?:\.git)?[/\s)\]])([\w.-]+)",
+            r"https://github\.com/kwp490/(?!speakeasy-granite(?:\.git)?[/\s)\]])([\w.-]+)",
             self.readme,
         )
         self.assertEqual(

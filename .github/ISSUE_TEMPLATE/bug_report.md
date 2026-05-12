@@ -18,7 +18,7 @@ A clear description of what's wrong.
 What you expected to happen.
 
 **Environment**
-- SpeakEasy AI version: (e.g., 0.3.0)
+- SpeakEasy AI version: (e.g., 0.13.1)
 - Install method: (GUI installer / source / other)
 - Engine: IBM Granite Speech
 - Windows version: (e.g., Windows 11 24H2)

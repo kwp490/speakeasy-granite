@@ -5,6 +5,16 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - Public Release Hygiene
+
+### Fixed
+- **Dependency audit**: pinned `urllib3>=2.7.0` to avoid CVE-2026-44431 and CVE-2026-44432 reported against `urllib3 2.6.3`
+- **Release reproducibility**: `uv.lock` is now tracked for source installs and release builds
+- **Repository cleanup**: removed archived disabled workflow examples from the public repository surface
+
+### Changed
+- **Version metadata** updated across the Python package and both installer variants for the 0.13.1 release
+
 ## [0.13.0] - GPT-5.5 Pro Mode Default
 
 ### Changed
@@ -371,7 +381,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **CPU build variant** (`speakeasy-cpu.spec`, `speakeasy-cpu-setup.iss`): smaller installer without CUDA/GPU dependencies
 - **Build installer script**: `Install-SpeakEasy-Source.ps1` for automated source installs with GPU/CPU variant support
-- **Copilot instructions**: `.github/copilot-instructions.md` for AI-assisted development
 
 ### Changed
 - **Build system**: RAM disk acceleration (via [AIM Toolkit](https://sourceforge.net/projects/aim-toolkit/)), source-hash caching, and improved build pipeline

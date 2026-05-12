@@ -7,6 +7,16 @@ __pycache__/
 .pytest_cache/
 .pytest_tmp/
 .coverage
+coverage.xml
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.hypothesis/
+.cache/
+nosetests.xml
+*.cover
 
 # Test output dumps
 test_*.txt
@@ -14,6 +24,11 @@ sd_diff.txt
 
 # Internal planning docs (not for release)
 plan-*.prompt.md
+
+# Local secrets / environment overrides
+.env
+.env.*
+!.env.example
 
 # Distribution / packaging
 dist/
@@ -26,11 +41,25 @@ build/
 venv/
 env/
 
-# IDE
+# IDE / AI tooling
 .vscode/
 .idea/
+.claude/
+.aider*
+.cursor/
+CLAUDE.md
+AGENTS.md
+copilot-instructions.md
+.github/copilot-instructions.md
 *.swp
 *.swo
+*~
+
+# Editor / merge artifacts
+*.bak
+*.tmp
+*.orig
+*.rej
 
 # OS
 .DS_Store
@@ -58,5 +87,3 @@ temp/
 # Dev test environment
 dev-temp/
 
-# UV
-uv.lock
