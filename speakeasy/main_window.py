@@ -331,7 +331,7 @@ class MainWindow(QMainWindow):
         _icon_path = app_icon_path()
         if _icon_path.is_file():
             self.setWindowIcon(QIcon(str(_icon_path)))
-        self.setMinimumSize(400, 385)
+        self.setMinimumWidth(400)
         self.resize(475, 465)
         self._build_ui()
         self._setup_logging()
@@ -457,8 +457,11 @@ class MainWindow(QMainWindow):
 
         # ── Transcription Mode ───────────────────────────────────────────────
         transcription_section, transcription_layout = make_section_panel(
-            "Transcription Mode", central, icon_name="sparkles",
+            "Transcription Mode", central, icon_name="sparkles", collapsible=True,
         )
+        self._transcription_section_toggle = getattr(transcription_section, "_section_toggle")
+        self._transcription_section_content = getattr(transcription_section, "_section_content")
+        self._transcription_section_toggle.toggled.connect(self._resize_to_content_height)
         self._chk_transcription_mode = ToggleSwitch()
         self._chk_transcription_mode.setChecked(self.settings.professional_mode)
         self._chk_transcription_mode.toggled.connect(self._on_transcription_mode_toggled)
@@ -484,7 +487,12 @@ class MainWindow(QMainWindow):
         root.addWidget(transcription_section)
 
         # ── Automation ───────────────────────────────────────────────────────
-        automation_section, automation_layout = make_section_panel("Automation", central, icon_name="keyboard")
+        automation_section, automation_layout = make_section_panel(
+            "Automation", central, icon_name="keyboard", collapsible=True,
+        )
+        self._automation_section_toggle = getattr(automation_section, "_section_toggle")
+        self._automation_section_content = getattr(automation_section, "_section_content")
+        self._automation_section_toggle.toggled.connect(self._resize_to_content_height)
         self._chk_auto_copy = ToggleSwitch()
         self._chk_auto_copy.setChecked(self.settings.auto_copy)
         self._chk_auto_paste = ToggleSwitch()
@@ -536,6 +544,26 @@ class MainWindow(QMainWindow):
         if self.settings.dev_panel_open:
             # Defer so the main window is laid out before we snap to it
             QTimer.singleShot(0, self._on_toggle_dev_panel)
+
+    def _resize_to_content_height(self, *_args) -> None:
+        """Resize the top-level window to the current visible main layout height."""
+        self._apply_content_height_resize()
+        QTimer.singleShot(0, self._apply_content_height_resize)
+
+    def _apply_content_height_resize(self) -> None:
+        central = self.centralWidget()
+        if central is None:
+            return
+
+        layout = central.layout()
+        if layout is not None:
+            layout.invalidate()
+            layout.activate()
+            self.setMinimumHeight(layout.minimumSize().height())
+
+        target_height = max(self.minimumHeight(), self.sizeHint().height())
+        if target_height > 0:
+            self.resize(self.width(), target_height)
 
     def _update_global_status(self) -> None:
         """Refresh the unified status bar with model, dictation, and writing profile state."""

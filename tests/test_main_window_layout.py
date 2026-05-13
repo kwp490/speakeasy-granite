@@ -71,9 +71,9 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertIn("QScrollArea", hw_source)
 
     def test_window_target_size_is_compact(self):
-        """Main window must use the compact requested default and minimum sizes."""
+        """Main window must keep the compact requested default size."""
         src = self._get_method_source("__init__")
-        self.assertIn("setMinimumSize(400, 385)", src)
+        self.assertIn("setMinimumWidth(400)", src)
         self.assertIn("resize(475, 465)", src)
 
     def test_no_expanding_spacer_above_quit(self):
@@ -305,10 +305,19 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertNotIn("self._chk_professional", src)
         self.assertIn("self._chk_transcription_mode", src)
         self.assertIn("self._combo_pro_preset", src)
+        self.assertIn("self._transcription_section_toggle", src)
+        self.assertIn("collapsible=True", src)
         self.assertNotIn("self._combo_pro_model", src)
         self.assertIn('"Transcription Mode"', src)
         self.assertIn('"Enabled"', src)
         self.assertIn('"Profile"', src)
+
+    def test_automation_section_is_collapsible(self):
+        """Main window exposes a user-toggleable Automation section."""
+        src = self._get_method_source("_build_ui")
+        self.assertIn("self._automation_section_toggle", src)
+        self.assertIn("self._automation_section_content", src)
+        self.assertIn('"Automation"', src)
 
     def test_transcription_mode_toggle_handler_exists(self):
         method_names = [
@@ -456,7 +465,6 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             layout = win.centralWidget().layout()
             layout.activate()
             self.assertEqual(win.minimumSize().width(), 400)
-            self.assertEqual(win.minimumSize().height(), 385)
             self.assertLessEqual(layout.minimumSize().height(), 490)
             self.assertEqual(win.size().width(), 475)
             self.assertEqual(win.size().height(), 465)
@@ -511,6 +519,57 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             self.assertFalse(win.settings.professional_mode)
             # _update_global_status was called in __init__; ensure no crash
             win._update_global_status()
+        finally:
+            win.close()
+
+    def test_main_sections_collapse_and_expand(self):
+        """Transcription Mode and Automation can be collapsed from their headers."""
+        win = self._make_window()
+        try:
+            for toggle, content in (
+                (win._transcription_section_toggle, win._transcription_section_content),
+                (win._automation_section_toggle, win._automation_section_content),
+            ):
+                self.assertTrue(toggle.isCheckable())
+                self.assertTrue(toggle.isChecked())
+                self.assertFalse(content.isHidden())
+
+                toggle.click()
+                self.assertFalse(toggle.isChecked())
+                self.assertTrue(content.isHidden())
+
+                toggle.click()
+                self.assertTrue(toggle.isChecked())
+                self.assertFalse(content.isHidden())
+        finally:
+            win.close()
+
+    def test_main_window_height_tracks_collapsible_sections(self):
+        """The window grows and shrinks with the visible section content."""
+        win = self._make_window()
+        try:
+            win.show()
+            self._app.processEvents()
+            expanded_height = win.height()
+
+            win._automation_section_toggle.click()
+            self._app.processEvents()
+            automation_collapsed_height = win.height()
+            self.assertLess(automation_collapsed_height, expanded_height)
+
+            win._transcription_section_toggle.click()
+            self._app.processEvents()
+            both_collapsed_height = win.height()
+            self.assertLess(both_collapsed_height, automation_collapsed_height)
+
+            win._automation_section_toggle.click()
+            self._app.processEvents()
+            automation_expanded_height = win.height()
+            self.assertGreater(automation_expanded_height, both_collapsed_height)
+
+            win._transcription_section_toggle.click()
+            self._app.processEvents()
+            self.assertGreater(win.height(), automation_expanded_height)
         finally:
             win.close()
 

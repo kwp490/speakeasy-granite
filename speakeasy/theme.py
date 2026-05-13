@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import QFormLayout, QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFormLayout, QFrame, QHBoxLayout, QLabel, QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
 
 ICON_DIR = Path(__file__).parent / "assets" / "icons"
@@ -469,6 +469,30 @@ def section_panel_style() -> str:
     """
 
 
+def section_toggle_style() -> str:
+    """Transparent header button used by collapsible section panels."""
+    return f"""
+        QToolButton#SectionToggle {{
+            background-color: transparent;
+            border: 1px solid transparent;
+            border-radius: {Size.BORDER_RADIUS_SM}px;
+            color: {Color.TEXT_HEADING};
+            font-size: {Font.SECTION_HEADER[0]}pt;
+            font-weight: 600;
+            padding: 2px {Spacing.XS}px;
+            text-align: left;
+        }}
+        QToolButton#SectionToggle:hover {{
+            background-color: rgba(27, 49, 71, 0.62);
+            border-color: {Color.BORDER_SUBTLE};
+            color: {Color.TEXT_PRIMARY};
+        }}
+        QToolButton#SectionToggle:pressed {{
+            background-color: rgba(49, 69, 91, 0.42);
+        }}
+    """
+
+
 def compact_status_bar_style() -> str:
     """Single compact status bar container style."""
     return f"""
@@ -649,6 +673,8 @@ def make_section_panel(
     title: str,
     parent: QWidget = None,
     icon_name: str | None = None,
+    collapsible: bool = False,
+    expanded: bool = True,
 ) -> tuple[QFrame, QVBoxLayout]:
     """Return (frame, content_layout) for a titled section with subtle border."""
     frame = QFrame(parent)
@@ -666,16 +692,53 @@ def make_section_panel(
         icon.setPixmap(load_icon(icon_name).pixmap(icon_size, icon_size))
         icon.setFixedSize(icon_size, icon_size)
         header.addWidget(icon)
-    title_label = QLabel(title)
-    font = QFont(Font.FAMILY, Font.SECTION_HEADER[0])
-    font.setWeight(QFont.Weight.DemiBold)
-    title_label.setFont(font)
-    title_label.setStyleSheet(f"color: {Color.TEXT_HEADING};")
-    header.addWidget(title_label)
+    title_toggle = None
+    if collapsible:
+        title_toggle = QToolButton(frame)
+        title_toggle.setObjectName("SectionToggle")
+        title_toggle.setText(title)
+        title_toggle.setCheckable(True)
+        title_toggle.setChecked(expanded)
+        title_toggle.setArrowType(
+            Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow
+        )
+        title_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        title_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        title_toggle.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        title_toggle.setStyleSheet(section_toggle_style())
+        title_toggle.setAccessibleName(f"Toggle {title} section")
+        header.addWidget(title_toggle)
+    else:
+        title_label = QLabel(title)
+        font = QFont(Font.FAMILY, Font.SECTION_HEADER[0])
+        font.setWeight(QFont.Weight.DemiBold)
+        title_label.setFont(font)
+        title_label.setStyleSheet(f"color: {Color.TEXT_HEADING};")
+        header.addWidget(title_label)
     header.addStretch()
     outer.addLayout(header)
-    _, content, content_row = make_bounded_content(frame)
-    outer.addLayout(content_row)
+    content_wrapper = QWidget(frame)
+    content_wrapper.setObjectName("SectionPanelContent")
+    _, content, content_row = make_bounded_content(content_wrapper)
+    content_wrapper.setLayout(content_row)
+    outer.addWidget(content_wrapper)
+
+    if title_toggle is not None:
+        def sync_section_toggle(checked: bool) -> None:
+            title_toggle.setArrowType(
+                Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow
+            )
+            title_toggle.setToolTip(
+                f"Collapse {title} section" if checked else f"Expand {title} section"
+            )
+            content_wrapper.setMaximumHeight(16777215 if checked else 0)
+            content_wrapper.setVisible(checked)
+
+        title_toggle.toggled.connect(sync_section_toggle)
+        sync_section_toggle(expanded)
+        frame._section_toggle = title_toggle
+        frame._section_content = content_wrapper
+
     return frame, content
 
 
