@@ -110,6 +110,7 @@ var
   DetectedVRAM_MB: Integer;
   CleanInstall: Boolean;
   ModelExists: Boolean;
+  LastDownloadDetail: String;
 
 function SetEnvironmentVariable(Name, Value: String): Boolean;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
@@ -545,13 +546,14 @@ end;
 
 procedure ApplyDownloadProgressLine(Line: String);
 var
-  Message, LabelText: String;
+  Message, LabelText, Phase: String;
   Percent: Integer;
 begin
   if Pos('SPEAKEASY_PROGRESS ', Line) <> 1 then Exit;
 
   Message := JsonStringValue(Line, 'message');
   LabelText := JsonStringValue(Line, 'label');
+  Phase := JsonStringValue(Line, 'phase');
   Percent := JsonIntValue(Line, 'percent', -1);
 
   if Message = '' then
@@ -562,6 +564,8 @@ begin
   DownloadPage.SetText(Message, LabelText);
   if Percent >= 0 then
     DownloadPage.SetProgress(Percent, 100);
+  if ((Phase = 'error') or (Phase = 'auth_required')) and (Message <> '') then
+    LastDownloadDetail := Message;
 end;
 
 procedure ProcessDownloadProgressChunk(var Buffer: String; Chunk: String);
@@ -576,7 +580,10 @@ begin
     Line := Copy(Buffer, 1, LineEnd - 1);
     if (Length(Line) > 0) and (Copy(Line, Length(Line), 1) = #13) then
       Delete(Line, Length(Line), 1);
-    ApplyDownloadProgressLine(Line);
+    if Pos('SPEAKEASY_PROGRESS ', Line) = 1 then
+      ApplyDownloadProgressLine(Line)
+    else if Trim(Line) <> '' then
+      LastDownloadDetail := Trim(Line);
     Delete(Buffer, 1, LineEnd);
     LineEnd := Pos(#10, Buffer);
   end;
@@ -600,22 +607,24 @@ end;
 
 function RunDownloadProcess(ExePath, ModelsDir: String; var ExitCode: Integer): Boolean;
 var
-  ScriptPath, OutPath, ErrPath, CodePath, DonePath: String;
-  Script, OutBuffer, ErrBuffer: String;
+  ScriptPath, OutPath, ErrPath, ProgressPath, CodePath, DonePath: String;
+  Script, OutBuffer, ErrBuffer, ProgressBuffer: String;
   CodeText: AnsiString;
-  LaunchCode, OutLength, ErrLength: Integer;
+  LaunchCode, OutLength, ErrLength, ProgressLength: Integer;
 begin
   Result := False;
   ExitCode := 1;
   ScriptPath := ExpandConstant('{tmp}\speakeasy-model-download.ps1');
   OutPath := ExpandConstant('{tmp}\speakeasy-model-download.out');
   ErrPath := ExpandConstant('{tmp}\speakeasy-model-download.err');
+  ProgressPath := ExpandConstant('{tmp}\speakeasy-model-download.progress');
   CodePath := ExpandConstant('{tmp}\speakeasy-model-download.code');
   DonePath := ExpandConstant('{tmp}\speakeasy-model-download.done');
 
   DeleteFile(ScriptPath);
   DeleteFile(OutPath);
   DeleteFile(ErrPath);
+  DeleteFile(ProgressPath);
   DeleteFile(CodePath);
   DeleteFile(DonePath);
 
@@ -623,7 +632,8 @@ begin
     '$exe = ' + PowerShellQuote(ExePath) + #13#10 +
     '$arguments = @(' + PowerShellQuote('download-model') + ', ' +
       PowerShellQuote('--target-dir') + ', ' + PowerShellQuote(ModelsDir) + ', ' +
-      PowerShellQuote('--progress-format') + ', ' + PowerShellQuote('jsonl') + ')' + #13#10 +
+      PowerShellQuote('--progress-format') + ', ' + PowerShellQuote('jsonl') + ', ' +
+      PowerShellQuote('--progress-file') + ', ' + PowerShellQuote(ProgressPath) + ')' + #13#10 +
     'try {' + #13#10 +
     '  $process = Start-Process -FilePath $exe -ArgumentList $arguments -NoNewWindow -PassThru -RedirectStandardOutput ' + PowerShellQuote(OutPath) + ' -RedirectStandardError ' + PowerShellQuote(ErrPath) + #13#10 +
     '  $process.WaitForExit()' + #13#10 +
@@ -642,18 +652,24 @@ begin
   Result := True;
   OutLength := 0;
   ErrLength := 0;
+  ProgressLength := 0;
   OutBuffer := '';
   ErrBuffer := '';
+  ProgressBuffer := '';
   while not FileExists(DonePath) do
   begin
+    PollDownloadOutput(ProgressPath, ProgressLength, ProgressBuffer);
     PollDownloadOutput(OutPath, OutLength, OutBuffer);
     PollDownloadOutput(ErrPath, ErrLength, ErrBuffer);
     WizardForm.Refresh;
     Sleep(250);
   end;
 
+  PollDownloadOutput(ProgressPath, ProgressLength, ProgressBuffer);
   PollDownloadOutput(OutPath, OutLength, OutBuffer);
   PollDownloadOutput(ErrPath, ErrLength, ErrBuffer);
+  if ProgressBuffer <> '' then
+    ProcessDownloadProgressChunk(ProgressBuffer, #10);
   if OutBuffer <> '' then
     ProcessDownloadProgressChunk(OutBuffer, #10);
   if ErrBuffer <> '' then
@@ -666,9 +682,10 @@ end;
 { download-model exit codes: 0 = success, 1 = failure, 2 = auth required }
 procedure DownloadModel;
 var
-  ExePath, ModelsDir: String;
+  ExePath, ModelsDir, DetailText: String;
   ResultCode: Integer;
 begin
+  LastDownloadDetail := '';
   ExePath := ExpandConstant('{app}\{#MyAppExeName}');
   ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models';
   if not CheckModelDiskSpace(ModelsDir) then
@@ -686,14 +703,28 @@ begin
       if ResultCode = 0 then
         DownloadPage.SetProgress(100, 100)
       else
+      begin
+        DetailText := '';
+        if LastDownloadDetail <> '' then
+          DetailText := 'Detail:' + #13#10 + LastDownloadDetail + #13#10 + #13#10;
+        Log('Model download detail: ' + LastDownloadDetail);
         MsgBox('Model download failed (exit code ' + IntToStr(ResultCode) + ').' + #13#10 + #13#10 +
+               DetailText +
                'You can download it later using granite-model-setup.ps1' + #13#10 +
                'or the model will be downloaded on first launch.',
                mbError, MB_OK);
+      end;
     end else
+    begin
+      DetailText := '';
+      if LastDownloadDetail <> '' then
+        DetailText := 'Detail:' + #13#10 + LastDownloadDetail + #13#10 + #13#10;
+      Log('Model download detail: ' + LastDownloadDetail);
       MsgBox('Model download failed (exit code ' + IntToStr(ResultCode) + ').' + #13#10 + #13#10 +
+             DetailText +
              'Could not start the download process. You can download it later using granite-model-setup.ps1.',
              mbError, MB_OK);
+    end;
   except
     MsgBox('Could not start model download.' + #13#10 +
            'You can download the model later using granite-model-setup.ps1.',
@@ -722,7 +753,7 @@ begin
     Summary := Summary + 'INSTALL LOCATION' + #13#10;
     Summary := Summary + '  ' + InstDir + #13#10 + #13#10;
     Summary := Summary + 'MODEL STATUS' + #13#10;
-    if DirExists(ModelsDir + '\granite') then
+    if FileExists(ModelsDir + '\granite\config.json') then
       Summary := Summary + '  [OK] IBM Granite Speech — ready' + #13#10
     else
       Summary := Summary + '  [!!] IBM Granite Speech — download failed (run granite-model-setup.ps1)' + #13#10;
