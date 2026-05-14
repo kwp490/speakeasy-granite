@@ -75,7 +75,8 @@ class AIProvidersWidget(QWidget):
         self._provider.setToolTip(
             "Cloud provider used by AI Writing Profiles to rewrite dictation."
         )
-        # Local Granite isn't wired yet; show but disable selecting it.
+        # Keep the future local provider visible, but disabled until the
+        # rewrite pipeline can call Granite locally.
         model = self._provider.model()
         if isinstance(model, QStandardItemModel):
             local_item = model.item(1)

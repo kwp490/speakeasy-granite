@@ -302,7 +302,8 @@ def main() -> int:
     # fire for every thread created *after* those DLLs load.  A known bug in
     # certain CUDA builds corrupts the stack of any newly created thread via
     # this callback, causing access violations in otherwise-innocent code (even
-    # os.path.isdir).  Creating and warming up the engine pool thread here —
+    # os.path.isdir) and occasional startup "CUDA unknown error" crashes.
+    # Creating and warming up the engine pool thread here —
     # before the MainWindow import below pulls in torch/CUDA — ensures the
     # thread already exists when the DLLs load and is therefore immune.
     _engine_pool = DedicatedWorkerPool()

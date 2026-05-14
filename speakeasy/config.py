@@ -23,17 +23,18 @@ from .pro_preset import DEFAULT_PRO_MODEL, PRO_MODE_MODEL_OPTIONS
 log = logging.getLogger(__name__)
 
 _REMOVED_TRANSCRIPTION_PREVIEW_SETTINGS = {
-    "stream" "ing_partials_enabled",
-    "live" "_transcription_enabled",
-    "live" "_preview_enabled",
-    "stream" "ing_enabled",
-    "incremental" "_decoding_enabled",
-    "partial" "_transcription_enabled",
-    "live" "Transcription",
-    "live" "Preview",
-    "stream" "ingMode",
-    "partial" "Transcript",
-    "preview" "Transcript",
+    # Removed live-preview settings from earlier dictation experiments.
+    "streaming_partials_enabled",
+    "live_transcription_enabled",
+    "live_preview_enabled",
+    "streaming_enabled",
+    "incremental_decoding_enabled",
+    "partial_transcription_enabled",
+    "liveTranscription",
+    "livePreview",
+    "streamingMode",
+    "partialTranscript",
+    "previewTranscript",
 }
 
 _MISSING = object()
@@ -189,6 +190,8 @@ class Settings:
             with open(path, encoding="utf-8-sig") as fh:
                 data = json.load(fh)
             if isinstance(data, dict):
+                # Older settings files may still contain abandoned live-preview
+                # toggles. Drop them and rewrite the file so later saves stay clean.
                 removed = sorted(_REMOVED_TRANSCRIPTION_PREVIEW_SETTINGS.intersection(data))
                 if removed:
                     data = {k: v for k, v in data.items() if k not in removed}
@@ -205,6 +208,8 @@ class Settings:
                             "Could not rewrite settings file after removing deprecated keys",
                             exc_info=True,
                         )
+                # Professional Mode used to persist a separate enabled flag and
+                # active_profile_id. Convert those fields to the preset-based model.
                 if "professional_mode_enabled" in data and "professional_mode" not in data:
                     data["professional_mode"] = bool(data["professional_mode_enabled"])
 

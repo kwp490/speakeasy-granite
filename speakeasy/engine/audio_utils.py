@@ -76,8 +76,8 @@ def stitch_transcripts(texts: List[str], max_overlap_words: int = 25) -> str:
 
     Compares the suffix of the previous result against the prefix of the
     next chunk using case- and punctuation-insensitive matching, then
-    keeps the *next* chunk's version of the overlapping region (which has
-    more right-side context and therefore better punctuation/casing).
+    keeps the *next* chunk's version of the overlapping region because
+    the later chunk has more context for punctuation and casing.
 
     *max_overlap_words* limits how many trailing/leading words to compare;
     callers may raise it when using wider audio overlaps.
@@ -108,7 +108,7 @@ def stitch_transcripts(texts: List[str], max_overlap_words: int = 25) -> str:
 
         if best_overlap > 0:
             # Drop the overlapping words from result, keep next chunk's
-            # version (it has better right-side context for punctuation).
+            # version; the later chunk has broader context for punctuation/casing.
             kept = words_r[: len(words_r) - best_overlap]
             result = " ".join(kept) + " " + nxt if kept else nxt
         else:

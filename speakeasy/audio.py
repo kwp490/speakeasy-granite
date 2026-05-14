@@ -157,7 +157,6 @@ class AudioRecorder:
         audio = self.stop_recording()
         if audio is None:
             return None
-        # Downmix to mono if multi-channel, then flatten to 1D
         if audio.ndim == 2:
             if audio.shape[1] > 1:
                 audio = np.mean(audio, axis=1)  # multi-channel → mono

@@ -296,7 +296,6 @@ def download_model(
         force=True,
     )
 
-    # Check if already downloaded
     if model_ready(engine_name, model_path):
         reporter.emit(
             DownloadProgress(

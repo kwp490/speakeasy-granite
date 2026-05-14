@@ -1152,12 +1152,13 @@ class MainWindow(QMainWindow):
         play_beep((900, 500))   # descending chirp → "done"
         self._set_dictation_state(DictationState.PROCESSING)
 
-        # Pause NVML polling — concurrent driver calls can
-        # deadlock against CUDA kernel launches in generate().
+        # Pause NVIDIA Management Library polling while Granite transcribes.
+        # On some driver/CUDA combinations, overlapping NVML queries and CUDA
+        # generation calls can deadlock the worker and leave the UI stuck.
         self._res_monitor.stop()
 
         # Wait for any in-flight metrics poll to finish before dispatching
-        # the transcription worker (avoids NVML / CUDA overlap).
+        # the transcription worker so NVML and CUDA calls do not overlap.
         import time as _time
         _deadline = _time.monotonic() + 2.0
         while self._res_monitor.is_in_flight and _time.monotonic() < _deadline:

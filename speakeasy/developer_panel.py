@@ -428,9 +428,8 @@ class RealtimeDataWidget(QWidget):
                 self._asr_tok_history.pop(0)
             self._asr_sparkline.set_data(self._asr_tok_history)
         elif tok_per_sec > 0:
-            # Legacy / test path: keep historical "append non-zero rate"
-            # behavior so existing unit tests (which call this directly
-            # without a seq argument) keep passing.
+            # Compatibility path for direct callers that do not provide an
+            # inference sequence number.
             self._asr_tok_history.append(tok_per_sec)
             if len(self._asr_tok_history) > self.TOKEN_HISTORY_LEN:
                 self._asr_tok_history.pop(0)
@@ -459,7 +458,7 @@ class RealtimeDataWidget(QWidget):
                 self._llm_tok_history.pop(0)
             self._sparkline.set_data(self._llm_tok_history)
         elif tok_per_sec > 0:
-            # Legacy / test path
+            # Compatibility path for direct callers that do not provide seq.
             self._llm_tok_history.append(tok_per_sec)
             if len(self._llm_tok_history) > self.TOKEN_HISTORY_LEN:
                 self._llm_tok_history.pop(0)
@@ -595,14 +594,13 @@ class DeveloperPanel(QWidget):
         self._tabs.setFont(QFont(Font.FAMILY, Font.BODY[0]))
         layout.addWidget(self._tabs)
 
-        # Tab 0: Settings
+        # Tab order must stay in sync with _tab_key_to_index/_index_to_tab_key.
         self._settings_widget = SettingsWidget(self.settings, self)
         settings_scroll = QScrollArea()
         settings_scroll.setWidgetResizable(True)
         settings_scroll.setWidget(self._settings_widget)
         self._tabs.addTab(settings_scroll, "\u2699\ufe0f  Settings")
 
-        # Tab 1: AI Providers
         from .ai_providers_widget import AIProvidersWidget
 
         self.ai_providers_widget = AIProvidersWidget(
@@ -615,7 +613,6 @@ class DeveloperPanel(QWidget):
         providers_scroll.setWidget(self.ai_providers_widget)
         self._tabs.addTab(providers_scroll, "\U0001f511  AI Providers")
 
-        # Tab 2: AI Writing Profiles
         from .pro_mode_widget import ProModeWidget  # noqa: F811
 
         self.pro_mode_widget = ProModeWidget(
@@ -628,21 +625,17 @@ class DeveloperPanel(QWidget):
         pro_scroll.setWidget(self.pro_mode_widget)
         self._tabs.addTab(pro_scroll, "\U0001f4bc  AI Writing Profiles")
 
-        # Tab 3: Metrics
         self.realtime_widget = RealtimeDataWidget(self)
         self._tabs.addTab(self.realtime_widget, "\U0001f4ca  Metrics")
 
-        # Tab 4: Logs
         self.logs_widget = LogsWidget(self)
         self._tabs.addTab(self.logs_widget, "\U0001f4cb  Logs")
 
-        # Tab 5: History
         from .history_widget import HistoryWidget
 
         self.history_widget = HistoryWidget(self)
         self._tabs.addTab(self.history_widget, "\U0001f552  History")
 
-        # Tab 6: Advanced
         self._advanced_settings_widget = AdvancedSettingsWidget(self.settings, self)
         advanced_scroll = QScrollArea()
         advanced_scroll.setWidgetResizable(True)
