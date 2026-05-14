@@ -14,7 +14,7 @@ class TestGetRawAudio(unittest.TestCase):
     def test_returns_1d_mono(self):
         """get_raw_audio must return shape (N,) not (N, 1)."""
         rec = AudioRecorder(sample_rate=16000)
-        # Simulate recorded frames: (samples, 1) â€” typical sounddevice output
+        # Simulate recorded frames: (samples, 1), typical sounddevice output.
         fake_frames = np.random.randn(1600, 1).astype(np.float32)
         rec._queue.put(fake_frames)
         rec._recording.set()

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Install SpeakEasy AI from source (developer/contributor path).
 
@@ -8,8 +8,8 @@
     Granite Speech model, and creates a desktop shortcut.
 
     Use -Variant to select the installation type:
-      GPU  â€” full install with CUDA-accelerated PyTorch (requires NVIDIA GPU)
-      CPU  â€” lightweight install, CPU-only PyTorch (no GPU required)
+      GPU   -  full install with CUDA-accelerated PyTorch (requires NVIDIA GPU)
+      CPU   -  lightweight install, CPU-only PyTorch (no GPU required)
 
     If -Variant is not specified, the installer prompts interactively.
 
@@ -167,15 +167,12 @@ function Assert-ValidInstallLayout {
     }
 }
 
-# â”€â”€ Variant selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Variant selection
 if (-not $Variant) {
     Write-Host ""
-    Write-Host "  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”" -ForegroundColor Cyan
-    Write-Host "  â”‚  SELECT INSTALLATION VARIANT                                   â”‚" -ForegroundColor Cyan
-    Write-Host "  â”‚                                                                â”‚" -ForegroundColor Cyan
-    Write-Host "  â”‚  [1] GPU  â€” CUDA-accelerated (requires NVIDIA GPU, ~6 GB VRAM)â”‚" -ForegroundColor Cyan
-    Write-Host "  â”‚  [2] CPU  â€” CPU-only, no GPU required (slower inference)       â”‚" -ForegroundColor Cyan
-    Write-Host "  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜" -ForegroundColor Cyan
+    Write-Host "    SELECT INSTALLATION VARIANT                                   " -ForegroundColor Cyan
+    Write-Host "    [1] GPU   -  CUDA-accelerated (requires NVIDIA GPU, ~6 GB VRAM)" -ForegroundColor Cyan
+    Write-Host "    [2] CPU   -  CPU-only, no GPU required (slower inference)       " -ForegroundColor Cyan
     Write-Host ""
     do {
         $choice = Read-Host "  Enter 1 for GPU or 2 for CPU (default: 1)"
@@ -187,7 +184,7 @@ Write-Host ""
 Write-Host "  Installation variant: $Variant" -ForegroundColor Cyan
 Write-Host ""
 
-# â”€â”€ WIN-01: Check NVIDIA GPU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# WIN-01: Check NVIDIA GPU
 if ($Variant -eq "GPU") {
 Write-Step "Checking for NVIDIA GPU..."
 try {
@@ -202,7 +199,7 @@ try {
 }
 } # end GPU-only check
 
-# â”€â”€ Antimalware notice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Antimalware notice
 Write-Host ""
 Write-Host "  ANTIMALWARE NOTICE" -ForegroundColor Yellow
 Write-Host "  This installer uses uv.exe by Astral to manage Python packages." -ForegroundColor Yellow
@@ -211,10 +208,10 @@ Write-Host "  If that happens, restore uv.exe and add it to your allow list." -F
 Write-Host "  uv is open source: https://github.com/astral-sh/uv" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  The IBM Granite Speech model will be downloaded during installation."
-Write-Host "  No HuggingFace account or token is required — it is a public model."
+Write-Host "  No HuggingFace account or token is required - it is a public model."
 Write-Host ""
 
-# â”€â”€ Install uv â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Install uv
 Write-Step "Checking for uv package manager..."
 if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-Already "uv already installed: $(uv --version)"
@@ -232,7 +229,7 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
 
 $env:UV_PYTHON_PREFERENCE = "only-system"
 
-# â”€â”€ Install Python 3.11 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Install Python 3.11
 Write-Step "Checking for Python 3.11..."
 $py311 = (Get-Command python3.11 -ErrorAction SilentlyContinue).Source
 if (-not $py311) {
@@ -257,7 +254,7 @@ if (-not $py311 -or -not (Test-Path $py311)) {
 }
 Write-Ok "Using Python: $py311"
 
-# â”€â”€ Copy/sync source to install dir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Copy/sync source to install dir
 Write-Step "Setting up SpeakEasy AI repository..."
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $ScriptDir
@@ -295,7 +292,7 @@ if ($RepoRoot -eq $InstallDir) {
 Assert-ValidInstallLayout -InstallRoot $InstallDir -NestedRepoPath $NestedRepoDir
 Write-Ok "Install layout verified"
 
-# â”€â”€ Verify & patch outdated files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Verify & patch outdated files
 if ($RepoRoot -ne $InstallDir) {
     Write-Step "Checking for outdated files in $InstallDir..."
     $outdated = Update-OutdatedFiles -SourceDir $RepoRoot -DestDir $InstallDir
@@ -306,7 +303,7 @@ if ($RepoRoot -ne $InstallDir) {
     }
 }
 
-# â”€â”€ Install dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Install dependencies
 Write-Step "Syncing dependencies..."
 Write-Host "  Running uv sync (will skip already-installed packages)..."
 Push-Location $InstallDir
@@ -314,7 +311,7 @@ Invoke-NativeCommand "uv sync" ([scriptblock]::Create("uv sync --python `"$py311
 Pop-Location
 Write-Ok "Dependencies synced"
 
-# â”€â”€ Validate virtual environment and core imports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Validate virtual environment and core imports
 Write-Step "Validating virtual environment..."
 $venvPython = "$InstallDir\.venv\Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
@@ -355,7 +352,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Ok "Core imports verified"
 
-# â”€â”€ Verify transformers + torch imports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Verify transformers + torch imports
 Write-Step "Verifying engine dependencies..."
 $prevPref = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
@@ -382,7 +379,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Ok "torch import OK"
 }
 
-# â”€â”€ CPU variant: replace CUDA torch with CPU-only torch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# CPU variant: replace CUDA torch with CPU-only torch
 if ($Variant -eq "CPU") {
     Write-Step "Installing CPU-only PyTorch (replacing CUDA build)..."
     Push-Location $InstallDir
@@ -393,7 +390,7 @@ if ($Variant -eq "CPU") {
     Write-Ok "CPU-only PyTorch installed"
 }
 
-# â”€â”€ Ensure PyTorch has CUDA support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ensure PyTorch has CUDA support
 if ($Variant -eq "GPU") {
 Write-Step "Verifying PyTorch CUDA support..."
 $prevPref = $ErrorActionPreference
@@ -441,7 +438,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 } # end GPU-only CUDA verification
 
-# â”€â”€ Verify huggingface-hub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Verify huggingface-hub
 Write-Step "Checking huggingface-hub version..."
 $hfVer = & $venvPython -c "import huggingface_hub; print(huggingface_hub.__version__)" 2>$null
 if (-not $hfVer) {
@@ -454,7 +451,7 @@ if (-not $hfVer) {
     Write-Already "huggingface-hub $($hfVer.Trim()) is installed"
 }
 
-# â”€â”€ Verify CUDA DLLs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Verify CUDA DLLs
 if ($Variant -eq "GPU") {
     Write-Step "Verifying CUDA runtime libraries..."
     try {
@@ -469,12 +466,12 @@ if ($Variant -eq "GPU") {
     }
 } # end GPU-only CUDA DLL verification
 
-# â”€â”€ Download models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Download models
 foreach ($dir in @($ModelsDir, $ConfigDir, $LogsDir, $TempDir)) {
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 }
 
-# â”€â”€ Migrate existing data from old locations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Migrate existing data from old locations
 Write-Step "Checking for data to migrate from previous install..."
 
 $oldSettingsFile = "$env:APPDATA\SpeakEasy AI\settings.json"
@@ -514,7 +511,7 @@ foreach ($logFile in @("speakeasy.log", "speakeasy.log.1", "speakeasy.log.2")) {
     }
 }
 
-# â”€â”€ Download Granite model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Download Granite model
 Write-Step "Checking Granite model (IBM Granite Speech 4.1 2B)..."
 $graniteDir = Join-Path $ModelsDir "granite"
 if ((Test-Path (Join-Path $graniteDir "config.json"))) {
@@ -527,7 +524,7 @@ if ((Test-Path (Join-Path $graniteDir "config.json"))) {
     Write-Ok "Granite model downloaded to $graniteDir"
 }
 
-# â”€â”€ Patch build variant for CPU source installs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Patch build variant for CPU source installs
 if ($Variant -eq "CPU") {
     Write-Step "Patching build variant to CPU..."
     $variantFile = Join-Path $InstallDir "speakeasy\_build_variant.py"
@@ -541,7 +538,7 @@ if ($Variant -eq "CPU") {
     }
 }
 
-# â”€â”€ Write default engine to settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Write default engine to settings
 Write-Step "Configuring default engine..."
 $settingsFile = Join-Path $ConfigDir "settings.json"
 $cfg = $null
@@ -570,10 +567,10 @@ $jsonText = $cfg | ConvertTo-Json -Depth 10
 [System.IO.File]::WriteAllText($settingsFile, $jsonText, (New-Object System.Text.UTF8Encoding $false))
 Write-Ok "Default engine set to $defaultEngine, device set to $defaultDevice in $settingsFile"
 
-# â”€â”€ Set permissions (current user gets Modify on install dir) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Set permissions (current user gets Modify on install dir)
 Write-Step "Checking directory permissions..."
 # Data dirs under %ProgramData% are writable by authenticated users
-# by default — no ACL changes are required.
+# by default - no ACL changes are required.
 # Logs are under %LOCALAPPDATA% (per-user) so no shared ACL concern.
 # Verify the data directories are accessible.
 foreach ($dir in @($ModelsDir, $ConfigDir, $LogsDir, $TempDir)) {
@@ -584,7 +581,7 @@ foreach ($dir in @($ModelsDir, $ConfigDir, $LogsDir, $TempDir)) {
     }
 }
 
-# â”€â”€ Create desktop shortcut â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Create desktop shortcut
 Write-Step "Creating desktop shortcut..."
 $desktopPath = [Environment]::GetFolderPath("Desktop")
 $shortcutPath = Join-Path $desktopPath "SpeakEasy AI Granite.lnk"
@@ -602,7 +599,7 @@ if (Test-Path $shortcutPath) {
     Write-Ok "Desktop shortcut created at $shortcutPath"
 }
 
-# â”€â”€ Windows Defender exclusions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Windows Defender exclusions
 Write-Step "Configuring Windows Defender exclusions..."
 $exePath = "$InstallDir\.venv\Scripts\pythonw.exe"
 try {
@@ -612,12 +609,10 @@ try {
     Write-Warn "Could not add Defender exclusion: $_"
 }
 
-# â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Summary
 $variantLabel = if ($Variant -eq "CPU") { "CPU-only (no GPU required)" } else { "GPU (CUDA-accelerated)" }
 Write-Host ""
-Write-Host "  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•" -ForegroundColor Green
 Write-Host "  SpeakEasy AI Granite has been installed successfully!" -ForegroundColor Green
-Write-Host "  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Variant:        $variantLabel"
 Write-Host "  Install dir:    $InstallDir"

@@ -1,4 +1,4 @@
-﻿"""Tests for PyInstaller frozen-build compatibility.
+"""Tests for PyInstaller frozen-build compatibility.
 
 These tests catch issues that only manifest in --noconsole PyInstaller builds:
 - Relative imports in __main__.py (no parent package context)
@@ -299,8 +299,7 @@ class TestSpecStripPatterns(unittest.TestCase):
     def _parse_strip_patterns(self) -> list[str]:
         spec_text = self._read_spec()
         return re.findall(r"_re\.compile\(r'([^']+)'", spec_text)
-
-    # â”€â”€ Critical CUDA libs must NOT be stripped â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Critical CUDA libs must NOT be stripped.
 
     _MUST_KEEP = [
         "cublas64", "cublasLt64", "cudart64", "cudnn64_9",
@@ -380,8 +379,7 @@ class TestSpecStripPatterns(unittest.TestCase):
                 any(p.search(entry) for p in patterns),
                 f"speakeasy.spec should strip '{entry}'.",
             )
-
-    # â”€â”€ Excluded modules must not break engine imports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Excluded modules must not break engine imports.
 
     def _parse_excludes(self) -> set[str]:
         spec_text = self._read_spec()
@@ -427,7 +425,7 @@ class TestSpecStripPatterns(unittest.TestCase):
         ``ModuleNotFoundError``.  Move such modules from ``excludes``
         to ``hiddenimports``.
         """
-        import torch  # noqa: F401 â€” ensures torch startup imports are loaded
+        import torch  # noqa: F401 - ensures torch startup imports are loaded
         excludes = {e for e in self._parse_excludes() if e.startswith("torch.")}
 
         loaded_and_excluded = []
@@ -441,7 +439,7 @@ class TestSpecStripPatterns(unittest.TestCase):
             loaded_and_excluded,
             [],
             "These modules are in speakeasy.spec excludes but were imported "
-            "during torch startup â€” they must be moved to hiddenimports:\n"
+            "during torch startup - they must be moved to hiddenimports:\n"
             + "\n".join(f"  {mod} (matched exclude '{excl}')"
                         for mod, excl in loaded_and_excluded),
         )
@@ -506,7 +504,7 @@ class TestDistOutputEssentials(unittest.TestCase):
         ]:
             self.assertTrue(
                 list(self._DIST.rglob(pat)),
-                f"Required '{pat}' missing from dist/ â€” strip too aggressive?",
+                f"Required '{pat}' missing from dist/ - strip too aggressive?",
             )
 
     @unittest.skipUnless(
@@ -524,7 +522,7 @@ class TestDistOutputEssentials(unittest.TestCase):
         ]:
             self.assertTrue(
                 list(self._DIST.rglob(pat)),
-                f"Required '{pat}' missing from dist/ â€” torch DLL strip too aggressive?",
+                f"Required '{pat}' missing from dist/ - torch DLL strip too aggressive?",
             )
 
     @unittest.skipUnless(
@@ -588,7 +586,7 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
         r"torch\lib\nvrtc64_120_0.alt.dll",
     ]
 
-    # DLLs that must NOT be stripped â€” the CPU build still needs these.
+    # DLLs that must NOT be stripped - the CPU build still needs these.
     _CPU_KEEP = [
         r"torch\lib\torch_cpu.dll",
         r"torch\lib\torch.dll",
@@ -672,7 +670,7 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
             if stripped.startswith("a.pure") and "=" in stripped:
                 self.assertNotIn(
                     "_CUDA_BINARY_PATTERNS", stripped,
-                    "a.pure must not be filtered with _CUDA_BINARY_PATTERNS â€” "
+                    "a.pure must not be filtered with _CUDA_BINARY_PATTERNS - "
                     "this would strip torch.backends.cudnn and other Python stubs.",
                 )
             if stripped.startswith("a.datas") and "=" in stripped:

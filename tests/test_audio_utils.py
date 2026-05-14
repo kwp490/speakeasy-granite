@@ -1,4 +1,4 @@
-﻿"""Tests for engine audio utilities â€” chunking, stitching, resampling."""
+﻿"""Tests for engine audio utilities: chunking, stitching, resampling."""
 
 import unittest
 
@@ -67,7 +67,7 @@ class TestChunkAudio(unittest.TestCase):
 
     def test_very_short_final_chunk(self):
         """A recording just past a boundary should produce a short tail chunk."""
-        # 52s with 30s max / 5s overlap â†’ chunk1: 0-30s, chunk2: 25-52s (27s)
+        # 52s with 30s max / 5s overlap -> chunk1: 0-30s, chunk2: 25-52s (27s)
         audio = self._audio(52.0)
         chunks = chunk_audio(audio, sr=16000, max_seconds=30.0, overlap_seconds=5.0)
         self.assertEqual(len(chunks), 2)

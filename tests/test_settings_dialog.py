@@ -1,4 +1,4 @@
-﻿"""Tests for SettingsDialog after Professional Mode extraction.
+"""Tests for SettingsDialog after Professional Mode extraction.
 
 Verifies:
   - Professional Mode section has been removed from SettingsDialog.
@@ -22,9 +22,7 @@ def _qt_available() -> bool:
         return False
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Structural (AST) tests
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 class TestSettingsDialogProModeRemoved(unittest.TestCase):
@@ -88,7 +86,7 @@ class TestSettingsDialogProModeRemoved(unittest.TestCase):
         # api_key can appear in comments; check for the property definition
         self.assertNotIn("def api_key", self._source)
 
-    # â”€â”€ Core settings still present â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Core settings still present
 
     def test_audio_group_in_build_ui(self):
         """_build_ui must still contain Audio group."""
@@ -101,9 +99,7 @@ class TestSettingsDialogProModeRemoved(unittest.TestCase):
         self.assertIn("UX Behavior", src)
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# Live widget tests â€” require PySide6
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Live widget tests  -  require PySide6
 
 
 @unittest.skipUnless(_qt_available(), "PySide6 not available")

@@ -1,10 +1,10 @@
 ﻿"""Tests for the refactored MainWindow layout.
 
 Verifies:
-    Phase 1 â€“ Transcription section is dominant; buttons enlarged, no Dictation GroupBox.
-    Phase 2 â€“ Diagnostics panel collapsed by default; toggling shows/hides.
-    Phase 3 â€“ Status pill bar placed between buttons and checkboxes (no QStatusBar).
-    Phase 4 â€“ Clear/Copy buttons are contextually placed in panel headers.
+    Phase 1 - Transcription section is dominant; buttons enlarged, no Dictation GroupBox.
+    Phase 2 - Diagnostics panel collapsed by default; toggling shows/hides.
+    Phase 3 - Status pill bar placed between buttons and checkboxes (no QStatusBar).
+    Phase 4 - Clear/Copy buttons are contextually placed in panel headers.
 """
 
 import ast
@@ -23,9 +23,7 @@ def _qt_available() -> bool:
         return False
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# Structural (AST) tests â€” no Qt needed
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Structural (AST) tests: no Qt needed
 
 
 class TestLayoutStructure(unittest.TestCase):
@@ -48,7 +46,7 @@ class TestLayoutStructure(unittest.TestCase):
                 return ast.get_source_segment(self._source, node) or ""
         self.fail(f"Method '{method_name}' not found in MainWindow")
 
-    # â”€â”€ Phase 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Phase 1
 
     def test_no_dictation_groupbox(self):
         """The 'Dictation' QGroupBox must no longer appear in _build_ui."""
@@ -86,7 +84,7 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_build_ui")
         self.assertNotIn("_lbl_dictation_state", src)
 
-    # â”€â”€ Phase 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Phase 2
 
     def test_dev_panel_gear_button_exists(self):
         """_build_ui must create self._btn_dev_panel (gear button)."""
@@ -107,7 +105,7 @@ class TestLayoutStructure(unittest.TestCase):
         ]
         self.assertIn("_on_toggle_dev_panel", method_names)
 
-    # â”€â”€ Phase 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Phase 3
 
     def test_status_bar_created(self):
         """_build_ui must create self._status_bar."""
@@ -139,7 +137,7 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_set_dictation_state")
         self.assertIn("_update_global_status", src)
 
-    # â”€â”€ Phase 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Phase 4
 
     def test_on_clear_history_method_exists(self):
         """_on_clear_history must be defined as a separate method."""
@@ -186,7 +184,7 @@ class TestLayoutStructure(unittest.TestCase):
         ]
         self.assertIn("_on_copy_logs", method_names)
 
-    # â”€â”€ Phase 5 (professional mode button in footer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Phase 5: professional mode button in footer
 
     def test_no_pro_toggle_in_build_ui(self):
         """PRO toggle button must not be in _build_ui (was removed long ago)."""
@@ -207,7 +205,7 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertNotIn("_on_pro_toggle", method_names)
 
     def test_no_pro_settings_button_in_build_ui(self):
-        """Pro Mode Settings button removed — now in Developer Panel."""
+        """Pro Mode Settings button removed; now in Developer Panel."""
         src = self._get_method_source("_build_ui")
         self.assertNotIn("Pro Mode Settings", src)
 
@@ -240,7 +238,7 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_update_global_status")
         self.assertIn("set_pro_mode", src)
 
-    # â”€â”€ Engine worker isolation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Engine worker isolation
 
     def test_init_creates_dedicated_engine_pool(self):
         """MainWindow must create a dedicated single-thread pool for engine work."""
@@ -297,7 +295,7 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertIn("_suspend_mic_stream_for_processing", method_names)
         self.assertIn("_resume_mic_stream_after_processing", method_names)
 
-    # â”€â”€ Main-window transcription mode controls â”€â”€
+    # Main-window transcription mode controls
 
     def test_transcription_mode_controls_exist(self):
         """Main window exposes an activation toggle and profile selection."""
@@ -372,9 +370,7 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertNotIn("_on_pro_preset_quick_select", method_names)
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# Live widget tests â€” require PySide6
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Live widget tests: require PySide6
 
 
 @unittest.skipUnless(_qt_available(), "PySide6 not available")
@@ -488,7 +484,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         finally:
             win.close()
 
-    # â”€â”€ Main-window transcription mode controls â”€â”€
+    # Main-window transcription mode controls
 
     def test_main_transcription_mode_controls(self):
         """The legacy professional toggle is gone, but mode controls are available."""

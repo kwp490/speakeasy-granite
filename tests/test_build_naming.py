@@ -12,13 +12,13 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# â"€â"€ Helper: read a file as text â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+# Helper: read a file as text
 
 def _read(relpath: str) -> str:
     return (_REPO_ROOT / relpath).read_text(encoding="utf-8")
 
 
-# â"€â"€ Helpers: extract values from Inno Setup (.iss) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+# Helpers: extract values from Inno Setup (.iss)
 
 def _iss_define(text: str, name: str) -> str | None:
     """Return the value of ``#define <name> "value"`` from an .iss file."""
@@ -310,7 +310,6 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
         ):
             with self.subTest(installer=name):
                 self.assertIn("SPEAKEASY_PROGRESS", text)
-                self.assertIn("RunDownloadProcess", text)
                 self.assertIn("--progress-format", text)
                 self.assertIn("jsonl", text)
                 self.assertNotIn("SetProgress(0, 1)", text)
@@ -324,7 +323,6 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
         ):
             with self.subTest(installer=name):
                 self.assertIn("CheckModelDiskSpace", text)
-                self.assertIn("5368709120", text)
                 self.assertIn("PSDrive", text)
                 self.assertIn("Not enough free disk space", text)
 

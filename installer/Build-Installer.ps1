@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Build, test, and launch SpeakEasy AI -- all-in-one build and development tool.
 
@@ -23,7 +23,7 @@
 
       Install
         Silently install a previously-built installer package.  Finds the
-        latest matching setup .exe in installer/Output/ for the chosen
+    # RAM disk drive letter (change this if R: conflicts)
         -Variant (GPU or CPU), uninstalls any existing version, cleans
         leftover settings, and silently installs the new build.  Requires
         admin -- auto-elevates if needed.
@@ -288,13 +288,13 @@ if (-not $Mode) {
 Write-Step "Mode: $Mode | Variant: $Variant"
 
 
-# â”€â”€ RAM disk drive letter (change this if R: conflicts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# RAM disk drive letter (change this if R: conflicts)
 $RamDiskDrive = 'R:'
 
-# â”€â”€ RAM disk junction helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# RAM disk junction helper
 # Creates NTFS junctions from build/ and dist/ to folders on a RAM disk so
 # PyInstaller I/O (thousands of files in torch/transformers) hits ~100ns RAM
-# latency instead of ~6Âµs NVMe latency.  All downstream consumers (Inno Setup,
+# latency instead of ~6us NVMe latency.  All downstream consumers (Inno Setup,
 # tests) see the same repo-relative paths.
 function Initialize-RamDiskJunctions {
     if (-not (Test-Path $RamDiskDrive)) {
@@ -435,7 +435,7 @@ function Initialize-RamDiskJunctions {
     }
 }
 
-# â”€â”€ Source-hash helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Source-hash helper
 # Computes a hash over all files that affect the PyInstaller output so we can
 # skip the (slow) PyInstaller step when nothing has changed.
 function Get-SourceHash {
@@ -580,7 +580,7 @@ sys.exit(0 if ok else 1)
 } # end pre-flight checks (skipped for Install mode)
 
 
-# â”€â”€ RAM disk junctions (Build and Release modes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# RAM disk junctions (Build and Release modes)
 # Always use the RAM disk for builds.  If the drive is not mounted, attempt to
 # provision one via AIM Toolkit (aim_ll).  The junction helper falls back
 # gracefully to local build/dist directories if the drive cannot be created.
@@ -673,8 +673,7 @@ function Build-Variant {
 
     $distExe = "$DistDir\speakeasy.exe"
     $label = $VariantTag.ToUpper()
-
-    # â”€â”€ Step 1: PyInstaller â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Step 1: PyInstaller
     if ($InnoOnly) {
         Write-Step "[$label] Skipping PyInstaller (-InnoOnly flag set)"
         if (-not (Test-Path $distExe)) {
@@ -698,7 +697,7 @@ function Build-Variant {
             Write-Step "[$label] PyInstaller skipped (source unchanged since last build)"
             Write-Ok "Using cached binary: $distExe"
         } else {
-            # â”€â”€ CPU variant: install CPU-only torch before PyInstaller â”€â”€â”€
+            # CPU variant: install CPU-only torch before PyInstaller.
             # GPU torch DLLs (shm.dll, torch.dll, torch_python.dll) have
             # hard imports of torch_cuda.dll. Stripping that file from the
             # bundle causes WinError 126 at runtime. CPU torch wheels ship
@@ -746,8 +745,7 @@ function Build-Variant {
                 $ErrorActionPreference = $prevPref
             }
             $pyiExit = $LASTEXITCODE
-
-            # â”€â”€ Restore GPU torch after CPU build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # Restore GPU torch after CPU build.
             if ($swappedTorch) {
                 Write-Step "[$label] Restoring GPU torch..."
                 $prevPref = $ErrorActionPreference
@@ -781,8 +779,7 @@ function Build-Variant {
             Write-Ok "Build hash saved"
         }
     }
-
-    # â”€â”€ Step 2: Inno Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Step 2: Inno Setup
     Write-Step "[$label] Building installer with Inno Setup..."
 
     Write-Host "  Using: $($iscc)"
@@ -810,8 +807,7 @@ function Build-Variant {
         Write-Ok "Installer built: $($setupExe.FullName)"
         Write-Host ""
         Write-Host "  File size: $([math]::Round($setupExe.Length / 1MB, 1)) MB" -ForegroundColor DarkGray
-
-        # â”€â”€ Step 3: SHA256 checksum â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Step 3: SHA256 checksum
         # Unsigned installers trigger SmartScreen warnings; publishing SHA256
         # hashes alongside each release lets users verify integrity.
         Write-Step "[$label] Generating SHA256 checksum..."
