@@ -261,6 +261,97 @@ class TestDownloadProgress(unittest.TestCase):
         self.assertEqual(result, EXIT_SUCCESS)
         self.assertEqual(stdout.getvalue(), "")
 
+    def test_progress_file_receives_jsonl_when_stdout_suppressed(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            engine_dir = Path(temporary_dir) / "granite"
+            engine_dir.mkdir()
+            (engine_dir / "config.json").write_text("{}")
+            progress_file = Path(temporary_dir) / "progress.jsonl"
+
+            stdout = io.StringIO()
+            with patch("sys.stdout", stdout):
+                result = download_model(
+                    "granite",
+                    temporary_dir,
+                    progress_format="none",
+                    progress_file=progress_file,
+                )
+            progress_lines = progress_file.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(result, EXIT_SUCCESS)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertTrue(all(line.startswith(PROGRESS_PREFIX) for line in progress_lines))
+        payloads = [json.loads(line[len(PROGRESS_PREFIX):]) for line in progress_lines]
+        self.assertEqual(payloads[-1]["phase"], "already_present")
+
+    def test_check_only_validates_dependencies_without_download(self):
+        mock_hf = MagicMock()
+        events: list[DownloadProgress] = []
+        with patch.dict("sys.modules", {"huggingface_hub": mock_hf}):
+            with tempfile.TemporaryDirectory() as temporary_dir:
+                progress_file = Path(temporary_dir) / "progress.jsonl"
+                result = download_model(
+                    "granite",
+                    temporary_dir,
+                    progress_callback=events.append,
+                    progress_format="none",
+                    progress_file=progress_file,
+                    check_only=True,
+                )
+                progress_text = progress_file.read_text(encoding="utf-8")
+
+        self.assertEqual(result, EXIT_SUCCESS)
+        mock_hf.snapshot_download.assert_not_called()
+        self.assertEqual(events[-1].phase, "complete")
+        self.assertIn("preflight passed", events[-1].message)
+        self.assertIn(PROGRESS_PREFIX, progress_text)
+
+    def test_check_only_reports_dependency_failure(self):
+        events: list[DownloadProgress] = []
+        with patch.dict("sys.modules", {"huggingface_hub": None}):
+            with tempfile.TemporaryDirectory() as temporary_dir:
+                result = download_model(
+                    "granite",
+                    temporary_dir,
+                    progress_callback=events.append,
+                    progress_format="none",
+                    check_only=True,
+                )
+
+        self.assertEqual(result, EXIT_FAILURE)
+        self.assertEqual(events[-1].phase, "error")
+        self.assertIn("Download preflight failed", events[-1].message)
+
+    def test_transient_download_errors_are_retried(self):
+        mock_hf = MagicMock()
+        attempts = {"count": 0}
+
+        def flaky_snapshot_download(**kwargs):
+            attempts["count"] += 1
+            if attempts["count"] < 3:
+                raise Exception("ConnectionError: timeout")
+            target_dir = Path(kwargs["local_dir"])
+            target_dir.mkdir(parents=True, exist_ok=True)
+            (target_dir / "config.json").write_text("{}")
+            return str(target_dir)
+
+        mock_hf.snapshot_download.side_effect = flaky_snapshot_download
+        events: list[DownloadProgress] = []
+        with patch.dict("sys.modules", {"huggingface_hub": mock_hf}):
+            with patch("speakeasy.model_downloader.time.sleep") as sleep:
+                with tempfile.TemporaryDirectory() as temporary_dir:
+                    result = download_model(
+                        "granite",
+                        temporary_dir,
+                        progress_callback=events.append,
+                        progress_format="none",
+                    )
+
+        self.assertEqual(result, EXIT_SUCCESS)
+        self.assertEqual(mock_hf.snapshot_download.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+        self.assertIn("retrying", [event.phase for event in events])
+
     def test_invalid_progress_format_raises(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
             with self.assertRaises(ValueError):

@@ -312,8 +312,30 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
                 self.assertIn("SPEAKEASY_PROGRESS", text)
                 self.assertIn("--progress-format", text)
                 self.assertIn("jsonl", text)
+                self.assertIn("--progress-file", text)
+                self.assertIn("speakeasy-model-download.progress", text)
                 self.assertNotIn("SetProgress(0, 1)", text)
                 self.assertNotIn("SetProgress(1, 1)", text)
+
+    def test_installers_surface_model_download_errors(self):
+        """Both installers must show and log the captured download failure detail."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("Detail:", text)
+                self.assertIn("LastDownloadDetail", text)
+                self.assertIn("Model download detail", text)
+
+    def test_installers_require_config_for_ready_summary(self):
+        """A partial granite directory must not be reported as model-ready."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("FileExists(ModelsDir + '\\granite\\config.json')", text)
 
     def test_installers_preflight_model_disk_space(self):
         """Both installers must check free disk space before model download."""
@@ -325,6 +347,29 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
                 self.assertIn("CheckModelDiskSpace", text)
                 self.assertIn("PSDrive", text)
                 self.assertIn("Not enough free disk space", text)
+
+    def test_model_download_copy_has_enough_height(self):
+        """The wrapped model download text must not clip its final line."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                match = re.search(
+                    r"TokenLblSteps\.AutoSize := False;.*?"
+                    r"TokenLblSteps\.Height := ScaleY\((\d+)\);",
+                    text,
+                    re.DOTALL,
+                )
+                self.assertIsNotNone(
+                    match,
+                    f"{name} installer must set TokenLblSteps height explicitly.",
+                )
+                self.assertGreaterEqual(
+                    int(match.group(1)),
+                    72,
+                    f"{name} installer TokenLblSteps height is too small for wrapped copy.",
+                )
 
     def test_exit_code_constants_match_python(self):
         """The exit code comment in .iss must match the Python constants."""

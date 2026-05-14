@@ -105,6 +105,46 @@ function Write-ProcessOutput {
     }
 }
 
+function Get-LastNonEmptyLine {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) { return '' }
+    $lines = @(Get-Content $Path -ErrorAction SilentlyContinue)
+    for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+        if (-not [string]::IsNullOrWhiteSpace($lines[$i])) {
+            return [string]$lines[$i]
+        }
+    }
+    return ''
+}
+
+function Get-DownloadDetail {
+    param(
+        [string]$ProgressPath,
+        [string]$StderrPath,
+        [string]$StdoutPath
+    )
+
+    $prefix = 'SPEAKEASY_PROGRESS '
+    if (Test-Path $ProgressPath) {
+        $lines = @(Get-Content $ProgressPath -ErrorAction SilentlyContinue)
+        for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+            $line = [string]$lines[$i]
+            if (-not $line.StartsWith($prefix)) { continue }
+            try {
+                $payload = $line.Substring($prefix.Length) | ConvertFrom-Json -ErrorAction Stop
+                if (($payload.phase -eq 'error' -or $payload.phase -eq 'auth_required') -and $payload.message) {
+                    return [string]$payload.message
+                }
+            } catch { }
+        }
+    }
+
+    $detail = Get-LastNonEmptyLine -Path $StderrPath
+    if ($detail) { return $detail }
+    return Get-LastNonEmptyLine -Path $StdoutPath
+}
+
 function Start-Download {
     while ($true) {
         Write-Host ''
@@ -118,6 +158,8 @@ function Start-Download {
 
             $tmpOut = [System.IO.Path]::GetTempFileName()
             $tmpErr = [System.IO.Path]::GetTempFileName()
+            $tmpProgress = [System.IO.Path]::GetTempFileName()
+            $arguments += @('--progress-file', "`"$tmpProgress`"")
 
             $process = Start-Process -FilePath $Exe `
                 -ArgumentList $arguments `
@@ -127,17 +169,24 @@ function Start-Download {
 
             $outIndex = 0
             $errIndex = 0
+            $progressIndex = 0
             while (-not $process.HasExited) {
+                Write-ProcessOutput $tmpProgress $tmpErr ([ref]$progressIndex) ([ref]$errIndex)
                 Write-ProcessOutput $tmpOut $tmpErr ([ref]$outIndex) ([ref]$errIndex)
                 Start-Sleep -Milliseconds 250
                 $process.Refresh()
             }
 
+            Write-ProcessOutput $tmpProgress $tmpErr ([ref]$progressIndex) ([ref]$errIndex)
             Write-ProcessOutput $tmpOut $tmpErr ([ref]$outIndex) ([ref]$errIndex)
+            $downloadDetail = Get-DownloadDetail -ProgressPath $tmpProgress -StderrPath $tmpErr -StdoutPath $tmpOut
             Write-Progress -Activity 'Downloading Granite model' -Completed
-            Remove-Item $tmpOut, $tmpErr -ErrorAction SilentlyContinue
+            Remove-Item $tmpOut, $tmpErr, $tmpProgress -ErrorAction SilentlyContinue
         } catch {
             Write-Progress -Activity 'Downloading Granite model' -Completed
+            if ($tmpOut -or $tmpErr -or $tmpProgress) {
+                Remove-Item $tmpOut, $tmpErr, $tmpProgress -ErrorAction SilentlyContinue
+            }
             Write-Host ''
             Write-Host "ERROR: Failed to launch download: $_" -ForegroundColor Red
             Write-Host 'Would you like to try again?' -ForegroundColor White
@@ -160,6 +209,11 @@ function Start-Download {
             default {
                 Write-Host ''
                 Write-Host "Download failed (exit code $($process.ExitCode))." -ForegroundColor Red
+                if ($downloadDetail) {
+                    Write-Host ''
+                    Write-Host 'Detail:' -ForegroundColor Yellow
+                    Write-Host $downloadDetail -ForegroundColor Yellow
+                }
                 Write-Host 'This may be a network error. Would you like to try again?' -ForegroundColor White
             }
         }

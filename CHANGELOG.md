@@ -5,6 +5,21 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - Installer Progress & Download Preflight
+
+### Added
+- **`--progress-file`** CLI flag writes installer-friendly JSONL progress events to a file during model downloads
+- **`--check-only`** CLI flag validates download dependencies and target access without downloading files
+- **JSONL progress sink** in `model_downloader.py` for machine-readable download telemetry
+- **Installer progress integration** — `Build-Installer.ps1` and `granite-model-setup.ps1` consume JSONL progress for real-time feedback
+- **Inno Setup enhancements** — both `.iss` installer scripts gained improved download-progress UI plumbing
+
+### Changed
+- **Version metadata** updated across the Python package and both installer variants for the 0.14.0 release
+
+### Tests
+- New and expanded tests for build naming, frozen compatibility, and model downloader progress/check-only paths
+
 ## [0.13.1] - Public Release Hygiene
 
 ### Fixed

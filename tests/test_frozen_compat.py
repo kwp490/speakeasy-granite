@@ -790,3 +790,27 @@ class TestCertifiSslBundle(unittest.TestCase):
             )
 
 
+class TestBuildInstallerDownloadPreflight(unittest.TestCase):
+    """Build-Installer.ps1 must validate the frozen download command before packaging."""
+
+    def test_build_script_runs_frozen_download_preflight(self):
+        source = (_REPO_ROOT / "installer" / "Build-Installer.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Invoke-FrozenDownloadPreflight", source)
+        self.assertIn("--check-only", source)
+        self.assertIn("--progress-file", source)
+        self.assertIn("download-model", source)
+
+    def test_build_script_checks_programdata_model_path(self):
+        source = (_REPO_ROOT / "installer" / "Build-Installer.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("$env:ProgramData", source)
+        self.assertIn("SpeakEasy AI Granite\\models\\granite\\config.json", source)
+        self.assertNotIn(
+            "C:\\Program Files\\SpeakEasy AI Granite\\models\\granite\\config.json",
+            source,
+        )
+
+

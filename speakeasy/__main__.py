@@ -137,6 +137,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default="text",
         help="Download progress output format for scripts and installers",
     )
+    dl.add_argument(
+        "--progress-file",
+        default=None,
+        help="Append installer-friendly JSONL progress events to this file",
+    )
+    dl.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Validate download dependencies and target access without downloading files",
+    )
 
     return parser
 
@@ -154,6 +164,8 @@ def _cmd_download_model(args: argparse.Namespace) -> int:
         target_dir,
         token=args.token,
         progress_format=args.progress_format,
+        progress_file=args.progress_file,
+        check_only=args.check_only,
     )
 
 

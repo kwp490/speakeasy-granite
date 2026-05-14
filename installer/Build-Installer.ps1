@@ -226,6 +226,55 @@ function Exit-Script([int]$code = 1) {
     exit $code
 }
 
+function Invoke-FrozenDownloadPreflight {
+    param(
+        [Parameter(Mandatory)] [string]$ExePath,
+        [Parameter(Mandatory)] [string]$Label
+    )
+
+    if (-not (Test-Path $ExePath)) {
+        Write-Err "[$Label] Cannot validate missing frozen binary: $ExePath"
+        Exit-Script 1
+    }
+
+    Write-Step "[$Label] Validating frozen download command..."
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("speakeasy-download-check-{0}" -f [guid]::NewGuid())
+    $tempModels = Join-Path $tempRoot 'models'
+    $progressPath = Join-Path $tempRoot 'progress.jsonl'
+    $stdoutPath = Join-Path $tempRoot 'stdout.txt'
+    $stderrPath = Join-Path $tempRoot 'stderr.txt'
+    New-Item -ItemType Directory -Path $tempModels -Force | Out-Null
+
+    try {
+        $arguments = @(
+            'download-model',
+            '--check-only',
+            '--target-dir', $tempModels,
+            '--progress-format', 'jsonl',
+            '--progress-file', $progressPath
+        )
+        $proc = Start-Process -FilePath $ExePath `
+            -ArgumentList $arguments `
+            -Wait -PassThru -NoNewWindow `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError  $stderrPath
+
+        if ($proc.ExitCode -ne 0) {
+            Write-Err "[$Label] Frozen download preflight failed (exit code $($proc.ExitCode))."
+            if (Test-Path $progressPath) { Get-Content $progressPath | ForEach-Object { Write-Info $_ } }
+            if (Test-Path $stderrPath) { Get-Content $stderrPath | ForEach-Object { Write-Info $_ } }
+            Exit-Script 1
+        }
+        if (-not (Test-Path $progressPath)) {
+            Write-Err "[$Label] Frozen download preflight did not write a progress file."
+            Exit-Script 1
+        }
+        Write-Ok "[$Label] Frozen download command validated"
+    } finally {
+        Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 
 # -- Interactive menu ----------------------------------------------------------
 if (-not $Mode) {
@@ -779,6 +828,8 @@ function Build-Variant {
             Write-Ok "Build hash saved"
         }
     }
+    Invoke-FrozenDownloadPreflight -ExePath $distExe -Label $label
+
     # Step 2: Inno Setup
     Write-Step "[$label] Building installer with Inno Setup..."
 
@@ -821,7 +872,7 @@ function Build-Variant {
 
         # Consolidated SHA256SUMS.txt (rebuild each run so it always matches Output\)
         $sumsPath = "installer\Output\SHA256SUMS.txt"
-        $allExe = Get-ChildItem "installer\Output\*.exe" | Sort-Object Name
+        $allExe = @(Get-ChildItem "installer\Output\*.exe" | Sort-Object Name)
         $sumsContent = foreach ($f in $allExe) {
             $h = Get-FileHash -Algorithm SHA256 -Path $f.FullName
             "{0}  {1}" -f $h.Hash.ToLower(), $f.Name
@@ -1086,9 +1137,10 @@ if ($Mode -eq 'Release') {
     Write-Ok "Installed torch DLL bundle matches dist"
 
     # -- Verify Granite model is present ---------------------------------------
-    $installedGraniteConfig = 'C:\Program Files\SpeakEasy AI Granite\models\granite\config.json'
+    $programData = if ($env:ProgramData) { $env:ProgramData } else { 'C:\ProgramData' }
+    $installedGraniteConfig = Join-Path $programData 'SpeakEasy AI Granite\models\granite\config.json'
     if (Test-Path $installedGraniteConfig) {
-        Write-Ok "Granite model found at C:\Program Files\SpeakEasy AI Granite\models\granite"
+        Write-Ok "Granite model found at $(Split-Path -Parent $installedGraniteConfig)"
     } else {
         Write-Warn "Granite model NOT found at $installedGraniteConfig"
         Write-Info "The installer may not have downloaded the model."
@@ -1311,7 +1363,8 @@ if ($Mode -eq 'Source') {
 
     # -- Model access via directory junction -----------------------------------
     $devModels = Join-Path $devTemp 'models'
-    $installedModels = 'C:\Program Files\SpeakEasy AI Granite\models'
+    $programData = if ($env:ProgramData) { $env:ProgramData } else { 'C:\ProgramData' }
+    $installedModels = Join-Path $programData 'SpeakEasy AI Granite\models'
     $repoModels = Join-Path $RepoRoot 'models'
 
     if (Test-Path $devModels) {

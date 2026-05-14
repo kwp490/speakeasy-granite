@@ -21,7 +21,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.13.1"
+#define MyAppVersion "0.14.0"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"
@@ -202,7 +202,7 @@ begin
   TokenLblSteps.Parent := TokenPage.Surface;
   TokenLblSteps.Left := ScaleX(8);  TokenLblSteps.Top := TopPos;
   TokenLblSteps.Width := TokenPage.SurfaceWidth - ScaleX(8);
-  TokenLblSteps.AutoSize := False;  TokenLblSteps.WordWrap := True;  TokenLblSteps.Height := ScaleY(56);
+  TokenLblSteps.AutoSize := False;  TokenLblSteps.WordWrap := True;  TokenLblSteps.Height := ScaleY(72);
   TokenLblSteps.Caption := 'The IBM Granite Speech model is public and will be downloaded automatically.' + #13#10 +
                  'No HuggingFace account or access token is required.' + #13#10 + #13#10 +
                  'Model page: https://huggingface.co/ibm-granite/granite-speech-4.1-2b';

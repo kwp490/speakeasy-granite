@@ -25,6 +25,7 @@ EXIT_AUTH_REQUIRED = 2  # gated repo — anonymous access denied
 
 PROGRESS_PREFIX = "SPEAKEASY_PROGRESS "
 MODEL_DOWNLOAD_MIN_FREE_BYTES = 5 * 1024 * 1024 * 1024
+MODEL_DOWNLOAD_MAX_ATTEMPTS = 3
 ProgressFormat = Literal["text", "jsonl", "none"]
 
 # ── Model constants (single source of truth) ─────────────────────────────────
@@ -99,17 +100,20 @@ class _ProgressReporter:
         self,
         callback: ProgressCallback | None,
         progress_format: ProgressFormat,
+        progress_file: str | os.PathLike[str] | None = None,
     ) -> None:
         self._callback = callback
         self._format = progress_format
+        self._progress_file = Path(progress_file) if progress_file else None
         self._last_key: tuple[str, int | None, str | None] | None = None
         self._last_emit = 0.0
+
+        if self._progress_file is not None:
+            self._progress_file.parent.mkdir(parents=True, exist_ok=True)
 
     def emit(self, progress: DownloadProgress, *, force: bool = False) -> None:
         if self._callback is not None:
             self._callback(progress)
-        if self._format == "none":
-            return
 
         if progress.phase == "progress" and not force:
             key = (progress.phase, progress.percent, progress.label)
@@ -119,9 +123,20 @@ class _ProgressReporter:
             self._last_key = key
             self._last_emit = now
 
-        if self._format == "jsonl":
+        jsonl_line = None
+        if self._format == "jsonl" or self._progress_file is not None:
             payload = json.dumps(_compact_progress_dict(progress), ensure_ascii=True)
-            print(f"{PROGRESS_PREFIX}{payload}", flush=True)
+            jsonl_line = f"{PROGRESS_PREFIX}{payload}"
+
+        if self._progress_file is not None and jsonl_line is not None:
+            with self._progress_file.open("a", encoding="utf-8") as handle:
+                handle.write(jsonl_line + "\n")
+
+        if self._format == "none":
+            return
+
+        if self._format == "jsonl":
+            print(jsonl_line, flush=True)
         else:
             print(_format_progress_text(progress), flush=True)
 
@@ -248,6 +263,84 @@ def _is_gated_repo_error(exc: Exception) -> bool:
             or ("401" in msg and "restricted" in msg.lower()))
 
 
+def _run_download_preflight(
+    engine_name: str,
+    target_dir: str,
+    reporter: _ProgressReporter,
+) -> int:
+    """Validate the frozen download path without downloading model files."""
+    has_space, free_bytes, required_bytes = _check_disk_space(target_dir)
+    if free_bytes is None:
+        reporter.emit(
+            DownloadProgress(
+                phase="preflight",
+                message=(
+                    "Could not verify free disk space for the model download; "
+                    "continuing check-only validation."
+                ),
+            ),
+            force=True,
+        )
+    elif not has_space:
+        reporter.emit(
+            DownloadProgress(
+                phase="error",
+                message=(
+                    "ERROR: Not enough free disk space for the Granite model download. "
+                    f"Available: {_format_bytes(free_bytes)}; "
+                    f"required: {_format_bytes(required_bytes)}."
+                ),
+            ),
+            force=True,
+        )
+        return EXIT_FAILURE
+    else:
+        reporter.emit(
+            DownloadProgress(
+                phase="preflight",
+                message=(
+                    "Disk space check passed: "
+                    f"{_format_bytes(free_bytes)} available, "
+                    f"{_format_bytes(required_bytes)} required."
+                ),
+            ),
+            force=True,
+        )
+
+    try:
+        import certifi
+        import huggingface_hub  # noqa: F401
+
+        ca_bundle = certifi.where()
+        if not os.path.isfile(ca_bundle):
+            raise FileNotFoundError(f"certifi CA bundle not found: {ca_bundle}")
+
+        marker_path = os.path.join(target_dir, ".speakeasy-download-check.tmp")
+        with open(marker_path, "w", encoding="utf-8") as handle:
+            handle.write("ok")
+        os.remove(marker_path)
+    except Exception as exc:
+        log.exception("Model download preflight failed")
+        reporter.emit(
+            DownloadProgress(
+                phase="error",
+                message=f"ERROR: Download preflight failed: {exc}",
+            ),
+            force=True,
+        )
+        return EXIT_FAILURE
+
+    reporter.emit(
+        DownloadProgress(
+            phase="complete",
+            message=f"{engine_name.capitalize()} model download preflight passed.",
+            percent=100,
+        ),
+        force=True,
+    )
+    return EXIT_SUCCESS
+
+
 def download_model(
     engine_name: str,
     model_path: str,
@@ -255,6 +348,8 @@ def download_model(
     *,
     progress_callback: ProgressCallback | None = None,
     progress_format: ProgressFormat = "text",
+    progress_file: str | os.PathLike[str] | None = None,
+    check_only: bool = False,
 ) -> int:
     """Download model files for *engine_name* to *model_path*/<engine_name>.
 
@@ -270,7 +365,7 @@ def download_model(
     if progress_format not in ("text", "jsonl", "none"):
         raise ValueError("progress_format must be 'text', 'jsonl', or 'none'")
 
-    reporter = _ProgressReporter(progress_callback, progress_format)
+    reporter = _ProgressReporter(progress_callback, progress_format, progress_file)
     repo_id = _ENGINE_REPO_MAP.get(engine_name)
     if repo_id is None:
         reporter.emit(
@@ -295,6 +390,9 @@ def download_model(
         ),
         force=True,
     )
+
+    if check_only:
+        return _run_download_preflight(engine_name, target_dir, reporter)
 
     if model_ready(engine_name, model_path):
         reporter.emit(
@@ -352,6 +450,7 @@ def download_model(
     try:
         import huggingface_hub
     except ImportError:
+        log.exception("huggingface_hub import failed during model download")
         reporter.emit(
             DownloadProgress(
                 phase="error",
@@ -383,13 +482,38 @@ def download_model(
             snapshot_kwargs["tqdm_class"] = _build_progress_tqdm_class(reporter)
         except (ImportError, AttributeError):
             pass
-        try:
-            huggingface_hub.snapshot_download(**snapshot_kwargs)
-        except TypeError as exc:
-            if "tqdm_class" not in str(exc):
-                raise
-            snapshot_kwargs.pop("tqdm_class", None)
-            huggingface_hub.snapshot_download(**snapshot_kwargs)
+
+        for attempt in range(1, MODEL_DOWNLOAD_MAX_ATTEMPTS + 1):
+            try:
+                try:
+                    huggingface_hub.snapshot_download(**snapshot_kwargs)
+                except TypeError as exc:
+                    if "tqdm_class" not in str(exc):
+                        raise
+                    snapshot_kwargs.pop("tqdm_class", None)
+                    huggingface_hub.snapshot_download(**snapshot_kwargs)
+                break
+            except Exception as exc:
+                if _is_gated_repo_error(exc) or attempt >= MODEL_DOWNLOAD_MAX_ATTEMPTS:
+                    raise
+                log.warning(
+                    "Model download attempt %s of %s failed; retrying",
+                    attempt,
+                    MODEL_DOWNLOAD_MAX_ATTEMPTS,
+                    exc_info=True,
+                )
+                reporter.emit(
+                    DownloadProgress(
+                        phase="retrying",
+                        message=(
+                            "Download attempt "
+                            f"{attempt} of {MODEL_DOWNLOAD_MAX_ATTEMPTS} failed: {exc}. "
+                            f"Retrying attempt {attempt + 1}."
+                        ),
+                    ),
+                    force=True,
+                )
+                time.sleep(min(2 ** (attempt - 1), 8))
 
         reporter.emit(
             DownloadProgress(
@@ -400,6 +524,7 @@ def download_model(
         )
         # Verify the download actually produced usable model files
         if not model_ready(engine_name, model_path):
+            log.error("Model verification failed after download: %s", target_dir)
             reporter.emit(
                 DownloadProgress(
                     phase="error",
@@ -422,6 +547,7 @@ def download_model(
         return EXIT_SUCCESS
     except Exception as exc:
         if _is_gated_repo_error(exc):
+            log.exception("Model download requires HuggingFace authorization")
             if token:
                 message = (
                     f"AUTH REQUIRED: token was provided but access was still denied for {repo_id}.\n"
@@ -444,6 +570,7 @@ def download_model(
                 force=True,
             )
             return EXIT_AUTH_REQUIRED
+        log.exception("Model download failed")
         msg = str(exc)
         if "401" in msg or "Repository Not Found" in msg:
             message = f"ERROR: Repo not found or access denied: {exc}"
