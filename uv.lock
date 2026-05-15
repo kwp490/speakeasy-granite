@@ -2504,10 +2504,11 @@ wheels = [
 
 [[package]]
 name = "speakeasy-granite"
-version = "0.14.0"
+version = "0.14.1"
 source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
+    { name = "hf-xet" },
     { name = "huggingface-hub" },
     { name = "keyring" },
     { name = "librosa" },
@@ -2541,6 +2542,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=1.0" },
+    { name = "hf-xet", specifier = ">=1.1.0" },
     { name = "huggingface-hub", specifier = ">=0.34.0" },
     { name = "keyring", specifier = ">=25.0" },
     { name = "librosa", specifier = ">=0.10" },

@@ -17,10 +17,11 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.14.0"
+#define MyAppVersion "0.14.1"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"
+#define MyAppUserModelID "SpeakEasyAI.Granite.SpeechToText"
 
 [Setup]
 AppId={{7B99C492-7E14-4E3A-A8F2-71F8B23D9A42}
@@ -72,9 +73,11 @@ Name: "{commonappdata}\SpeakEasy AI Granite\temp";         Permissions: users-mo
 
 [Icons]
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
-    WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "SpeakEasy AI — Voice to Text"
+  WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; \
+  AppUserModelID: "{#MyAppUserModelID}"; Comment: "SpeakEasy AI — Voice to Text"
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
-    WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "SpeakEasy AI — Voice to Text"
+  WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; \
+  AppUserModelID: "{#MyAppUserModelID}"; Comment: "SpeakEasy AI — Voice to Text"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
@@ -469,6 +472,20 @@ begin
   Result := #39 + Value + #39;
 end;
 
+function CommandLineQuote(Value: String): String;
+begin
+  StringChangeEx(Value, '"', '\"', True);
+  Result := '"' + Value + '"';
+end;
+
+function GraniteModelExists: Boolean;
+var
+  GraniteDir: String;
+begin
+  GraniteDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models\granite';
+  Result := DirExists(GraniteDir) and FileExists(GraniteDir + '\config.json');
+end;
+
 function CheckModelDiskSpace(ModelsDir: String): Boolean;
 var
   PsCmd: String;
@@ -568,6 +585,17 @@ begin
     LastDownloadDetail := Message;
 end;
 
+function IsDownloadWarning(Line: String): Boolean;
+var
+  LowerLine: String;
+begin
+  LowerLine := LowerCase(Trim(Line));
+  Result :=
+    (Pos('xet storage is enabled', LowerLine) > 0) or
+    (Pos('falling back to regular http download', LowerLine) > 0) or
+    (Pos('for better performance, install', LowerLine) > 0);
+end;
+
 procedure ProcessDownloadProgressChunk(var Buffer: String; Chunk: String);
 var
   Line: String;
@@ -582,7 +610,7 @@ begin
       Delete(Line, Length(Line), 1);
     if Pos('SPEAKEASY_PROGRESS ', Line) = 1 then
       ApplyDownloadProgressLine(Line)
-    else if Trim(Line) <> '' then
+    else if (Trim(Line) <> '') and (not IsDownloadWarning(Line)) and (LastDownloadDetail = '') then
       LastDownloadDetail := Trim(Line);
     Delete(Buffer, 1, LineEnd);
     LineEnd := Pos(#10, Buffer);
@@ -630,12 +658,9 @@ begin
 
   Script := '$ErrorActionPreference = ' + PowerShellQuote('Stop') + #13#10 +
     '$exe = ' + PowerShellQuote(ExePath) + #13#10 +
-    '$arguments = @(' + PowerShellQuote('download-model') + ', ' +
-      PowerShellQuote('--target-dir') + ', ' + PowerShellQuote(ModelsDir) + ', ' +
-      PowerShellQuote('--progress-format') + ', ' + PowerShellQuote('jsonl') + ', ' +
-      PowerShellQuote('--progress-file') + ', ' + PowerShellQuote(ProgressPath) + ')' + #13#10 +
+    '$argumentLine = ' + PowerShellQuote('download-model --target-dir ' + CommandLineQuote(ModelsDir) + ' --progress-format jsonl --progress-file ' + CommandLineQuote(ProgressPath)) + #13#10 +
     'try {' + #13#10 +
-    '  $process = Start-Process -FilePath $exe -ArgumentList $arguments -NoNewWindow -PassThru -RedirectStandardOutput ' + PowerShellQuote(OutPath) + ' -RedirectStandardError ' + PowerShellQuote(ErrPath) + #13#10 +
+    '  $process = Start-Process -FilePath $exe -ArgumentList $argumentLine -NoNewWindow -PassThru -RedirectStandardOutput ' + PowerShellQuote(OutPath) + ' -RedirectStandardError ' + PowerShellQuote(ErrPath) + #13#10 +
     '  $process.WaitForExit()' + #13#10 +
     '  Set-Content -Path ' + PowerShellQuote(CodePath) + ' -Value $process.ExitCode -Encoding ASCII' + #13#10 +
     '} catch {' + #13#10 +
@@ -743,12 +768,13 @@ begin
       MigrateOldData;
     WriteDefaultSettings;
     ConfigureDefenderExclusions;
+    ModelExists := GraniteModelExists;
     if not ModelExists then
       DownloadModel;
     InstDir := ExpandConstant('{app}');
     ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models';
     Summary := 'SpeakEasy AI {#MyAppVersion} is ready.' + #13#10;
-    Summary := Summary + 'Press Ctrl+Alt+P from any application to start recording.' + #13#10;
+    Summary := Summary + 'Press Ctrl+Alt+P from any application to start or stop recording.' + #13#10;
     Summary := Summary + 'Powered by IBM Granite Speech 4.1 2B.' + #13#10 + #13#10;
     Summary := Summary + 'INSTALL LOCATION' + #13#10;
     Summary := Summary + '  ' + InstDir + #13#10 + #13#10;
@@ -762,8 +788,7 @@ begin
     Summary := Summary + '  Desktop shortcut created' + #13#10;
     Summary := Summary + '  Start Menu group created' + #13#10 + #13#10;
     Summary := Summary + 'DEFAULT HOTKEYS' + #13#10;
-    Summary := Summary + '  Ctrl+Alt+P   Start recording' + #13#10;
-    Summary := Summary + '  Ctrl+Alt+L   Stop recording & transcribe' + #13#10;
+    Summary := Summary + '  Ctrl+Alt+P   Start/stop recording' + #13#10;
     Summary := Summary + '  Ctrl+Alt+Q   Quit application' + #13#10;
     if DetectedGPU <> '' then
       Summary := Summary + #13#10 + 'GPU: ' + DetectedGPU + #13#10
@@ -792,7 +817,7 @@ end;
 
 procedure InitializeWizard;
 begin
-  ModelExists := False;
+  ModelExists := GraniteModelExists;
 
   CreateTokenPage;
   SummaryPage := CreateCustomPage(wpInfoAfter,
@@ -810,14 +835,11 @@ begin
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  GraniteDir: String;
 begin
   Result := True;
   if CurPageID = wpSelectDir then
   begin
-    GraniteDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models\granite';
-    ModelExists := DirExists(GraniteDir) and FileExists(GraniteDir + '\config.json');
+    ModelExists := GraniteModelExists;
   end;
 end;
 

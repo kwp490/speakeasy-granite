@@ -490,8 +490,9 @@ function Initialize-RamDiskJunctions {
 function Get-SourceHash {
     param([string]$VariantTag = 'gpu')
     $hashInput = @()
-    # Python source + spec + project config
+    # Python source + packaged assets + spec + project config
     $files = @(Get-ChildItem -Path "speakeasy" -Recurse -Include "*.py" -File) +
+             @(Get-ChildItem -Path "speakeasy\assets" -Recurse -File) +
              @(Get-Item "speakeasy.spec") +
              @(Get-Item "pyproject.toml")
     if ($VariantTag -eq 'cpu' -and (Test-Path 'speakeasy-cpu.spec')) {
@@ -710,7 +711,7 @@ if ($SkipTests) {
 #  Build helper function (used by Build and Release modes)
 # ==============================================================================
 
-function Build-Variant {
+function Invoke-VariantBuild {
     param(
         [Parameter(Mandatory)] [string]$VariantTag,    # 'gpu' or 'cpu'
         [Parameter(Mandatory)] [string]$SpecFile,      # e.g. 'speakeasy.spec'
@@ -853,7 +854,9 @@ function Build-Variant {
         Exit-Script 1
     }
 
-    $setupExe = Get-ChildItem "installer\Output\$InstallerGlob" | Select-Object -First 1
+    $setupExe = Get-ChildItem "installer\Output\$InstallerGlob" |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
     if ($setupExe) {
         Write-Ok "Installer built: $($setupExe.FullName)"
         Write-Host ""
@@ -900,7 +903,7 @@ if ($Mode -eq 'Build') {
 
     foreach ($v in $variantsToBuild) {
         if ($v -eq 'gpu') {
-            Build-Variant `
+            Invoke-VariantBuild `
                 -VariantTag  'gpu' `
                 -SpecFile    'speakeasy.spec' `
                 -IssFile     'installer\speakeasy-setup.iss' `
@@ -908,7 +911,7 @@ if ($Mode -eq 'Build') {
                 -HashFilePath $HashFile `
                 -InstallerGlob 'SpeakEasy-AI-Granite-Setup-*.exe'
         } else {
-            Build-Variant `
+            Invoke-VariantBuild `
                 -VariantTag  'cpu' `
                 -SpecFile    'speakeasy-cpu.spec' `
                 -IssFile     'installer\speakeasy-cpu-setup.iss' `
@@ -974,7 +977,7 @@ if ($Mode -eq 'Release') {
 
     foreach ($v in $variantsToBuild) {
         if ($v -eq 'gpu') {
-            Build-Variant `
+            Invoke-VariantBuild `
                 -VariantTag  'gpu' `
                 -SpecFile    'speakeasy.spec' `
                 -IssFile     'installer\speakeasy-setup.iss' `
@@ -982,7 +985,7 @@ if ($Mode -eq 'Release') {
                 -HashFilePath $HashFile `
                 -InstallerGlob 'SpeakEasy-AI-Granite-Setup-*.exe'
         } else {
-            Build-Variant `
+            Invoke-VariantBuild `
                 -VariantTag  'cpu' `
                 -SpecFile    'speakeasy-cpu.spec' `
                 -IssFile     'installer\speakeasy-cpu-setup.iss' `

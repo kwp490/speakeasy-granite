@@ -157,6 +157,10 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
             f"Inno Setup output '{iss_base}'",
         )
 
+    def test_installer_glob_selection_uses_newest_output(self):
+        """Older installer files in Output must not be selected after a version bump."""
+        self.assertIn("Sort-Object LastWriteTimeUtc -Descending", self.build_ps1_full)
+
 
 class TestNoStaleProjectNames(unittest.TestCase):
     """No build/installer file should reference the old CV2T / QwenVoiceToText names."""
@@ -287,6 +291,7 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
     def setUpClass(cls):
         cls.iss_text = _read("installer/speakeasy-setup.iss")
         cls.cpu_iss_text = _read("installer/speakeasy-cpu-setup.iss")
+        cls.source_installer_text = _read("installer/Install-SpeakEasy-Source.ps1")
 
     def test_iss_downloads_granite(self):
         """The ISS script must download the Granite model via download-model."""
@@ -317,6 +322,19 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
                 self.assertNotIn("SetProgress(0, 1)", text)
                 self.assertNotIn("SetProgress(1, 1)", text)
 
+    def test_installer_hotkey_summary_matches_toggle_behavior(self):
+        """Installer summaries must show Ctrl+Alt+P as the start/stop toggle."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+            ("Source", self.source_installer_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("Ctrl+Alt+P", text)
+                self.assertIn("Start/stop recording", text)
+                self.assertNotIn("Ctrl+Alt+L", text)
+                self.assertNotIn("Stop recording & transcribe", text)
+
     def test_installers_surface_model_download_errors(self):
         """Both installers must show and log the captured download failure detail."""
         for name, text in (
@@ -327,6 +345,31 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
                 self.assertIn("Detail:", text)
                 self.assertIn("LastDownloadDetail", text)
                 self.assertIn("Model download detail", text)
+
+    def test_installers_do_not_replace_errors_with_xet_warnings(self):
+        """Benign Hugging Face/Xet warning output must not hide structured errors."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("function IsDownloadWarning", text)
+                self.assertIn("xet storage is enabled", text)
+                self.assertIn("not IsDownloadWarning(Line)", text)
+                self.assertIn("LastDownloadDetail = ''", text)
+
+    def test_frozen_builds_include_hf_xet(self):
+        """Xet-backed Hugging Face model downloads need hf_xet in frozen builds."""
+        pyproject = _read("pyproject.toml")
+        self.assertIn("hf_xet>=", pyproject)
+        for name, spec_path in (
+            ("GPU", "speakeasy.spec"),
+            ("CPU", "speakeasy-cpu.spec"),
+        ):
+            with self.subTest(variant=name):
+                spec_text = _read(spec_path)
+                self.assertIn("collect_dynamic_libs('hf_xet')", spec_text)
+                self.assertIn("'hf_xet'", spec_text)
 
     def test_installers_require_config_for_ready_summary(self):
         """A partial granite directory must not be reported as model-ready."""
@@ -347,6 +390,27 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
                 self.assertIn("CheckModelDiskSpace", text)
                 self.assertIn("PSDrive", text)
                 self.assertIn("Not enough free disk space", text)
+
+    def test_installers_quote_model_download_paths(self):
+        """Model download paths contain spaces and must be quoted for Start-Process."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("CommandLineQuote(ModelsDir)", text)
+                self.assertIn("$argumentLine", text)
+                self.assertNotIn("Start-Process -FilePath $exe -ArgumentList $arguments", text)
+
+    def test_installers_recheck_existing_model_before_download(self):
+        """Upgrades may skip the dir page, so model detection must run at install time."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("function GraniteModelExists", text)
+                self.assertGreaterEqual(text.count("ModelExists := GraniteModelExists;"), 3)
 
     def test_model_download_copy_has_enough_height(self):
         """The wrapped model download text must not clip its final line."""

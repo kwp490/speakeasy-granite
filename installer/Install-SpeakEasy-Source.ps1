@@ -627,8 +627,7 @@ Write-Host "  To launch:      Double-click the desktop shortcut or run:"
 Write-Host ("    cd " + $InstallDir + "; uv run speakeasy")
 Write-Host ""
 Write-Host "  Default hotkeys:"
-Write-Host "    Ctrl+Alt+P   Start recording"
-Write-Host "    Ctrl+Alt+L   Stop recording & transcribe"
+Write-Host "    Ctrl+Alt+P   Start/stop recording"
 Write-Host "    Ctrl+Alt+Q   Quit application"
 Write-Host ""
 

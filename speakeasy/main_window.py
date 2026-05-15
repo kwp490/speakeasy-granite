@@ -334,6 +334,7 @@ class MainWindow(QMainWindow):
         self.setMinimumWidth(400)
         self.resize(475, 465)
         self._build_ui()
+        self._apply_content_height_resize()
         self._setup_logging()
         self._setup_timers()
         self._connect_hotkeys()
@@ -457,7 +458,7 @@ class MainWindow(QMainWindow):
 
         # ── Transcription Mode ───────────────────────────────────────────────
         transcription_section, transcription_layout = make_section_panel(
-            "Transcription Mode", central, icon_name="sparkles", collapsible=True,
+            "Transcription Mode", central, icon_name="sparkles", collapsible=True, expanded=False,
         )
         self._transcription_section_toggle = getattr(transcription_section, "_section_toggle")
         self._transcription_section_content = getattr(transcription_section, "_section_content")
@@ -488,7 +489,7 @@ class MainWindow(QMainWindow):
 
         # ── Automation ───────────────────────────────────────────────────────
         automation_section, automation_layout = make_section_panel(
-            "Automation", central, icon_name="keyboard", collapsible=True,
+            "Automation", central, icon_name="keyboard", collapsible=True, expanded=False,
         )
         self._automation_section_toggle = getattr(automation_section, "_section_toggle")
         self._automation_section_content = getattr(automation_section, "_section_content")

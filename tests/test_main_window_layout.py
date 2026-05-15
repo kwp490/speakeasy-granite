@@ -463,7 +463,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             self.assertEqual(win.minimumSize().width(), 400)
             self.assertLessEqual(layout.minimumSize().height(), 490)
             self.assertEqual(win.size().width(), 475)
-            self.assertEqual(win.size().height(), 465)
+            self.assertEqual(win.size().height(), 287)
             self.assertGreater(win.size().width(), win.size().height())
         finally:
             win.close()
@@ -518,8 +518,8 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         finally:
             win.close()
 
-    def test_main_sections_collapse_and_expand(self):
-        """Transcription Mode and Automation can be collapsed from their headers."""
+    def test_main_sections_start_collapsed_and_expand(self):
+        """Transcription Mode and Automation start collapsed and expand from their headers."""
         win = self._make_window()
         try:
             for toggle, content in (
@@ -527,16 +527,16 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
                 (win._automation_section_toggle, win._automation_section_content),
             ):
                 self.assertTrue(toggle.isCheckable())
-                self.assertTrue(toggle.isChecked())
-                self.assertFalse(content.isHidden())
-
-                toggle.click()
                 self.assertFalse(toggle.isChecked())
                 self.assertTrue(content.isHidden())
 
                 toggle.click()
                 self.assertTrue(toggle.isChecked())
                 self.assertFalse(content.isHidden())
+
+                toggle.click()
+                self.assertFalse(toggle.isChecked())
+                self.assertTrue(content.isHidden())
         finally:
             win.close()
 
@@ -546,26 +546,26 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         try:
             win.show()
             self._app.processEvents()
-            expanded_height = win.height()
-
-            win._automation_section_toggle.click()
-            self._app.processEvents()
-            automation_collapsed_height = win.height()
-            self.assertLess(automation_collapsed_height, expanded_height)
-
-            win._transcription_section_toggle.click()
-            self._app.processEvents()
-            both_collapsed_height = win.height()
-            self.assertLess(both_collapsed_height, automation_collapsed_height)
+            collapsed_height = win.height()
 
             win._automation_section_toggle.click()
             self._app.processEvents()
             automation_expanded_height = win.height()
-            self.assertGreater(automation_expanded_height, both_collapsed_height)
+            self.assertGreater(automation_expanded_height, collapsed_height)
 
             win._transcription_section_toggle.click()
             self._app.processEvents()
-            self.assertGreater(win.height(), automation_expanded_height)
+            both_expanded_height = win.height()
+            self.assertGreater(both_expanded_height, automation_expanded_height)
+
+            win._automation_section_toggle.click()
+            self._app.processEvents()
+            transcription_only_height = win.height()
+            self.assertLess(transcription_only_height, both_expanded_height)
+
+            win._transcription_section_toggle.click()
+            self._app.processEvents()
+            self.assertLess(win.height(), transcription_only_height)
         finally:
             win.close()
 

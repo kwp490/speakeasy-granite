@@ -23,6 +23,8 @@ _DEV_PANEL_PY = _REPO_ROOT / "speakeasy" / "developer_panel.py"
 _ASSETS_DIR = _REPO_ROOT / "speakeasy" / "assets"
 _GPU_SPEC = _REPO_ROOT / "speakeasy.spec"
 _CPU_SPEC = _REPO_ROOT / "speakeasy-cpu.spec"
+_GPU_INSTALLER = _REPO_ROOT / "installer" / "speakeasy-setup.iss"
+_CPU_INSTALLER = _REPO_ROOT / "installer" / "speakeasy-cpu-setup.iss"
 
 
 class TestAppIconExists(unittest.TestCase):
@@ -126,6 +128,22 @@ class TestAppUserModelID(unittest.TestCase):
             "SetCurrentProcessExplicitAppUserModelID must be called BEFORE "
             f"QApplication() (line {model_id_line} vs {qapp_construct_line})",
         )
+
+    def test_installer_shortcuts_use_process_app_user_model_id(self):
+        """Installed shortcuts must advertise the same AppUserModelID as the app."""
+        expected_define = f'#define MyAppUserModelID "{app_identity.APP_USER_MODEL_ID}"'
+        for installer_path in (_GPU_INSTALLER, _CPU_INSTALLER):
+            source = installer_path.read_text(encoding="utf-8")
+            self.assertIn(
+                expected_define,
+                source,
+                f"{installer_path.name} must define the same AppUserModelID as the app",
+            )
+            self.assertGreaterEqual(
+                source.count('AppUserModelID: "{#MyAppUserModelID}"'),
+                2,
+                f"{installer_path.name} must set AppUserModelID on desktop and Start Menu shortcuts",
+            )
 
 
 class TestWindowIconSetOnWindows(unittest.TestCase):

@@ -43,6 +43,13 @@ try:
 except Exception:
     pass
 
+# Hugging Face uses hf_xet for Xet-backed repos such as IBM Granite Speech.
+# Include it explicitly so frozen model downloads do not fall back to slower HTTP.
+try:
+    binaries += collect_dynamic_libs('hf_xet')
+except Exception:
+    pass
+
 a = Analysis(
     ['speakeasy/__main__.py'],
     pathex=[],
@@ -68,6 +75,7 @@ a = Analysis(
         'torch._strobelight.compile_time_profiler',
         'torchaudio',
         'huggingface_hub',
+        'hf_xet',
         'sentencepiece',
         'protobuf',
         'tokenizers',

@@ -5,6 +5,15 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - Model Download Reliability
+
+### Fixed
+- **Installer download errors** now preserve structured `SPEAKEASY_PROGRESS` error details instead of replacing them with benign Hugging Face/Xet fallback warnings
+- **Xet-backed model downloads** now include `hf_xet` as a runtime dependency and frozen-build import so IBM Granite Speech downloads use Hugging Face's preferred transport
+
+### Changed
+- **Version metadata** updated across the Python package and both installer variants for the 0.14.1 release
+
 ## [0.14.0] - Installer Progress & Download Preflight
 
 ### Added

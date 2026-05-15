@@ -105,13 +105,25 @@ function Write-ProcessOutput {
     }
 }
 
+function Test-DownloadWarningLine {
+    param([string]$Line)
+
+    if ([string]::IsNullOrWhiteSpace($Line)) { return $false }
+    $lowerLine = $Line.ToLowerInvariant()
+    return (
+        $lowerLine.Contains('xet storage is enabled') -or
+        $lowerLine.Contains('falling back to regular http download') -or
+        $lowerLine.Contains('for better performance, install')
+    )
+}
+
 function Get-LastNonEmptyLine {
     param([string]$Path)
 
     if (-not (Test-Path $Path)) { return '' }
     $lines = @(Get-Content $Path -ErrorAction SilentlyContinue)
     for ($i = $lines.Count - 1; $i -ge 0; $i--) {
-        if (-not [string]::IsNullOrWhiteSpace($lines[$i])) {
+        if ((-not [string]::IsNullOrWhiteSpace($lines[$i])) -and (-not (Test-DownloadWarningLine -Line $lines[$i]))) {
             return [string]$lines[$i]
         }
     }
@@ -145,6 +157,19 @@ function Get-DownloadDetail {
     return Get-LastNonEmptyLine -Path $StdoutPath
 }
 
+function Join-NativeArgumentList {
+    param([string[]]$Arguments)
+
+    return ($Arguments | ForEach-Object {
+        $value = [string]$_
+        if ($value -match '[\s"]') {
+            '"' + ($value -replace '"', '\"') + '"'
+        } else {
+            $value
+        }
+    }) -join ' '
+}
+
 function Start-Download {
     while ($true) {
         Write-Host ''
@@ -153,16 +178,17 @@ function Start-Download {
         try {
             $arguments = @('download-model', '--progress-format', 'jsonl')
             if ($TargetDir) {
-                $arguments += @('--target-dir', "`"$TargetDir`"")
+                $arguments += @('--target-dir', $TargetDir)
             }
 
             $tmpOut = [System.IO.Path]::GetTempFileName()
             $tmpErr = [System.IO.Path]::GetTempFileName()
             $tmpProgress = [System.IO.Path]::GetTempFileName()
-            $arguments += @('--progress-file', "`"$tmpProgress`"")
+            $arguments += @('--progress-file', $tmpProgress)
+            $argumentLine = Join-NativeArgumentList -Arguments $arguments
 
             $process = Start-Process -FilePath $Exe `
-                -ArgumentList $arguments `
+                -ArgumentList $argumentLine `
                 -PassThru -NoNewWindow `
                 -RedirectStandardOutput $tmpOut `
                 -RedirectStandardError  $tmpErr
