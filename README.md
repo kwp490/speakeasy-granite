@@ -56,11 +56,11 @@ The values below are representative public benchmark results and should be treat
 
 | Model | WER: lower is better | Roughly means | Notes |
 | --- | ---: | --- | --- |
-| SpeakEasy AI Granite | 5.33% | About 5 word errors per 100 spoken words | The local model used by this app. |
-| Whisper | Approx. 7-10% | About 7-10 word errors per 100 spoken words | Popular general-purpose speech-to-text baseline. |
-| NVIDIA NeMo / Nemotron speech models | Approx. 6-12% | About 6-12 word errors per 100 spoken words | NVIDIA speech-to-text models; accuracy varies by version. |
-| NVIDIA Canary | Approx. 6-8% | About 6-8 word errors per 100 spoken words | NVIDIA model family with multilingual support. |
-| Qwen 3 ASR | Approx. 6-9% | About 6-9 word errors per 100 spoken words | Recent speech-to-text model family. |
+| SpeakEasy AI Granite | 5.33% | 5 word errors per 100 spoken words | The local model used by this app. |
+| Whisper | ~7-10% | 7-10 word errors per 100 spoken words | Popular general-purpose speech-to-text baseline. |
+| NVIDIA NeMo / Nemotron speech models | 6-12% | About 6-12 word errors per 100 spoken words | NVIDIA speech-to-text models; accuracy varies by version. |
+| NVIDIA Canary | ~6-8% | 6-8 word errors per 100 spoken words | NVIDIA model family with multilingual support. |
+| Qwen 3 ASR | ~6-9% | 6-9 word errors per 100 spoken words | Recent speech-to-text model family. |
 
 Live benchmark source: https://huggingface.co/datasets/hf-audio/open-asr-leaderboard
 
