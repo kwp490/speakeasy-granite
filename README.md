@@ -1,8 +1,6 @@
 # SpeakEasy AI Granite: Highest-Accuracy Local Dictation for Windows
 
-SpeakEasy AI Granite is a native Windows speech-to-text application built around IBM Granite Speech 4.1 2B, one of the strongest open ASR models currently available. It is designed for accurate real-world dictation, reliable local processing, and fast handoff into the application you are already using.
-
-SpeakEasy records a completed utterance, transcribes it locally, copies the final text to the clipboard, and can paste it directly into the active application.
+SpeakEasy AI Granite lets you dictate text anywhere on your Windows PC, completely privately. There's no cloud, no account, and nothing leaves your computer. Just press Ctrl+Alt+P, say what you want to say, press Ctrl+Alt+P again, and your words appear in whatever you were typing. It runs on IBM Granite Speech, currently the top-ranked open speech recognition model available.
 
 ## Screenshots
 
@@ -56,12 +54,12 @@ The values below are representative public benchmark results and should be treat
 
 | Model | WER: lower is better | Roughly means | Notes |
 | --- | ---: | --- | --- |
-| SpeakEasy AI Granite | 5.33% | 4-6 word errors per 100 spoken words | The local model used by this app. |
+| SpeakEasy AI Granite | 5.33 | 4-6 word errors per 100 spoken words | The local model used by this app. |
 | Cohere | 5.42 | 4-6 word errors per 100 spoken words | 2nd best open model. Previously used by this app. |
 | NVIDIA Canary | 5.63 | 6-8 word errors per 100 spoken words | NVIDIA model family with multilingual support. |
 | Qwen 3 ASR | 5.76 | 6-9 word errors per 100 spoken words | Recent speech-to-text model family. |
 
-The Open ASR Leaderboard: https://huggingface.co/datasets/hf-audio/open-asr-leaderboard, tracks benchmark performance across multiple speech-recognition datasets, including clean read speech, meetings, talks, earnings calls, and other real-world audio domains.
+The Open ASR Leaderboard, https://huggingface.co/datasets/hf-audio/open-asr-leaderboard, tracks benchmark performance across multiple speech-recognition datasets, including clean read speech, meetings, talks, earnings calls, and other real-world audio domains.
 
 ## Features
 
