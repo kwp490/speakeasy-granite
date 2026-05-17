@@ -29,7 +29,7 @@ The current public test build is available from the [v0.14.1 GitHub release](htt
 
 | Installer | Best for | Download | Size |
 | --- | --- | --- | ---: |
-| GPU installer | Windows 10/11 systems with an NVIDIA GPU and enough VRAM for faster local transcription. | [SpeakEasy-AI-Granite-Setup-0.14.1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.1/SpeakEasy-AI-Granite-Setup-0.14.1.exe) | 1.87 GB |
+| GPU+CPU installer | Windows 10/11 systems with an NVIDIA GPU and >= 8GB VRAM for fast, local transcription. | [SpeakEasy-AI-Granite-Setup-0.14.1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.1/SpeakEasy-AI-Granite-Setup-0.14.1.exe) | 1.87 GB |
 | CPU installer | Windows 10/11 systems without NVIDIA CUDA support; slower but does not require a dedicated NVIDIA GPU. | [SpeakEasy-AI-Granite-CPU-Setup-0.14.1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.1/SpeakEasy-AI-Granite-CPU-Setup-0.14.1.exe) | 202 MB |
 
 **Important:** Windows SmartScreen will show a red "Windows protected your PC" warning when you open the installer because this test build has not yet received a SmartScreen exception. If you trust this release, choose **More info**, then **Run anyway** to continue.
