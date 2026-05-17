@@ -9,26 +9,60 @@ import importlib
 import os
 import sys
 import tempfile
+import json
 from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from speakeasy.engine import _model_files_exist, get_available_engines
-from speakeasy.model_downloader import _ENGINE_REPO_MAP, model_ready
+from speakeasy.model_downloader import GRANITE_REQUIRED_FILES, _ENGINE_REPO_MAP, model_ready
+
+
+def _write_complete_granite_model(model_root: str | Path) -> Path:
+    granite_dir = Path(model_root) / "granite"
+    granite_dir.mkdir(parents=True, exist_ok=True)
+    for filename in GRANITE_REQUIRED_FILES:
+        path = granite_dir / filename
+        if filename == "model.safetensors.index.json":
+            path.write_text(
+                json.dumps(
+                    {
+                        "weight_map": {
+                            "layer.0": "model-00001-of-00003.safetensors",
+                            "layer.1": "model-00002-of-00003.safetensors",
+                            "layer.2": "model-00003-of-00003.safetensors",
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+        elif filename.endswith(".json"):
+            path.write_text("{}", encoding="utf-8")
+        else:
+            path.write_text("x", encoding="utf-8")
+    for shard_name in (
+        "model-00001-of-00003.safetensors",
+        "model-00002-of-00003.safetensors",
+        "model-00003-of-00003.safetensors",
+    ):
+        (granite_dir / shard_name).write_bytes(b"weights")
+    return granite_dir
+
+
+def _health(ready: bool):
+    return SimpleNamespace(ready=ready, summary=lambda: "Granite model test health")
 
 
 class TestModelReadyAndModelFilesExistAgree(unittest.TestCase):
     """``model_ready()`` and ``_model_files_exist()`` must return the same
     result for every engine in ``_ENGINE_REPO_MAP``."""
 
-    def test_both_true_when_config_present(self):
+    def test_both_true_when_model_health_passes(self):
         for engine_name in _ENGINE_REPO_MAP:
             with tempfile.TemporaryDirectory() as d:
-                engine_dir = os.path.join(d, engine_name)
-                os.makedirs(engine_dir)
-                with open(os.path.join(engine_dir, "config.json"), "w") as f:
-                    f.write("{}")
+                self.assertEqual(engine_name, "granite")
+                _write_complete_granite_model(d)
                 self.assertTrue(
                     model_ready(engine_name, d),
                     f"model_ready should be True for {engine_name}",
@@ -62,12 +96,16 @@ class TestAvailableEnginesReflectsModelPresence(unittest.TestCase):
 
     def test_granite_listed_when_present(self):
         with tempfile.TemporaryDirectory() as d:
-            granite_dir = os.path.join(d, "granite")
-            os.makedirs(granite_dir)
-            with open(os.path.join(granite_dir, "config.json"), "w") as f:
-                f.write("{}")
+            _write_complete_granite_model(d)
             available = get_available_engines(d)
             self.assertIn("granite", available)
+
+    def test_granite_missing_when_tokenizer_files_missing(self):
+        with tempfile.TemporaryDirectory() as d:
+            granite_dir = Path(d) / "granite"
+            granite_dir.mkdir()
+            (granite_dir / "config.json").write_text("{}", encoding="utf-8")
+            self.assertNotIn("granite", get_available_engines(d))
 
     def test_granite_missing_when_no_config(self):
         with tempfile.TemporaryDirectory() as d:
@@ -122,7 +160,7 @@ class TestStartupModelSetup(unittest.TestCase):
         settings = SimpleNamespace(model_path=r"C:\Models")
 
         with mock.patch.object(app_main.sys, "frozen", False, create=True):
-            with mock.patch("speakeasy.model_downloader.model_ready", return_value=False):
+            with mock.patch("speakeasy.model_downloader.model_health", return_value=_health(False)):
                 with mock.patch("speakeasy.model_downloader.launch_granite_setup_script") as launch:
                     self.assertTrue(app_main._ensure_startup_model_ready(settings))
 
@@ -136,8 +174,8 @@ class TestStartupModelSetup(unittest.TestCase):
 
         with mock.patch.object(app_main.sys, "frozen", True, create=True):
             with mock.patch(
-                "speakeasy.model_downloader.model_ready",
-                side_effect=[False, True],
+                "speakeasy.model_downloader.model_health",
+                side_effect=[_health(False), _health(True)],
             ):
                 with mock.patch(
                     "speakeasy.model_downloader.launch_granite_setup_script",
@@ -162,7 +200,7 @@ class TestStartupModelSetup(unittest.TestCase):
         settings = SimpleNamespace(model_path=r"C:\Models")
 
         with mock.patch.object(app_main.sys, "frozen", True, create=True):
-            with mock.patch("speakeasy.model_downloader.model_ready", return_value=False):
+            with mock.patch("speakeasy.model_downloader.model_health", return_value=_health(False)):
                 with mock.patch(
                     "speakeasy.model_downloader.launch_granite_setup_script",
                     side_effect=FileNotFoundError,

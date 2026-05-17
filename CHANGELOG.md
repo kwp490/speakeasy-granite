@@ -5,6 +5,16 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2] - Model Health Repair
+
+### Fixed
+- **Model health checks** now require Granite tokenizer/config artifacts and safetensors shards instead of treating `config.json` alone as ready
+- **Installer repair flow** now detects partial ProgramData model snapshots and reruns the downloader instead of preserving an unusable model folder
+- **App startup prompts** now describe missing or incomplete model health and guide users through download/repair before loading Granite
+
+### Changed
+- **Version metadata** updated across the Python package and both installer variants for the 0.14.2 release
+
 ## [0.14.1] - Model Download Reliability
 
 ### Fixed

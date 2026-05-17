@@ -371,14 +371,20 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
                 self.assertIn("collect_dynamic_libs('hf_xet')", spec_text)
                 self.assertIn("'hf_xet'", spec_text)
 
-    def test_installers_require_config_for_ready_summary(self):
+    def test_installers_require_full_model_health_for_ready_summary(self):
         """A partial granite directory must not be reported as model-ready."""
         for name, text in (
             ("GPU", self.iss_text),
             ("CPU", self.cpu_iss_text),
         ):
             with self.subTest(installer=name):
-                self.assertIn("FileExists(ModelsDir + '\\granite\\config.json')", text)
+                self.assertIn("ModelExists := GraniteModelExists;", text)
+                self.assertIn("tokenizer.json", text)
+                self.assertIn("tokenizer_config.json", text)
+                self.assertIn("special_tokens_map.json", text)
+                self.assertIn("vocab.json", text)
+                self.assertIn("model-00003-of-00003.safetensors", text)
+                self.assertIn("health check failed", text)
 
     def test_installers_preflight_model_disk_space(self):
         """Both installers must check free disk space before model download."""

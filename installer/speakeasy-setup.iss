@@ -17,7 +17,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.14.1"
+#define MyAppVersion "0.14.2"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"
@@ -294,7 +294,7 @@ begin
   ModelFoundHeader.Parent := TokenPage.Surface;
   ModelFoundHeader.Left := 0;  ModelFoundHeader.Top := TopPos;
   ModelFoundHeader.Width := TokenPage.SurfaceWidth;
-  ModelFoundHeader.Caption := #$2713 + '  IBM Granite Speech model already installed';
+  ModelFoundHeader.Caption := #$2713 + '  IBM Granite Speech model passed health check';
   ModelFoundHeader.Font.Style := [fsBold];  ModelFoundHeader.Font.Size := 10;
   ModelFoundHeader.Font.Color := clGreen;
   ModelFoundHeader.Visible := False;
@@ -305,7 +305,7 @@ begin
   ModelFoundNote.Left := ScaleX(8);  ModelFoundNote.Top := TopPos;
   ModelFoundNote.Width := TokenPage.SurfaceWidth - ScaleX(16);
   ModelFoundNote.AutoSize := False;  ModelFoundNote.WordWrap := True;  ModelFoundNote.Height := ScaleY(72);
-  ModelFoundNote.Caption := 'The IBM Granite Speech model was found in your existing installation.' + #13#10 + #13#10 +
+  ModelFoundNote.Caption := 'The IBM Granite Speech model and tokenizer files were found in your existing installation.' + #13#10 + #13#10 +
                  'The model will be preserved during this upgrade — no download is needed.' + #13#10 +
                  'Click Next to continue.';
   ModelFoundNote.Font.Color := $808080;
@@ -483,7 +483,21 @@ var
   GraniteDir: String;
 begin
   GraniteDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models\granite';
-  Result := DirExists(GraniteDir) and FileExists(GraniteDir + '\config.json');
+  Result := DirExists(GraniteDir) and
+            FileExists(GraniteDir + '\config.json') and
+            FileExists(GraniteDir + '\processor_config.json') and
+            FileExists(GraniteDir + '\preprocessor_config.json') and
+            FileExists(GraniteDir + '\tokenizer.json') and
+            FileExists(GraniteDir + '\tokenizer_config.json') and
+            FileExists(GraniteDir + '\special_tokens_map.json') and
+            FileExists(GraniteDir + '\vocab.json') and
+            FileExists(GraniteDir + '\merges.txt') and
+            FileExists(GraniteDir + '\added_tokens.json') and
+            FileExists(GraniteDir + '\chat_template.jinja') and
+            FileExists(GraniteDir + '\model.safetensors.index.json') and
+            FileExists(GraniteDir + '\model-00001-of-00003.safetensors') and
+            FileExists(GraniteDir + '\model-00002-of-00003.safetensors') and
+            FileExists(GraniteDir + '\model-00003-of-00003.safetensors');
 end;
 
 function CheckModelDiskSpace(ModelsDir: String): Boolean;
@@ -779,10 +793,11 @@ begin
     Summary := Summary + 'INSTALL LOCATION' + #13#10;
     Summary := Summary + '  ' + InstDir + #13#10 + #13#10;
     Summary := Summary + 'MODEL STATUS' + #13#10;
-    if FileExists(ModelsDir + '\granite\config.json') then
+    ModelExists := GraniteModelExists;
+    if ModelExists then
       Summary := Summary + '  [OK] IBM Granite Speech — ready' + #13#10
     else
-      Summary := Summary + '  [!!] IBM Granite Speech — download failed (run granite-model-setup.ps1)' + #13#10;
+      Summary := Summary + '  [!!] IBM Granite Speech — health check failed (run granite-model-setup.ps1)' + #13#10;
     Summary := Summary + #13#10;
     Summary := Summary + 'SHORTCUTS' + #13#10;
     Summary := Summary + '  Desktop shortcut created' + #13#10;

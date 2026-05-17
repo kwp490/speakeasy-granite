@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Dict, Type
 
 log = logging.getLogger(__name__)
@@ -22,10 +21,8 @@ except ImportError:
 
 def _model_files_exist(engine_name: str, model_path: str) -> bool:
     """Return True if the model files for *engine_name* are present on disk."""
-    engine_dir = os.path.join(model_path, engine_name)
-    return os.path.isdir(engine_dir) and os.path.isfile(
-        os.path.join(engine_dir, "config.json")
-    )
+    from speakeasy.model_downloader import model_ready
+    return model_ready(engine_name, model_path)
 
 
 def get_available_engines(model_path: str) -> list:

@@ -32,8 +32,26 @@ ProgressFormat = Literal["text", "jsonl", "none"]
 
 GRANITE_REPO_ID = "ibm-granite/granite-speech-4.1-2b"
 
+GRANITE_REQUIRED_FILES = (
+    "config.json",
+    "processor_config.json",
+    "preprocessor_config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "vocab.json",
+    "merges.txt",
+    "added_tokens.json",
+    "chat_template.jinja",
+    "model.safetensors.index.json",
+)
+
 _ENGINE_REPO_MAP = {
     "granite": GRANITE_REPO_ID,
+}
+
+_MODEL_REQUIRED_FILES = {
+    "granite": GRANITE_REQUIRED_FILES,
 }
 
 
@@ -47,6 +65,31 @@ class DownloadProgress:
     downloaded_bytes: int | None = None
     total_bytes: int | None = None
     label: str | None = None
+
+
+@dataclass(frozen=True)
+class ModelHealth:
+    """Lightweight on-disk health report for a downloaded model."""
+
+    engine_name: str
+    model_path: str
+    engine_dir: str
+    missing_files: tuple[str, ...] = ()
+    invalid_files: tuple[str, ...] = ()
+
+    @property
+    def ready(self) -> bool:
+        return not self.missing_files and not self.invalid_files
+
+    def summary(self) -> str:
+        if self.ready:
+            return f"{self.engine_name.capitalize()} model is ready."
+        parts: list[str] = []
+        if self.missing_files:
+            parts.append("missing " + ", ".join(self.missing_files))
+        if self.invalid_files:
+            parts.append("invalid " + ", ".join(self.invalid_files))
+        return f"{self.engine_name.capitalize()} model is incomplete: " + "; ".join(parts)
 
 
 ProgressCallback = Callable[[DownloadProgress], None]
@@ -91,6 +134,109 @@ def _check_disk_space(target_dir: str) -> tuple[bool, int | None, int]:
     except OSError:
         return True, None, MODEL_DOWNLOAD_MIN_FREE_BYTES
     return usage.free >= MODEL_DOWNLOAD_MIN_FREE_BYTES, usage.free, MODEL_DOWNLOAD_MIN_FREE_BYTES
+
+
+def _file_is_nonempty(path: Path) -> bool:
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def _json_file_is_valid(path: Path) -> bool:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            json.load(handle)
+        return True
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return False
+
+
+def _safe_index_reference(name: str) -> bool:
+    ref_path = Path(name)
+    return not ref_path.is_absolute() and ".." not in ref_path.parts
+
+
+def model_health(engine_name: str, model_path: str) -> ModelHealth:
+    """Return a lightweight health report for local model artifacts."""
+    engine_dir = Path(model_path) / engine_name
+    required_files = _MODEL_REQUIRED_FILES.get(engine_name)
+    if required_files is None:
+        return ModelHealth(
+            engine_name=engine_name,
+            model_path=model_path,
+            engine_dir=str(engine_dir),
+            invalid_files=(f"unsupported engine '{engine_name}'",),
+        )
+
+    if not engine_dir.is_dir():
+        return ModelHealth(
+            engine_name=engine_name,
+            model_path=model_path,
+            engine_dir=str(engine_dir),
+            missing_files=(f"{engine_name}/",),
+        )
+
+    missing: set[str] = set()
+    invalid: set[str] = set()
+    for filename in required_files:
+        file_path = engine_dir / filename
+        if not file_path.is_file():
+            missing.add(filename)
+        elif not _file_is_nonempty(file_path):
+            invalid.add(filename)
+        elif filename.endswith(".json") and not _json_file_is_valid(file_path):
+            invalid.add(filename)
+
+    index_path = engine_dir / "model.safetensors.index.json"
+    if index_path.is_file() and "model.safetensors.index.json" not in invalid:
+        try:
+            with index_path.open("r", encoding="utf-8") as handle:
+                index_payload = json.load(handle)
+            weight_map = index_payload.get("weight_map")
+            if not isinstance(weight_map, dict) or not weight_map:
+                invalid.add("model.safetensors.index.json")
+            else:
+                for shard_name in sorted(set(str(name) for name in weight_map.values())):
+                    if not _safe_index_reference(shard_name):
+                        invalid.add("model.safetensors.index.json")
+                        continue
+                    shard_path = engine_dir / shard_name
+                    if not shard_path.is_file():
+                        missing.add(shard_name)
+                    elif not _file_is_nonempty(shard_path):
+                        invalid.add(shard_name)
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            invalid.add("model.safetensors.index.json")
+
+    return ModelHealth(
+        engine_name=engine_name,
+        model_path=model_path,
+        engine_dir=str(engine_dir),
+        missing_files=tuple(sorted(missing)),
+        invalid_files=tuple(sorted(invalid)),
+    )
+
+
+def _remove_invalid_model_files(health: ModelHealth) -> None:
+    """Remove damaged required files so snapshot_download can replace them."""
+    engine_dir = Path(health.engine_dir)
+    for filename in health.invalid_files:
+        if filename.startswith("unsupported engine") or not _safe_index_reference(filename):
+            continue
+        try:
+            path = engine_dir / filename
+            if path.is_file():
+                path.unlink()
+        except OSError:
+            log.warning("Could not remove invalid model file: %s", filename, exc_info=True)
+
+
+def _model_dir_has_files(path: str) -> bool:
+    try:
+        return any(Path(path).iterdir())
+    except OSError:
+        return False
 
 
 class _ProgressReporter:
@@ -232,6 +378,29 @@ def launch_granite_setup_script(
     if script is None:
         raise FileNotFoundError("granite-model-setup.ps1 was not found")
 
+    @dataclass(frozen=True)
+    class ModelHealth:
+        """Lightweight on-disk health report for a downloaded model."""
+
+        engine_name: str
+        model_path: str
+        engine_dir: str
+        missing_files: tuple[str, ...] = ()
+        invalid_files: tuple[str, ...] = ()
+
+        @property
+        def ready(self) -> bool:
+            return not self.missing_files and not self.invalid_files
+
+        def summary(self) -> str:
+            if self.ready:
+                return f"{self.engine_name.capitalize()} model is ready."
+            parts: list[str] = []
+            if self.missing_files:
+                parts.append("missing " + ", ".join(self.missing_files))
+            if self.invalid_files:
+                parts.append("invalid " + ", ".join(self.invalid_files))
+            return f"{self.engine_name.capitalize()} model is incomplete: " + "; ".join(parts)
     verb = "runas" if require_elevation else "open"
     args = f'-NoProfile -ExecutionPolicy Bypass -File "{script}"'
     if target_dir:
@@ -394,7 +563,8 @@ def download_model(
     if check_only:
         return _run_download_preflight(engine_name, target_dir, reporter)
 
-    if model_ready(engine_name, model_path):
+    health = model_health(engine_name, model_path)
+    if health.ready:
         reporter.emit(
             DownloadProgress(
                 phase="already_present",
@@ -407,6 +577,16 @@ def download_model(
             force=True,
         )
         return EXIT_SUCCESS
+
+    if (health.missing_files or health.invalid_files) and _model_dir_has_files(target_dir):
+        reporter.emit(
+            DownloadProgress(
+                phase="repairing",
+                message=health.summary() + "; repairing from HuggingFace.",
+            ),
+            force=True,
+        )
+        _remove_invalid_model_files(health)
 
     has_space, free_bytes, required_bytes = _check_disk_space(target_dir)
     if free_bytes is None:
@@ -523,14 +703,15 @@ def download_model(
             force=True,
         )
         # Verify the download actually produced usable model files
-        if not model_ready(engine_name, model_path):
+        health = model_health(engine_name, model_path)
+        if not health.ready:
             log.error("Model verification failed after download: %s", target_dir)
             reporter.emit(
                 DownloadProgress(
                     phase="error",
                     message=(
                         "ERROR: Download appeared to succeed but model files are "
-                        f"incomplete in {target_dir}."
+                        f"incomplete in {target_dir}. {health.summary()}"
                     ),
                 ),
                 force=True,
@@ -584,8 +765,5 @@ def download_model(
 
 
 def model_ready(engine_name: str, model_path: str) -> bool:
-    """Return True if the model files for *engine_name* exist."""
-    engine_dir = os.path.join(model_path, engine_name)
-    return os.path.isdir(engine_dir) and os.path.isfile(
-        os.path.join(engine_dir, "config.json")
-    )
+    """Return True if the model files for *engine_name* pass health checks."""
+    return model_health(engine_name, model_path).ready

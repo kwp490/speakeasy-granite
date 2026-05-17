@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 from speakeasy.model_downloader import (
     GRANITE_REPO_ID,
+    GRANITE_REQUIRED_FILES,
     EXIT_AUTH_REQUIRED,
     EXIT_FAILURE,
     EXIT_SUCCESS,
@@ -20,8 +21,40 @@ from speakeasy.model_downloader import (
     DownloadProgress,
     download_model,
     launch_granite_setup_script,
+    model_health,
     model_ready,
 )
+
+
+def _write_complete_granite_model(model_root: str | Path) -> Path:
+    engine_dir = Path(model_root) / "granite"
+    engine_dir.mkdir(parents=True, exist_ok=True)
+    for filename in GRANITE_REQUIRED_FILES:
+        path = engine_dir / filename
+        if filename == "model.safetensors.index.json":
+            path.write_text(
+                json.dumps(
+                    {
+                        "weight_map": {
+                            "layer.0": "model-00001-of-00003.safetensors",
+                            "layer.1": "model-00002-of-00003.safetensors",
+                            "layer.2": "model-00003-of-00003.safetensors",
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+        elif filename.endswith(".json"):
+            path.write_text("{}", encoding="utf-8")
+        else:
+            path.write_text("x", encoding="utf-8")
+    for shard_name in (
+        "model-00001-of-00003.safetensors",
+        "model-00002-of-00003.safetensors",
+        "model-00003-of-00003.safetensors",
+    ):
+        (engine_dir / shard_name).write_bytes(b"weights")
+    return engine_dir
 
 
 class TestModelConstants(unittest.TestCase):
@@ -40,13 +73,24 @@ class TestModelConstants(unittest.TestCase):
 class TestModelReady(unittest.TestCase):
     """model_ready must correctly detect present/absent models."""
 
-    def test_ready_when_config_exists(self):
+    def test_not_ready_when_only_config_exists(self):
         with tempfile.TemporaryDirectory() as d:
             engine_dir = os.path.join(d, "granite")
             os.makedirs(engine_dir)
             with open(os.path.join(engine_dir, "config.json"), "w") as f:
                 f.write("{}")
-            self.assertTrue(model_ready("granite", d))
+            self.assertFalse(model_ready("granite", d))
+
+    def test_reports_missing_tokenizer_files(self):
+        with tempfile.TemporaryDirectory() as d:
+            engine_dir = Path(d) / "granite"
+            engine_dir.mkdir()
+            (engine_dir / "config.json").write_text("{}", encoding="utf-8")
+            health = model_health("granite", d)
+            self.assertFalse(health.ready)
+            self.assertIn("tokenizer.json", health.missing_files)
+            self.assertIn("tokenizer_config.json", health.missing_files)
+            self.assertIn("vocab.json", health.missing_files)
 
     def test_not_ready_when_no_dir(self):
         with tempfile.TemporaryDirectory() as d:
@@ -59,10 +103,7 @@ class TestModelReady(unittest.TestCase):
 
     def test_ready_for_granite(self):
         with tempfile.TemporaryDirectory() as d:
-            engine_dir = os.path.join(d, "granite")
-            os.makedirs(engine_dir)
-            with open(os.path.join(engine_dir, "config.json"), "w") as f:
-                f.write("{}")
+            _write_complete_granite_model(d)
             self.assertTrue(model_ready("granite", d))
 
 
@@ -117,10 +158,7 @@ class TestDownloadModelExitCodes(unittest.TestCase):
 
     def test_already_downloaded_returns_success(self):
         with tempfile.TemporaryDirectory() as d:
-            engine_dir = os.path.join(d, "granite")
-            os.makedirs(engine_dir)
-            with open(os.path.join(engine_dir, "config.json"), "w") as f:
-                f.write("{}")
+            _write_complete_granite_model(d)
             self.assertEqual(download_model("granite", d), EXIT_SUCCESS)
 
     def test_gated_repo_returns_auth_required(self):
@@ -172,9 +210,7 @@ class TestDownloadProgress(unittest.TestCase):
 
     def test_jsonl_progress_for_already_present_model(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
-            engine_dir = Path(temporary_dir) / "granite"
-            engine_dir.mkdir()
-            (engine_dir / "config.json").write_text("{}")
+            _write_complete_granite_model(temporary_dir)
 
             stdout = io.StringIO()
             with patch("sys.stdout", stdout):
@@ -201,8 +237,7 @@ class TestDownloadProgress(unittest.TestCase):
 
         def fake_snapshot_download(**kwargs):
             target_dir = Path(kwargs["local_dir"])
-            target_dir.mkdir(parents=True, exist_ok=True)
-            (target_dir / "config.json").write_text("{}")
+            _write_complete_granite_model(target_dir.parent)
             return str(target_dir)
 
         mock_hf.snapshot_download.side_effect = fake_snapshot_download
@@ -222,6 +257,33 @@ class TestDownloadProgress(unittest.TestCase):
             ["checking", "preflight", "downloading", "verifying", "complete"],
         )
         self.assertEqual(events[-1].percent, 100)
+
+    def test_partial_model_is_repaired_instead_of_skipped(self):
+        mock_hf = MagicMock()
+
+        def fake_snapshot_download(**kwargs):
+            target_dir = Path(kwargs["local_dir"])
+            _write_complete_granite_model(target_dir.parent)
+            return str(target_dir)
+
+        mock_hf.snapshot_download.side_effect = fake_snapshot_download
+        events: list[DownloadProgress] = []
+        with patch.dict("sys.modules", {"huggingface_hub": mock_hf}):
+            with tempfile.TemporaryDirectory() as temporary_dir:
+                engine_dir = Path(temporary_dir) / "granite"
+                engine_dir.mkdir()
+                (engine_dir / "config.json").write_text("{}", encoding="utf-8")
+
+                result = download_model(
+                    "granite",
+                    temporary_dir,
+                    progress_callback=events.append,
+                    progress_format="none",
+                )
+
+        self.assertEqual(result, EXIT_SUCCESS)
+        self.assertEqual(mock_hf.snapshot_download.call_count, 1)
+        self.assertIn("repairing", [event.phase for event in events])
 
     def test_insufficient_disk_space_returns_failure_before_download(self):
         mock_hf = MagicMock()
@@ -246,9 +308,7 @@ class TestDownloadProgress(unittest.TestCase):
 
     def test_progress_format_none_suppresses_stdout(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
-            engine_dir = Path(temporary_dir) / "granite"
-            engine_dir.mkdir()
-            (engine_dir / "config.json").write_text("{}")
+            _write_complete_granite_model(temporary_dir)
 
             stdout = io.StringIO()
             with patch("sys.stdout", stdout):
@@ -263,9 +323,7 @@ class TestDownloadProgress(unittest.TestCase):
 
     def test_progress_file_receives_jsonl_when_stdout_suppressed(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
-            engine_dir = Path(temporary_dir) / "granite"
-            engine_dir.mkdir()
-            (engine_dir / "config.json").write_text("{}")
+            _write_complete_granite_model(temporary_dir)
             progress_file = Path(temporary_dir) / "progress.jsonl"
 
             stdout = io.StringIO()
@@ -331,8 +389,7 @@ class TestDownloadProgress(unittest.TestCase):
             if attempts["count"] < 3:
                 raise Exception("ConnectionError: timeout")
             target_dir = Path(kwargs["local_dir"])
-            target_dir.mkdir(parents=True, exist_ok=True)
-            (target_dir / "config.json").write_text("{}")
+            _write_complete_granite_model(target_dir.parent)
             return str(target_dir)
 
         mock_hf.snapshot_download.side_effect = flaky_snapshot_download

@@ -175,22 +175,28 @@ def _ensure_startup_model_ready(settings) -> bool:
     from speakeasy.model_downloader import (
         get_granite_setup_script_candidates,
         launch_granite_setup_script,
-        model_ready,
+        model_health,
     )
 
-    if model_ready("granite", settings.model_path):
+    health = model_health("granite", settings.model_path)
+    if health.ready:
         return True
 
     log = logging.getLogger("speakeasy")
     if not getattr(sys, "frozen", False):
         log.warning(
-            "Granite model not found at %s; the app will prompt for setup",
+            "Granite model is not ready at %s: %s; the app will prompt for setup",
             settings.model_path,
+            health.summary(),
         )
         return True
 
     model_dir = os.path.join(settings.model_path, "granite")
-    log.error("Granite model not found at %s (frozen build)", settings.model_path)
+    log.error(
+        "Granite model is not ready at %s (frozen build): %s",
+        settings.model_path,
+        health.summary(),
+    )
 
     try:
         launch_result = launch_granite_setup_script(target_dir=settings.model_path)
@@ -237,15 +243,17 @@ def _ensure_startup_model_ready(settings) -> bool:
     if confirm == QMessageBox.StandardButton.Cancel:
         return False
 
-    if model_ready("granite", settings.model_path):
+    health = model_health("granite", settings.model_path)
+    if health.ready:
         log.info("Granite model detected after startup setup")
         return True
 
     QMessageBox.warning(
         None,
         "SpeakEasy AI Granite — Model Missing",
-        "The Granite model was not detected after setup.\n\n"
+        "The Granite model still looks incomplete after setup.\n\n"
         f"Expected model directory:\n  {model_dir}\n\n"
+        f"Health check:\n  {health.summary()}\n\n"
         "You can rerun the setup from the Start Menu or the install directory.",
     )
     return False

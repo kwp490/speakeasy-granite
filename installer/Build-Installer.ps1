@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Build, test, and launch SpeakEasy AI -- all-in-one build and development tool.
 
@@ -1141,12 +1141,24 @@ if ($Mode -eq 'Release') {
 
     # -- Verify Granite model is present ---------------------------------------
     $programData = if ($env:ProgramData) { $env:ProgramData } else { 'C:\ProgramData' }
-    $installedGraniteConfig = Join-Path $programData 'SpeakEasy AI Granite\models\granite\config.json'
-    if (Test-Path $installedGraniteConfig) {
-        Write-Ok "Granite model found at $(Split-Path -Parent $installedGraniteConfig)"
+    $installedGraniteDir = Join-Path $programData 'SpeakEasy AI Granite\models\granite'
+    $requiredGraniteFiles = @(
+        'config.json', 'processor_config.json', 'preprocessor_config.json',
+        'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json',
+        'vocab.json', 'merges.txt', 'added_tokens.json', 'chat_template.jinja',
+        'model.safetensors.index.json',
+        'model-00001-of-00003.safetensors',
+        'model-00002-of-00003.safetensors',
+        'model-00003-of-00003.safetensors'
+    )
+    $missingGraniteFiles = @($requiredGraniteFiles | Where-Object { -not (Test-Path (Join-Path $installedGraniteDir $_)) })
+    if ((Test-Path $installedGraniteDir) -and $missingGraniteFiles.Count -eq 0) {
+        Write-Ok "Granite model passed health check at $installedGraniteDir"
     } else {
-        Write-Warn "Granite model NOT found at $installedGraniteConfig"
-        Write-Info "The installer may not have downloaded the model."
+        Write-Warn "Granite model health check failed at $installedGraniteDir"
+        if ($missingGraniteFiles.Count -gt 0) {
+            Write-Info "Missing: $($missingGraniteFiles -join ', ')"
+        }
         Write-Info "The app will prompt for model setup on launch."
     }
 
@@ -1395,11 +1407,24 @@ if ($Mode -eq 'Source') {
     }
 
     # -- Validate model presence -----------------------------------------------
-    $graniteConfig = Join-Path $devModels 'granite\config.json'
-    if (Test-Path $graniteConfig) {
-        Write-Ok "Granite model found at $devModels\granite"
+    $graniteDir = Join-Path $devModels 'granite'
+    $requiredGraniteFiles = @(
+        'config.json', 'processor_config.json', 'preprocessor_config.json',
+        'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json',
+        'vocab.json', 'merges.txt', 'added_tokens.json', 'chat_template.jinja',
+        'model.safetensors.index.json',
+        'model-00001-of-00003.safetensors',
+        'model-00002-of-00003.safetensors',
+        'model-00003-of-00003.safetensors'
+    )
+    $missingGraniteFiles = @($requiredGraniteFiles | Where-Object { -not (Test-Path (Join-Path $graniteDir $_)) })
+    if ((Test-Path $graniteDir) -and $missingGraniteFiles.Count -eq 0) {
+        Write-Ok "Granite model passed health check at $graniteDir"
     } else {
-        Write-Warn "Granite model NOT found at $devModels\granite\config.json"
+        Write-Warn "Granite model health check failed at $graniteDir"
+        if ($missingGraniteFiles.Count -gt 0) {
+            Write-Info "Missing: $($missingGraniteFiles -join ', ')"
+        }
         Write-Info "The app will prompt for model setup on launch."
         Write-Info "To download manually:"
         Write-Info "  uv run python -m speakeasy download-model"

@@ -807,7 +807,9 @@ class TestBuildInstallerDownloadPreflight(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("$env:ProgramData", source)
-        self.assertIn("SpeakEasy AI Granite\\models\\granite\\config.json", source)
+        self.assertIn("SpeakEasy AI Granite\\models\\granite", source)
+        self.assertIn("tokenizer.json", source)
+        self.assertIn("model-00003-of-00003.safetensors", source)
         self.assertNotIn(
             "C:\\Program Files\\SpeakEasy AI Granite\\models\\granite\\config.json",
             source,

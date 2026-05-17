@@ -514,9 +514,22 @@ foreach ($logFile in @("speakeasy.log", "speakeasy.log.1", "speakeasy.log.2")) {
 # Download Granite model
 Write-Step "Checking Granite model (IBM Granite Speech 4.1 2B)..."
 $graniteDir = Join-Path $ModelsDir "granite"
-if ((Test-Path (Join-Path $graniteDir "config.json"))) {
-    Write-Already "Granite model already present in $graniteDir"
+$requiredGraniteFiles = @(
+    "config.json", "processor_config.json", "preprocessor_config.json",
+    "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json",
+    "vocab.json", "merges.txt", "added_tokens.json", "chat_template.jinja",
+    "model.safetensors.index.json",
+    "model-00001-of-00003.safetensors",
+    "model-00002-of-00003.safetensors",
+    "model-00003-of-00003.safetensors"
+)
+$missingGraniteFiles = @($requiredGraniteFiles | Where-Object { -not (Test-Path (Join-Path $graniteDir $_)) })
+if ((Test-Path $graniteDir) -and $missingGraniteFiles.Count -eq 0) {
+    Write-Already "Granite model passed health check in $graniteDir"
 } else {
+    if ($missingGraniteFiles.Count -gt 0) {
+        Write-Host "  Repairing incomplete Granite model. Missing: $($missingGraniteFiles -join ', ')"
+    }
     Write-Host "  Downloading Granite model (ibm-granite/granite-speech-4.1-2b)..."
     Push-Location $InstallDir
     Invoke-StreamingCommand "Granite model download" { uv run speakeasy download-model --target-dir $ModelsDir --progress-format text }

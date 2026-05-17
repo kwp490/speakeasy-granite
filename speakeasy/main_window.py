@@ -350,9 +350,10 @@ class MainWindow(QMainWindow):
         if self._granite_model_ready():
             self._load_model()
         else:
-            log.warning("Granite model not found at %s", self.settings.model_path)
+            health_summary = self._granite_model_health_summary()
+            log.warning("Granite model is not ready: %s", health_summary)
             self._set_model_status(ModelStatus.ERROR)
-            self._log_ui("Model not found — setup required", error=True)
+            self._log_ui("Model incomplete or missing — setup required", error=True)
             # Defer dialog to after the event loop starts so the window is visible
             QTimer.singleShot(500, self._prompt_model_setup_on_start)
 
@@ -1662,6 +1663,11 @@ class MainWindow(QMainWindow):
         from .model_downloader import model_ready
         return model_ready("granite", self.settings.model_path)
 
+    def _granite_model_health_summary(self) -> str:
+        """Return a user-facing summary of Granite model health."""
+        from .model_downloader import model_health
+        return model_health("granite", self.settings.model_path).summary()
+
     def _prompt_granite_setup(self) -> bool:
         """Show a dialog explaining Granite model download requirements.
 
@@ -1674,16 +1680,17 @@ class MainWindow(QMainWindow):
         msg.setWindowTitle("IBM Granite Speech — Setup Required")
         msg.setTextFormat(Qt.TextFormat.RichText)
         msg.setText(
-            "The IBM Granite Speech model must be downloaded from HuggingFace "
-            "before local transcription can run."
+            "The IBM Granite Speech model is missing or incomplete and must be "
+            "repaired before local transcription can run."
         )
         msg.setInformativeText(
             "The model is publicly available — no HuggingFace account or "
             "access token is required.<br><br>"
+            f"Health check:<br>&nbsp;&nbsp;&nbsp;{self._granite_model_health_summary()}<br><br>"
             "Model page:<br>"
             '&nbsp;&nbsp;&nbsp;<a href="https://huggingface.co/ibm-granite/granite-speech-4.1-2b">'
             "https://huggingface.co/ibm-granite/granite-speech-4.1-2b</a><br><br>"
-            "Would you like to download the Granite model now?"
+            "Would you like to download or repair the Granite model now?"
         )
         msg.setStandardButtons(
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
@@ -1770,11 +1777,13 @@ class MainWindow(QMainWindow):
             self._log_ui("Granite model is ready")
             return True
         else:
+            health_summary = self._granite_model_health_summary()
             QMessageBox.warning(
                 self,
-                "Granite Model Not Found",
-                "The Granite model was not detected after setup.\n\n"
+                "Granite Model Not Ready",
+                "The Granite model still looks incomplete after setup.\n\n"
                 f"Expected model directory:\n  {model_dir}\n\n"
+                f"Health check:\n  {health_summary}\n\n"
                 "You can try again later from Settings, or run\n"
                 "granite-model-setup.ps1 from the install directory.",
             )
