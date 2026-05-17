@@ -1,4 +1,4 @@
-# SpeakEasy AI Granite: Highest-Accuracy Local Dictation for Windows
+# SpeakEasy AI Granite: Private, Accurate, Local Dictation for Windows
 
 SpeakEasy AI Granite lets you dictate text anywhere on your Windows PC, completely privately. There's no cloud, no account, and nothing leaves your computer. Just press Ctrl+Alt+P, say what you want to say, press Ctrl+Alt+P again, and your words appear in whatever you were typing. It runs on IBM Granite Speech, currently the top-ranked open speech recognition model available.
 
