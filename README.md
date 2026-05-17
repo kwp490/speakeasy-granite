@@ -25,6 +25,27 @@ SpeakEasy records a completed utterance, transcribes it locally, copies the fina
   </tr>
 </table>
 
+## Download Installers
+
+The current public test build is available from the [v0.14.1 GitHub release](https://github.com/kwp490/speakeasy-granite/releases/tag/v0.14.1).
+
+| Installer | Best for | Download |
+| --- | --- | --- |
+| GPU installer | Windows 10/11 systems with an NVIDIA GPU and enough VRAM for faster local transcription. | [SpeakEasy-AI-Granite-Setup-0.14.1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.1/SpeakEasy-AI-Granite-Setup-0.14.1.exe) |
+| CPU installer | Windows 10/11 systems without NVIDIA CUDA support; slower but does not require a dedicated NVIDIA GPU. | [SpeakEasy-AI-Granite-CPU-Setup-0.14.1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.1/SpeakEasy-AI-Granite-CPU-Setup-0.14.1.exe) |
+
+SHA-256 checksums are attached to the same release for teams that want to verify downloaded installers before testing.
+
+## Install From Source
+
+```powershell
+uv sync --extra dev
+uv run python -m speakeasy download-model --target-dir dev-temp\models
+.\installer\Build-Installer.ps1 -Mode Source -Clean
+```
+
+Source mode stores mutable data under `dev-temp/` by setting `SPEAKEASY_HOME`.
+
 ## Accuracy
 
 SpeakEasy uses [ibm-granite/granite-speech-4.1-2b](https://huggingface.co/ibm-granite/granite-speech-4.1-2b), one of the most accurate speech-to-text models currently available on the Hugging Face Open ASR Leaderboard. The app runs this model locally through Hugging Face Transformers and PyTorch.
@@ -35,11 +56,11 @@ The values below are representative public benchmark results and should be treat
 
 | Model | WER: lower is better | Roughly means | Notes |
 | --- | ---: | --- | --- |
-| SpeakEasy AI Granite | 5.33% | About 5 word errors per 100 spoken words | Uses IBM Granite Speech 4.1 2B locally. Current Open ASR Leaderboard mean WER reported for `ibm-granite/granite-speech-4.1-2b` on 2026-04-23. |
-| Whisper | Approx. 7-10% | About 7-10 word errors per 100 spoken words | Representative range for large Whisper-family checkpoints across mixed public ASR benchmarks. Strong general-purpose baseline, but older than current leaderboard-leading ASR models. |
-| NVIDIA NeMo / Nemotron speech models | Approx. 6-12% | About 6-12 word errors per 100 spoken words | Results vary by checkpoint and deployment recipe. NeMo is a toolkit and model family rather than one fixed ASR model. |
-| NVIDIA Canary | Approx. 6-8% | About 6-8 word errors per 100 spoken words | Multilingual NVIDIA ASR/translation model family. Often strong on long-form and multilingual evaluation, depending on checkpoint. |
-| Qwen 3 ASR | Approx. 6-9% | About 6-9 word errors per 100 spoken words | Recent ASR model family with competitive benchmark results; exact WER depends on model variant and evaluation setup. |
+| SpeakEasy AI Granite | 5.33% | About 5 word errors per 100 spoken words | The local model used by this app. |
+| Whisper | Approx. 7-10% | About 7-10 word errors per 100 spoken words | Popular general-purpose speech-to-text baseline. |
+| NVIDIA NeMo / Nemotron speech models | Approx. 6-12% | About 6-12 word errors per 100 spoken words | NVIDIA speech-to-text models; accuracy varies by version. |
+| NVIDIA Canary | Approx. 6-8% | About 6-8 word errors per 100 spoken words | NVIDIA model family with multilingual support. |
+| Qwen 3 ASR | Approx. 6-9% | About 6-9 word errors per 100 spoken words | Recent speech-to-text model family. |
 
 Live benchmark source: https://huggingface.co/datasets/hf-audio/open-asr-leaderboard
 
@@ -213,27 +234,6 @@ AI Writing Profiles keep transcription local, then optionally send the completed
 | GPU mode | NVIDIA GPU, 6 GB VRAM minimum, 8 GB recommended |
 | CPU mode | 8 GB RAM minimum, 16 GB recommended; inference is slower |
 
-## Download Installers
-
-The current public test build is available from the [v0.14.1 GitHub release](https://github.com/kwp490/speakeasy-granite/releases/tag/v0.14.1).
-
-| Installer | Best for | Download |
-| --- | --- | --- |
-| GPU installer | Windows 10/11 systems with an NVIDIA GPU and enough VRAM for faster local transcription. | [SpeakEasy-AI-Granite-Setup-0.14.1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.1/SpeakEasy-AI-Granite-Setup-0.14.1.exe) |
-| CPU installer | Windows 10/11 systems without NVIDIA CUDA support; slower but does not require a dedicated NVIDIA GPU. | [SpeakEasy-AI-Granite-CPU-Setup-0.14.1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.1/SpeakEasy-AI-Granite-CPU-Setup-0.14.1.exe) |
-
-SHA-256 checksums are attached to the same release for teams that want to verify downloaded installers before testing.
-
-## Install From Source
-
-```powershell
-uv sync --extra dev
-uv run python -m speakeasy download-model --target-dir dev-temp\models
-.\installer\Build-Installer.ps1 -Mode Source -Clean
-```
-
-Source mode stores mutable data under `dev-temp/` by setting `SPEAKEASY_HOME`.
-
 ## Run
 
 Launch the app from source:
@@ -356,10 +356,6 @@ The tests mock Qt and GPU dependencies where practical, so they do not require a
 5. AI Writing Profile control: external rewriting is opt-in, preset-driven, and limited to transcript text.
 6. Developer visibility: realtime metrics, logs, history, and validation tools make the app easier to diagnose and tune.
 7. Deployment flexibility: GPU and CPU installers support high-performance desktops and non-NVIDIA machines.
-
-## Repository Status
-
-This repository is the Granite fork of SpeakEasy AI. The original Cohere-based repository remains separate and unchanged.
 
 ## License
 
