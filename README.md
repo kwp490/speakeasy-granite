@@ -213,6 +213,17 @@ AI Writing Profiles keep transcription local, then optionally send the completed
 | GPU mode | NVIDIA GPU, 6 GB VRAM minimum, 8 GB recommended |
 | CPU mode | 8 GB RAM minimum, 16 GB recommended; inference is slower |
 
+## Download Installers
+
+The current public test build is available from the [v0.14.1 GitHub release](https://github.com/kwp490/speakeasy-granite/releases/tag/v0.14.1).
+
+| Installer | Best for | Download |
+| --- | --- | --- |
+| GPU installer | Windows 10/11 systems with an NVIDIA GPU and enough VRAM for faster local transcription. | [SpeakEasy-AI-Granite-Setup-0.14.1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.1/SpeakEasy-AI-Granite-Setup-0.14.1.exe) |
+| CPU installer | Windows 10/11 systems without NVIDIA CUDA support; slower but does not require a dedicated NVIDIA GPU. | [SpeakEasy-AI-Granite-CPU-Setup-0.14.1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.1/SpeakEasy-AI-Granite-CPU-Setup-0.14.1.exe) |
+
+SHA-256 checksums are attached to the same release for teams that want to verify downloaded installers before testing.
+
 ## Install From Source
 
 ```powershell
