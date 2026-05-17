@@ -1279,12 +1279,15 @@ if ($Mode -eq 'Install') {
 
     # -- Post-uninstall cleanup ------------------------------------------------
     $installDir = 'C:\Program Files\SpeakEasy AI Granite'
+    $dataDir    = "$env:PROGRAMDATA\SpeakEasy AI Granite"
     Write-Step "Cleaning leftover settings/logs/temp..."
-    foreach ($sub in @('config', 'logs', 'temp')) {
-        $dir = Join-Path $installDir $sub
-        if (Test-Path $dir) {
-            Remove-Item $dir -Recurse -Force
-            Write-Ok "Removed $dir"
+    foreach ($baseDir in @($installDir, $dataDir)) {
+        foreach ($sub in @('config', 'logs', 'temp')) {
+            $dir = Join-Path $baseDir $sub
+            if (Test-Path $dir) {
+                Remove-Item $dir -Recurse -Force
+                Write-Ok "Removed $dir"
+            }
         }
     }
 

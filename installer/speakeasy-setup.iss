@@ -17,7 +17,8 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.14.2"
+#define MyAppVersion "0.14.3"
+#define MyAppDataName "SpeakEasy AI Granite"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
 #define MyAppExeName "speakeasy.exe"
@@ -66,10 +67,10 @@ Source: "..\dist\speakeasy\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Source: "granite-model-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
-Name: "{commonappdata}\SpeakEasy AI Granite";              Permissions: users-modify
-Name: "{commonappdata}\SpeakEasy AI Granite\models";       Permissions: users-modify
-Name: "{commonappdata}\SpeakEasy AI Granite\config";       Permissions: users-modify
-Name: "{commonappdata}\SpeakEasy AI Granite\temp";         Permissions: users-modify
+Name: "{commonappdata}\{#MyAppDataName}";              Permissions: users-modify
+Name: "{commonappdata}\{#MyAppDataName}\models";       Permissions: users-modify
+Name: "{commonappdata}\{#MyAppDataName}\config";       Permissions: users-modify
+Name: "{commonappdata}\{#MyAppDataName}\temp";         Permissions: users-modify
 
 [Icons]
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
@@ -89,8 +90,8 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; \
     Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI Granite\temp"
-Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI Granite\config"
+Type: filesandordirs; Name: "{commonappdata}\{#MyAppDataName}\temp"
+Type: filesandordirs; Name: "{commonappdata}\{#MyAppDataName}\config"
 
 [UninstallRun]
 Filename: "powershell.exe"; \
@@ -131,8 +132,8 @@ begin
   Result := '';
   CleanInstall := False;
   AppDir   := ExpandConstant('{app}');
-  ConfigDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\config';
-  TempDir   := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\temp';
+  ConfigDir := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\config';
+  TempDir   := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\temp';
 
   { Only act if there is an existing install with a config directory }
   if not DirExists(ConfigDir) then
@@ -373,7 +374,7 @@ var
 begin
   { Migrate from legacy dictat0r.AI location }
   OldSettings := ExpandConstant('{userappdata}\dictat0r.AI\settings.json');
-  NewSettings := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\config\settings.json';
+  NewSettings := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\config\settings.json';
   if FileExists(OldSettings) and (not FileExists(NewSettings)) then
     CopyFile(OldSettings, NewSettings, False);
 
@@ -392,7 +393,7 @@ begin
           if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
             if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
             begin
-              NewEngineDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models\' + FindRec.Name;
+              NewEngineDir := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\models\' + FindRec.Name;
               if not DirExists(NewEngineDir) then
                 DirectoryCopy(OldModelsDir + '\' + FindRec.Name, NewEngineDir);
             end;
@@ -412,7 +413,7 @@ begin
           if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
             if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
             begin
-              NewEngineDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models\' + FindRec.Name;
+              NewEngineDir := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\models\' + FindRec.Name;
               if not DirExists(NewEngineDir) then
                 DirectoryCopy(OldModelsDir + '\' + FindRec.Name, NewEngineDir);
             end;
@@ -429,7 +430,7 @@ begin
   for I := 0 to 2 do
   begin
     OldLog := OldLogDir + '\' + LogFiles[I];
-    NewLog := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\logs\' + LogFiles[I];
+    NewLog := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\logs\' + LogFiles[I];
     if FileExists(OldLog) and (not FileExists(NewLog)) then
       CopyFile(OldLog, NewLog, False);
   end;
@@ -440,10 +441,10 @@ var
   SettingsFile, Json: String;
   ResultCode: Integer;
 begin
-  SettingsFile := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\config\settings.json';
+  SettingsFile := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\config\settings.json';
   if not FileExists(SettingsFile) then
   begin
-    Json := '{' + #13#10 + '  "engine": "granite"' + #13#10 + '}';
+    Json := '{' + #13#10 + '  "engine": "granite",' + #13#10 + '  "hotkeys_enabled": true' + #13#10 + '}';
     SaveStringToFile(SettingsFile, Json, False);
   end;
   { Grant regular users write (Modify) access so the app can save settings without
@@ -482,7 +483,7 @@ function GraniteModelExists: Boolean;
 var
   GraniteDir: String;
 begin
-  GraniteDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models\granite';
+  GraniteDir := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\models\granite';
   Result := DirExists(GraniteDir) and
             FileExists(GraniteDir + '\config.json') and
             FileExists(GraniteDir + '\processor_config.json') and
@@ -726,7 +727,7 @@ var
 begin
   LastDownloadDetail := '';
   ExePath := ExpandConstant('{app}\{#MyAppExeName}');
-  ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models';
+  ModelsDir := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\models';
   if not CheckModelDiskSpace(ModelsDir) then
     Exit;
 
@@ -786,7 +787,7 @@ begin
     if not ModelExists then
       DownloadModel;
     InstDir := ExpandConstant('{app}');
-    ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite\models';
+    ModelsDir := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}\models';
     Summary := 'SpeakEasy AI {#MyAppVersion} is ready.' + #13#10;
     Summary := Summary + 'Press Ctrl+Alt+P from any application to start or stop recording.' + #13#10;
     Summary := Summary + 'Powered by IBM Granite Speech 4.1 2B.' + #13#10 + #13#10;
@@ -864,7 +865,7 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
-    AppDir    := ExpandConstant('{commonappdata}') + '\SpeakEasy AI Granite';
+    AppDir    := ExpandConstant('{commonappdata}') + '\{#MyAppDataName}';
     ModelsDir := AppDir + '\models';
     GraniteDir := ModelsDir + '\granite';
     if DirExists(GraniteDir) then

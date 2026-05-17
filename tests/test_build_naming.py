@@ -199,21 +199,86 @@ class TestNoStaleProjectNames(unittest.TestCase):
 
 
 class TestCrossFileVersionConsistency(unittest.TestCase):
-    """Version strings must agree across pyproject.toml and speakeasy-setup.iss."""
+    """Version strings must agree across package metadata and installer scripts."""
 
     def test_versions_match(self):
         pyproject = _read("pyproject.toml")
         m_py = re.search(r'version\s*=\s*"([^"]+)"', pyproject)
         self.assertIsNotNone(m_py, "Could not parse version from pyproject.toml")
 
-        iss_text = _read("installer/speakeasy-setup.iss")
-        m_iss = _iss_define(iss_text, "MyAppVersion")
-        self.assertIsNotNone(m_iss, "Could not parse MyAppVersion from .iss")
+        package_init = _read("speakeasy/__init__.py")
+        m_package = re.search(r'__version__\s*=\s*"([^"]+)"', package_init)
+        self.assertIsNotNone(m_package, "Could not parse __version__ from speakeasy/__init__.py")
 
         self.assertEqual(
-            m_py.group(1), m_iss,
-            f"pyproject.toml version '{m_py.group(1)}' != .iss version '{m_iss}'",
+            m_py.group(1), m_package.group(1),
+            f"pyproject.toml version '{m_py.group(1)}' != package version "
+            f"'{m_package.group(1)}'",
         )
+
+        for relpath in ("installer/speakeasy-setup.iss", "installer/speakeasy-cpu-setup.iss"):
+            iss_text = _read(relpath)
+            m_iss = _iss_define(iss_text, "MyAppVersion")
+            self.assertIsNotNone(m_iss, f"Could not parse MyAppVersion from {relpath}")
+            self.assertEqual(
+                m_py.group(1), m_iss,
+                f"pyproject.toml version '{m_py.group(1)}' != {relpath} version '{m_iss}'",
+            )
+
+
+class TestInstallerProgramDataPaths(unittest.TestCase):
+    """Installer app-data paths must follow the runtime ProgramData layout."""
+
+    _ISS_FILES = ("installer/speakeasy-setup.iss", "installer/speakeasy-cpu-setup.iss")
+
+    def test_current_app_data_paths_use_single_define(self):
+        for relpath in self._ISS_FILES:
+            text = _read(relpath)
+            self.assertEqual(
+                _iss_define(text, "MyAppDataName"),
+                "SpeakEasy AI Granite",
+                f"{relpath} must define the current ProgramData app-data directory once.",
+            )
+            self.assertIn("\\{#MyAppDataName}\\config", text)
+            self.assertIn("\\{#MyAppDataName}\\models", text)
+            self.assertIn("\\{#MyAppDataName}\\temp", text)
+
+    def test_clean_install_targets_current_granite_config(self):
+        for relpath in self._ISS_FILES:
+            text = _read(relpath)
+            self.assertIn(
+                "ConfigDir := ExpandConstant('{commonappdata}') + '\\{#MyAppDataName}\\config';",
+                text,
+                f"{relpath} clean-install detection must check the active Granite config path.",
+            )
+            self.assertIn(
+                "TempDir   := ExpandConstant('{commonappdata}') + '\\{#MyAppDataName}\\temp';",
+                text,
+                f"{relpath} clean-install detection must check the active Granite temp path.",
+            )
+            self.assertNotIn(
+                "ExpandConstant('{commonappdata}') + '\\SpeakEasy AI\\config'",
+                text,
+                f"{relpath} must not clean or migrate into the obsolete non-Granite config path.",
+            )
+
+    def test_default_settings_enable_hotkeys_explicitly(self):
+        for relpath in self._ISS_FILES:
+            text = _read(relpath)
+            self.assertIn(
+                '"hotkeys_enabled": true',
+                text,
+                f"{relpath} installer-created settings should make the hotkey default explicit.",
+            )
+
+    def test_build_install_mode_cleans_programdata_settings(self):
+        build_ps1 = _read("installer/Build-Installer.ps1")
+        self.assertGreaterEqual(
+            build_ps1.count('$dataDir    = "$env:PROGRAMDATA\\SpeakEasy AI Granite"'),
+            2,
+            "Build-Installer.ps1 Release and Install modes must both clean ProgramData settings.",
+        )
+        self.assertIn("foreach ($baseDir in @($installDir, $dataDir))", build_ps1)
 
 
 class TestTorchTorchaudioCompatibility(unittest.TestCase):

@@ -5,6 +5,17 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.3] - Installer Settings Cleanup
+
+### Fixed
+- **Clean installs** now target `%ProgramData%\SpeakEasy AI Granite\config` and `temp` so stale production settings cannot survive under the active Granite data directory
+- **Legacy data migration** now writes migrated settings and models into the active Granite ProgramData layout instead of the obsolete non-Granite path
+- **Install mode cleanup** now removes leftover ProgramData settings/temp/logs in addition to old Program Files data while preserving downloaded models
+- **Installer-created settings** now make `hotkeys_enabled: true` explicit for fresh installs
+
+### Tests
+- Added installer guard tests for ProgramData path consistency, explicit hotkey defaults, install-mode cleanup, and CPU/GPU version metadata alignment
+
 ## [0.14.2] - Model Health Repair
 
 ### Fixed
