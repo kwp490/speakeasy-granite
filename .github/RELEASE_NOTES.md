@@ -4,4 +4,4 @@ Windows may show a Microsoft Defender SmartScreen warning such as "Windows prote
 
 If you downloaded SpeakEasy AI Granite from this GitHub Release and the installer checksum matches `SHA256SUMS.txt`, choose **More info** and then **Run anyway** to continue.
 
-The installer requires administrator permission so it can install to `C:\Program Files\SpeakEasy AI Granite` and configure a Windows Defender process exclusion for `speakeasy.exe`.
+The installer requires administrator permission so it can install to `C:\Program Files\SpeakEasy AI Granite`. It does not add Microsoft Defender exclusions by default.

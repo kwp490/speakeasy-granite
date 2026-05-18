@@ -5,6 +5,16 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.4] - Defender Exclusion Policy
+
+### Changed
+- **Installer Defender policy** no longer adds Microsoft Defender process exclusions by default in the GUI or source installers; confirmed false positives are handled through documented manual troubleshooting steps
+
+### Tests
+- Added installer guard tests to prevent automatic Microsoft Defender exclusions from returning by default
+- Added explicit regex-match narrowing in build naming tests so Pylance understands non-None matches after unittest assertions
+- **Version metadata** updated across the Python package and both installer variants for the 0.14.4 release
+
 ## [0.14.3] - Installer Settings Cleanup
 
 ### Fixed

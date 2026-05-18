@@ -6,7 +6,6 @@
 ;   - IBM Granite Speech model download (public — no token required)
 ;   - Desktop + Start Menu shortcuts
 ;   - Data migration from previous installs
-;   - Windows Defender process exclusion (exe only — not the whole directory)
 ;   - Silent / unattended mode
 ;
 ; This is the CPU-only variant: no CUDA libraries, no GPU detection,
@@ -21,7 +20,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.14.3"
+#define MyAppVersion "0.14.4"
 #define MyAppDataName "SpeakEasy AI Granite"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
@@ -87,21 +86,12 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Add-MpPreference -ExclusionProcess '{app}\{#MyAppExeName}' -ErrorAction SilentlyContinue"""; \
-    Flags: runhidden waituntilterminated; StatusMsg: "Configuring Windows Defender exclusions..."
-
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; \
     Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{commonappdata}\{#MyAppDataName}\temp"
 Type: filesandordirs; Name: "{commonappdata}\{#MyAppDataName}\config"
-
-[UninstallRun]
-Filename: "powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Remove-MpPreference -ExclusionProcess '{app}\{#MyAppExeName}' -ErrorAction SilentlyContinue"""; \
-    Flags: runhidden waituntilterminated; RunOnceId: "DefenderExclusions"
 
 [Code]
 var
@@ -257,7 +247,7 @@ begin
   else
     Info := Info + Space + '2. Download IBM Granite Speech model from HuggingFace' + NewLine;
   Info := Info + Space + '3. Create desktop and Start Menu shortcuts' + NewLine;
-  Info := Info + Space + '4. Configure Windows Defender exclusions' + NewLine + NewLine;
+  Info := Info + Space + '4. Prepare application settings' + NewLine + NewLine;
   Info := Info + 'Mode: CPU-only (no GPU required)' + NewLine;
   Result := Info;
 end;
@@ -375,17 +365,6 @@ begin
     repairs permissions on files created by older installer versions. }
   Exec('icacls.exe',
        '"' + SettingsFile + '" /grant *S-1-5-32-545:(M)',
-       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-end;
-
-procedure ConfigureDefenderExclusions;
-var
-  ExeFullPath, PsCmd: String;
-  ResultCode: Integer;
-begin
-  ExeFullPath := ExpandConstant('{app}') + '\{#MyAppExeName}';
-  PsCmd := 'Add-MpPreference -ExclusionProcess ''' + ExeFullPath + ''' -ErrorAction SilentlyContinue';
-  Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' + PsCmd + '"',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
@@ -704,7 +683,6 @@ begin
     if not CleanInstall then
       MigrateOldData;
     WriteDefaultSettings;
-    ConfigureDefenderExclusions;
     ModelExists := GraniteModelExists;
     if not ModelExists then
       DownloadModel;

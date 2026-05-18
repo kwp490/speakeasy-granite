@@ -612,16 +612,6 @@ if (Test-Path $shortcutPath) {
     Write-Ok "Desktop shortcut created at $shortcutPath"
 }
 
-# Windows Defender exclusions
-Write-Step "Configuring Windows Defender exclusions..."
-$exePath = "$InstallDir\.venv\Scripts\pythonw.exe"
-try {
-    Add-MpPreference -ExclusionProcess $exePath -ErrorAction Stop
-    Write-Ok "Process exclusion added for $exePath"
-} catch {
-    Write-Warn "Could not add Defender exclusion: $_"
-}
-
 # Summary
 $variantLabel = if ($Variant -eq "CPU") { "CPU-only (no GPU required)" } else { "GPU (CUDA-accelerated)" }
 Write-Host ""

@@ -31,7 +31,7 @@ Please use [GitHub's private vulnerability reporting](https://github.com/kwp490/
 
 - **Hotkeys**: Global hotkeys are registered via the Win32 `RegisterHotKey` API — only the configured chord is delivered to the application. No low-level keyboard hook (`WH_KEYBOARD_LL` / `SetWindowsHookEx`) is installed; no keystrokes beyond the registered chords are captured or logged.
 - **Administrator privileges**: The installer requires elevation to write to `C:\Program Files\SpeakEasy AI Granite`.
-- **Defender exclusions**: The GUI installer adds a Windows Defender **process** exclusion for `speakeasy.exe` only (not the entire install directory) to prevent false-positive detections common to PyInstaller binaries. The exclusion is removed on uninstall.
+- **Defender exclusions**: Installers do not add Microsoft Defender exclusions by default. If Defender quarantines `speakeasy.exe` after you have verified the installer checksum and trust the release source, you can add a temporary process exclusion manually and remove it after Microsoft Defender definitions or the app package are updated.
 - **`uv.exe` false positives**: Some anti-malware tools (e.g. Malwarebytes) may quarantine `uv.exe` during source installs. If this happens, restore it and add it to your allow list. [uv](https://github.com/astral-sh/uv) is a widely used open-source Python package manager.
 - **API key handling (Professional Mode)**: OpenAI API keys entered in Settings are held in memory only by default and are **never** written to `settings.json` or any log file. If "Remember API key" is enabled, the key is stored via Windows Credential Manager (protected by Windows DPAPI encryption). API keys are never displayed in the UI log panel, and all error messages are sanitized to redact key content.
 - **Single-instance mutex**: A Windows named mutex (`Global\SpeakEasyAIGraniteMutex`) prevents multiple SpeakEasy AI Granite processes from running simultaneously, avoiding resource conflicts.
@@ -44,6 +44,22 @@ Please use [GitHub's private vulnerability reporting](https://github.com/kwp490/
 | `PROGRAMDATA` | Standard Windows variable. Production installs store mutable data under `%ProgramData%\SpeakEasy AI Granite`. | `C:\ProgramData` |
 
 No other environment variables are read or set at runtime by the application itself. (The PyInstaller frozen build sets `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, and appends to `PATH` during process startup for bundled DLL and certificate resolution.)
+
+## Manual Defender Troubleshooting
+
+Only use a Defender process exclusion if Microsoft Defender quarantines a verified SpeakEasy AI Granite install. Prefer submitting the detection to Microsoft as a false positive when possible.
+
+Add a process exclusion for the installed app:
+
+```powershell
+Add-MpPreference -ExclusionProcess "C:\Program Files\SpeakEasy AI Granite\speakeasy.exe"
+```
+
+Remove the process exclusion when it is no longer needed:
+
+```powershell
+Remove-MpPreference -ExclusionProcess "C:\Program Files\SpeakEasy AI Granite\speakeasy.exe"
+```
 
 ## Privacy & Data Handling
 

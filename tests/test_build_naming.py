@@ -47,6 +47,7 @@ class TestBuildInstallerPaths(unittest.TestCase):
             # Fallback: old-style direct isccArgs assignment
             m = re.search(r'isccArgs\s*=\s*@\("([^"]+)"\)', self.build_ps1)
             self.assertIsNotNone(m, "Could not find .iss file reference in Build-Installer.ps1")
+            assert m is not None
             iss_refs = [m.group(1)]
         for iss_path in iss_refs:
             iss_path_norm = iss_path.replace("\\", "/")
@@ -60,6 +61,7 @@ class TestBuildInstallerPaths(unittest.TestCase):
         """Get-SourceHash must scan the actual Python package directory."""
         m = re.search(r'Get-ChildItem\s+-Path\s+"([^"]+)".*-Recurse.*\.py', self.build_ps1)
         self.assertIsNotNone(m, "Could not find Get-ChildItem in Get-SourceHash")
+        assert m is not None
         pkg_dir = m.group(1)
         self.assertTrue(
             (_REPO_ROOT / pkg_dir).is_dir(),
@@ -71,6 +73,7 @@ class TestBuildInstallerPaths(unittest.TestCase):
         """The .spec file referenced in Build-Installer.ps1 must exist."""
         m = re.search(r'"([\w.-]+\.spec)"', self.build_ps1)
         self.assertIsNotNone(m, "Could not find .spec reference in Build-Installer.ps1")
+        assert m is not None
         self.assertTrue(
             (_REPO_ROOT / m.group(1)).exists(),
             f"Build-Installer.ps1 references '{m.group(1)}' but it does not exist.",
@@ -106,6 +109,7 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
         """The 'python -m <module>' invocation must use the real package name."""
         m = re.search(r"python\s+-m\s+([\w.]+)", self.build_ps1_full)
         self.assertIsNotNone(m, "Could not find 'python -m' in Build-Installer.ps1")
+        assert m is not None
         module_name = m.group(1)
         self.assertTrue(
             (_REPO_ROOT / module_name.replace(".", "/")).is_dir(),
@@ -117,10 +121,12 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
         """Get-Process name must match the exe name (without extension)."""
         m = re.search(r"Get-Process\s+-Name\s+'([^']+)'", self.build_ps1_full)
         self.assertIsNotNone(m, "Could not find Get-Process in Build-Installer.ps1")
+        assert m is not None
         process_name = m.group(1)
 
         exe_name = _iss_define(self.iss_text, "MyAppExeName")
         self.assertIsNotNone(exe_name, "Could not parse MyAppExeName from .iss")
+        assert exe_name is not None
         expected = exe_name.removesuffix(".exe")
         self.assertEqual(
             process_name, expected,
@@ -132,6 +138,7 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
         """The glob pattern used to find the setup exe must match OutputBaseFilename."""
         output_base = re.search(r"OutputBaseFilename=(.+)", self.iss_text)
         self.assertIsNotNone(output_base, "Could not parse OutputBaseFilename from .iss")
+        assert output_base is not None
         # OutputBaseFilename contains {#MyAppVersion} which resolves to the version
         # Build-Installer.ps1 uses a wildcard like SpeakEasy-AI-Granite-Setup-*.exe
         iss_base = output_base.group(1).strip()
@@ -145,6 +152,7 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
             # Variant-aware: look for the glob pattern in a variable assignment
             m = re.search(r"'(SpeakEasy-AI-Granite-Setup-\*\.exe)'", self.build_ps1_full)
         self.assertIsNotNone(m, "Could not find installer glob in Build-Installer.ps1")
+        assert m is not None
         # Convert PowerShell glob to comparable form (replace * with .*)
         ps_pattern = m.group(1).replace("\\", "/").split("/")[-1].replace("*", ".*")
 
@@ -205,10 +213,12 @@ class TestCrossFileVersionConsistency(unittest.TestCase):
         pyproject = _read("pyproject.toml")
         m_py = re.search(r'version\s*=\s*"([^"]+)"', pyproject)
         self.assertIsNotNone(m_py, "Could not parse version from pyproject.toml")
+        assert m_py is not None
 
         package_init = _read("speakeasy/__init__.py")
         m_package = re.search(r'__version__\s*=\s*"([^"]+)"', package_init)
         self.assertIsNotNone(m_package, "Could not parse __version__ from speakeasy/__init__.py")
+        assert m_package is not None
 
         self.assertEqual(
             m_py.group(1), m_package.group(1),
@@ -220,6 +230,7 @@ class TestCrossFileVersionConsistency(unittest.TestCase):
             iss_text = _read(relpath)
             m_iss = _iss_define(iss_text, "MyAppVersion")
             self.assertIsNotNone(m_iss, f"Could not parse MyAppVersion from {relpath}")
+            assert m_iss is not None
             self.assertEqual(
                 m_py.group(1), m_iss,
                 f"pyproject.toml version '{m_py.group(1)}' != {relpath} version '{m_iss}'",
@@ -281,6 +292,27 @@ class TestInstallerProgramDataPaths(unittest.TestCase):
         self.assertIn("foreach ($baseDir in @($installDir, $dataDir))", build_ps1)
 
 
+class TestInstallerDefenderPolicy(unittest.TestCase):
+    """Installers must not add Microsoft Defender exclusions by default."""
+
+    _ISS_FILES = ("installer/speakeasy-setup.iss", "installer/speakeasy-cpu-setup.iss")
+
+    def test_inno_installers_do_not_configure_defender_exclusions(self):
+        for relpath in self._ISS_FILES:
+            text = _read(relpath)
+            self.assertNotIn("Add-MpPreference", text)
+            self.assertNotIn("Remove-MpPreference", text)
+            self.assertNotIn("ExclusionProcess", text)
+            self.assertNotIn("ConfigureDefenderExclusions", text)
+            self.assertNotIn("Windows Defender exclusions", text)
+
+    def test_source_installer_does_not_configure_defender_exclusions(self):
+        text = _read("installer/Install-SpeakEasy-Source.ps1")
+        self.assertNotIn("Add-MpPreference", text)
+        self.assertNotIn("Remove-MpPreference", text)
+        self.assertNotIn("ExclusionProcess", text)
+
+
 class TestTorchTorchaudioCompatibility(unittest.TestCase):
     """torch and torchaudio must be version-compatible and from the same index."""
 
@@ -299,11 +331,13 @@ class TestTorchTorchaudioCompatibility(unittest.TestCase):
             torch_src,
             "pyproject.toml [tool.uv.sources] must pin torch to an explicit index",
         )
+        assert torch_src is not None
         self.assertIsNotNone(
             torchaudio_src,
             "pyproject.toml [tool.uv.sources] must pin torchaudio to an explicit index "
             "(mismatched builds cause WinError 127 / 0xc0000139)",
         )
+        assert torchaudio_src is not None
         self.assertEqual(
             torch_src.group(1), torchaudio_src.group(1),
             f"torch index '{torch_src.group(1)}' != torchaudio index "
@@ -500,6 +534,7 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
                     match,
                     f"{name} installer must set TokenLblSteps height explicitly.",
                 )
+                assert match is not None
                 self.assertGreaterEqual(
                     int(match.group(1)),
                     72,
