@@ -282,6 +282,20 @@ class TestInstallerProgramDataPaths(unittest.TestCase):
                 f"{relpath} installer-created settings should make the hotkey default explicit.",
             )
 
+    def test_source_installer_defaults_hotkeys_enabled_when_missing(self):
+        text = _read("installer/Install-SpeakEasy-Source.ps1")
+        self.assertIn(
+            'Match("hotkeys_enabled").Count -eq 0',
+            text,
+            "Install-SpeakEasy-Source.ps1 must add hotkeys_enabled when missing so "
+            "fresh source installs default to enabled global hotkeys.",
+        )
+        self.assertIn(
+            '"hotkeys_enabled" -NotePropertyValue $true',
+            text,
+            "Install-SpeakEasy-Source.ps1 must default hotkeys_enabled to true on fresh installs.",
+        )
+
     def test_build_install_mode_cleans_programdata_settings(self):
         build_ps1 = _read("installer/Build-Installer.ps1")
         self.assertGreaterEqual(

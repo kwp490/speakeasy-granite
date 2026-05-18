@@ -576,6 +576,13 @@ if ($cfg.PSObject.Properties.Match("device").Count -eq 0) {
 } else {
     $cfg.device = $defaultDevice
 }
+# Default global hotkeys to enabled when no explicit user choice has been
+# recorded.  Absence of the key means "no recorded preference" -- the app
+# should start with hotkeys ON.  An existing explicit value (true or false)
+# is preserved so users who deliberately turned hotkeys off keep that choice.
+if ($cfg.PSObject.Properties.Match("hotkeys_enabled").Count -eq 0) {
+    $cfg | Add-Member -NotePropertyName "hotkeys_enabled" -NotePropertyValue $true
+}
 $jsonText = $cfg | ConvertTo-Json -Depth 10
 [System.IO.File]::WriteAllText($settingsFile, $jsonText, (New-Object System.Text.UTF8Encoding $false))
 Write-Ok "Default engine set to $defaultEngine, device set to $defaultDevice in $settingsFile"
