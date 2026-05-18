@@ -16,7 +16,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.14.4"
+#define MyAppVersion "0.14.5"
 #define MyAppDataName "SpeakEasy AI Granite"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"
@@ -587,7 +587,20 @@ begin
   Result :=
     (Pos('xet storage is enabled', LowerLine) > 0) or
     (Pos('falling back to regular http download', LowerLine) > 0) or
-    (Pos('for better performance, install', LowerLine) > 0);
+    (Pos('for better performance, install', LowerLine) > 0) or
+    (Pos('unauthenticated requests to the hf hub', LowerLine) > 0) or
+    (Pos('please set a hf_token', LowerLine) > 0);
+end;
+
+function IsDownloadNoise(Line: String): Boolean;
+var
+  LowerLine: String;
+begin
+  LowerLine := LowerCase(Trim(Line));
+  Result :=
+    IsDownloadWarning(Line) or
+    (Pos('=== speakeasy ai starting', LowerLine) > 0) or
+    ((Pos('[httpx]', LowerLine) > 0) and (Pos('http request:', LowerLine) > 0));
 end;
 
 procedure ProcessDownloadProgressChunk(var Buffer: String; Chunk: String);
@@ -604,7 +617,7 @@ begin
       Delete(Line, Length(Line), 1);
     if Pos('SPEAKEASY_PROGRESS ', Line) = 1 then
       ApplyDownloadProgressLine(Line)
-    else if (Trim(Line) <> '') and (not IsDownloadWarning(Line)) and (LastDownloadDetail = '') then
+    else if (Trim(Line) <> '') and (not IsDownloadNoise(Line)) and (LastDownloadDetail = '') then
       LastDownloadDetail := Trim(Line);
     Delete(Buffer, 1, LineEnd);
     LineEnd := Pos(#10, Buffer);
@@ -721,6 +734,17 @@ begin
     begin
       if ResultCode = 0 then
         DownloadPage.SetProgress(100, 100)
+      else if GraniteModelExists then
+      begin
+        { Downloader exited non-zero but every required model file is present on disk.
+          This can happen if the Python process is terminated mid-flush (antivirus,
+          OS signal, etc.) right after snapshot_download has already finished writing
+          files. Treat as soft success so the user is not shown a misleading error. }
+        Log('Model download exited with code ' + IntToStr(ResultCode) +
+            ' but all required model files are present; treating as success.');
+        Log('Model download detail (suppressed): ' + LastDownloadDetail);
+        DownloadPage.SetProgress(100, 100);
+      end
       else
       begin
         DetailText := '';
@@ -733,6 +757,10 @@ begin
                'or the model will be downloaded on first launch.',
                mbError, MB_OK);
       end;
+    end else if GraniteModelExists then
+    begin
+      Log('Model download wrapper failed to start but model files are already present; treating as success.');
+      DownloadPage.SetProgress(100, 100);
     end else
     begin
       DetailText := '';

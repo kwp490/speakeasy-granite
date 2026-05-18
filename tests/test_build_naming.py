@@ -454,8 +454,47 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
             with self.subTest(installer=name):
                 self.assertIn("function IsDownloadWarning", text)
                 self.assertIn("xet storage is enabled", text)
-                self.assertIn("not IsDownloadWarning(Line)", text)
+                self.assertIn("IsDownloadWarning(Line)", text)
+                self.assertIn("not IsDownloadNoise(Line)", text)
                 self.assertIn("LastDownloadDetail = ''", text)
+
+    def test_installers_do_not_replace_errors_with_startup_logs(self):
+        """Routine downloader log lines must not become the failure detail."""
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("function IsDownloadNoise", text)
+                self.assertIn("=== speakeasy ai starting", text)
+                self.assertIn("unauthenticated requests to the hf hub", text)
+                self.assertIn("please set a hf_token", text)
+                self.assertIn("[httpx]", text)
+                self.assertIn("http request:", text)
+                self.assertIn("not IsDownloadNoise(Line)", text)
+
+    def test_installers_accept_complete_model_despite_nonzero_exit(self):
+        """If every required model file is on disk, a non-zero downloader exit
+        code must not produce a misleading 'Model download failed' error dialog.
+
+        Real-world scenario: snapshot_download finished writing all files, but the
+        Python process was terminated (antivirus / OS signal) before it could
+        cleanly return EXIT_SUCCESS, leaving an empty stderr and exit code 1.
+        """
+        for name, text in (
+            ("GPU", self.iss_text),
+            ("CPU", self.cpu_iss_text),
+        ):
+            with self.subTest(installer=name):
+                self.assertIn("else if GraniteModelExists then", text)
+                self.assertIn(
+                    "all required model files are present; treating as success.",
+                    text,
+                )
+                self.assertIn(
+                    "model files are already present; treating as success.",
+                    text,
+                )
 
     def test_frozen_builds_include_hf_xet(self):
         """Xet-backed Hugging Face model downloads need hf_xet in frozen builds."""

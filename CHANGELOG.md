@@ -5,6 +5,16 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.5] - Model Download Completion Handling
+
+### Fixed
+- **Installer model downloads** now treat a non-zero downloader exit as success when all required Granite model files are already present, avoiding misleading failure dialogs after a completed download is interrupted during process shutdown
+- **Installer download errors** now ignore routine startup, Hugging Face token, Xet fallback, and HTTP request log noise before selecting the first actionable failure detail
+
+### Tests
+- Added installer guard tests for noisy downloader output filtering and completed-model soft-success handling
+- **Version metadata** updated across the Python package and both installer variants for the 0.14.5 release
+
 ## [0.14.4] - Defender Exclusion Policy
 
 ### Changed
