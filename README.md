@@ -34,7 +34,7 @@ The current public test build is available from the [v0.14.5 GitHub release](htt
 
 **Important:** Windows SmartScreen will show a red "Windows protected your PC" warning when you open the installer because this test build has not yet received a SmartScreen exception. If you trust this release, choose **More info**, then **Run anyway** to continue. The installer does not add Microsoft Defender exclusions by default; if Defender quarantines a verified download, see [SECURITY.md](SECURITY.md) for manual troubleshooting steps.
 
-SHA-256 checksums are attached to the same release for teams that want to verify downloaded installers before testing.
+SHA-256 checksums are attached to the same release for teams that want to verify downloaded installers before testing: [SHA256SUMS.txt](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.5/SHA256SUMS.txt), [GPU+CPU installer checksum](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.5/SpeakEasy-AI-Granite-Setup-0.14.5.exe.sha256), and [CPU installer checksum](https://github.com/kwp490/speakeasy-granite/releases/download/v0.14.5/SpeakEasy-AI-Granite-CPU-Setup-0.14.5.exe.sha256).
 
 ## Install From Source
 
