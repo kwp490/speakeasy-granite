@@ -5,6 +5,22 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0rc1] - Phase 0: Baseline & Measurement Harness
+
+### Added
+- **Benchmark harness** (`tools/bench.py`) measuring cold-start, model-load time, per-fixture p50/p95 latency, realtime factor, peak RAM/VRAM, and WER against committed references; ships a zero-dependency `--smoke` mode that runs without torch or a downloaded model
+- **Packaging inventory tool** (`tools/measure_dist.py`) reporting installed dependency sizes and PyInstaller onedir top-N file breakdown
+- **Synthetic audio fixtures** (`tests/fixtures/audio/{10s,30s,120s}.wav`) with a deterministic generator and reference-transcript manifest
+- **Baseline document** (`docs/benchmarks/baseline-0.14.5.md`) capturing the 0.14.5 dependency size table and resolving the re-architecture open questions
+
+### Findings
+- **OQ-1 (torchaudio):** confirmed **required** — the Granite feature extractor calls `requires_backends(["torchaudio"])` and builds `torchaudio.transforms.MelSpectrogram`; torchaudio removal is rejected
+- **OQ-2 (GGUF):** upgraded from "unknown" to **supported** — `llama.cpp` has native `granite_speech` multimodal support, making a future sub-300 MB CPU runtime spike viable
+
+### Tests
+- Added `tests/test_bench_smoke.py` covering the harness WER/percentile helpers, fixture presence, and an end-to-end `--smoke` run
+- **Version metadata** moved to the 0.15.0 development line (`0.15.0rc1`) across the Python package and both installer variants
+
 ## [0.14.5] - Model Download Completion Handling
 
 ### Fixed
