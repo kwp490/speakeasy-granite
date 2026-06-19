@@ -177,6 +177,12 @@ go/no-go still requires converting `granite-speech-4.1-2b` to GGUF and
 measuring WER (< 0.5 abs vs. this baseline) and p50 latency on target CPU
 hardware before it can replace the torch CPU path.
 
+> **Phase 5 update:** the per-backend go/no-go report is now in
+> [backends-0.15.md](backends-0.15.md). llama.cpp granite-speech support is
+> confirmed in code but is **not** in llama.cpp's documented pre-quantized
+> audio-model list and audio is flagged "highly experimental" — so the GGUF row is
+> decided **PARK — run the 3-day spike**, with the WER gate as the live risk.
+
 ---
 
 ## 5. What still blocks "done"

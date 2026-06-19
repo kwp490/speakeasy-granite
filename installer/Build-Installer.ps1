@@ -495,6 +495,11 @@ function Get-SourceHash {
              @(Get-ChildItem -Path "speakeasy\assets" -Recurse -File) +
              @(Get-Item "speakeasy.spec") +
              @(Get-Item "pyproject.toml")
+    # Shared build logic lives in spec_common.py; include it so edits there
+    # invalidate the PyInstaller cache for both variants.
+    if (Test-Path 'spec_common.py') {
+        $files += @(Get-Item 'spec_common.py')
+    }
     if ($VariantTag -eq 'cpu' -and (Test-Path 'speakeasy-cpu.spec')) {
         $files += @(Get-Item 'speakeasy-cpu.spec')
     }
@@ -550,6 +555,33 @@ if ($Mode -in @('Build', 'Release')) {
     }
     if ($Variant -in @('CPU', 'Both')) { Write-Ok 'speakeasy-cpu.spec found' }
 }
+
+# 1c2. Resolve the canonical version from speakeasy/__init__.py (single source of
+# truth, §14.2).  It is injected into Inno Setup via /DMyAppVersion=<v> so the
+# .iss #define is only a fallback.  Fail fast on a parse error or a fallback
+# mismatch so a stale .iss literal can never ship a wrongly-named installer.
+$script:AppVersion = $null
+if ($Mode -in @('Build', 'Release')) {
+    $initText = Get-Content 'speakeasy\__init__.py' -Raw
+    $m = [regex]::Match($initText, '__version__\s*=\s*"([^"]+)"')
+    if (-not $m.Success) {
+        Write-Err "Could not parse __version__ from speakeasy\__init__.py"
+        Exit-Script 1
+    }
+    $script:AppVersion = $m.Groups[1].Value
+    Write-Ok "App version: $script:AppVersion (from speakeasy\__init__.py)"
+
+    foreach ($issRel in @('installer\speakeasy-setup.iss', 'installer\speakeasy-cpu-setup.iss')) {
+        if (Test-Path $issRel) {
+            $issText = Get-Content $issRel -Raw
+            $im = [regex]::Match($issText, '#define\s+MyAppVersion\s+"([^"]+)"')
+            if ($im.Success -and $im.Groups[1].Value -ne $script:AppVersion) {
+                Write-Warn "$issRel fallback MyAppVersion '$($im.Groups[1].Value)' != __version__ '$script:AppVersion' (injected value overrides, but please sync the fallback)."
+            }
+        }
+    }
+}
+
 
 # 1d. Find iscc.exe (Build and Release modes only)
 $iscc = $null
@@ -777,8 +809,11 @@ function Invoke-VariantBuild {
 
             Write-Step "[$label] Building SpeakEasy AI binary with PyInstaller..."
 
+            # Pass the variant after `--` so spec_common bakes the matching
+            # _variant_tag marker (the spec also defaults correctly on its own).
             $pyiArgs = @("pyinstaller", $SpecFile, "--noconfirm")
             if ($Clean) { $pyiArgs += "--clean" }
+            $pyiArgs += @("--", "--variant", $VariantTag)
 
             $prevPref = $ErrorActionPreference
             $ErrorActionPreference = 'Continue'
@@ -786,7 +821,7 @@ function Invoke-VariantBuild {
                 if ($swappedTorch) {
                     # uv run would re-sync the lockfile (restoring GPU torch),
                     # so invoke PyInstaller directly from the venv.
-                    & .venv\Scripts\pyinstaller.exe $SpecFile --noconfirm $(if ($Clean) { '--clean' }) 2>&1 |
+                    & .venv\Scripts\pyinstaller.exe $SpecFile --noconfirm $(if ($Clean) { '--clean' }) -- --variant $VariantTag 2>&1 |
                         ForEach-Object { Write-Host "  $_" }
                 } else {
                     uv run @pyiArgs 2>&1 | ForEach-Object { Write-Host "  $_" }
@@ -836,6 +871,10 @@ function Invoke-VariantBuild {
 
     Write-Host "  Using: $($iscc)"
     $isccArgs = @($IssFile)
+    if ($script:AppVersion) {
+        $isccArgs = @("/DMyAppVersion=$script:AppVersion") + $isccArgs
+        Write-Host "  Version: $script:AppVersion (injected via /DMyAppVersion)" -ForegroundColor DarkGray
+    }
     if ($Fast) {
         $isccArgs = @("/DFastCompress") + $isccArgs
         Write-Host "  Mode: fast compression (dev build)" -ForegroundColor Yellow

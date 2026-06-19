@@ -5,7 +5,21 @@ import unittest
 import numpy as np
 import torch
 
+from speakeasy.core.contract import TranscriptionOptions
 from speakeasy.engine.granite_transcribe import GraniteTranscribeEngine
+from speakeasy.services.inprocess import InProcessEngineService
+
+
+def _transcribe(engine, audio, **option_overrides):
+    """Drive a transcription through the contract surface.
+
+    Prompt options travel *with* the request via ``TranscriptionOptions``
+    (the in-process adapter maps them onto the engine), exercising the same
+    prompt-building path the application uses rather than the legacy
+    per-engine prompt-options side-channel.
+    """
+    service = InProcessEngineService(engine)
+    return service.transcribe(audio, TranscriptionOptions(**option_overrides)).text
 
 
 class _FakeTokenizer:
@@ -65,7 +79,7 @@ class TestGranitePrompting(unittest.TestCase):
 
     def test_transcribe_prompt_uses_audio_marker_and_punctuation(self):
         engine = self._engine(["hello"])
-        result = engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en")
+        result = _transcribe(engine, np.zeros(16000, dtype=np.float32))
 
         self.assertEqual(result, "hello")
         content = engine._tokenizer.chats[0][0]["content"]
@@ -74,9 +88,13 @@ class TestGranitePrompting(unittest.TestCase):
 
     def test_punctuation_off_uses_basic_transcription_prompt(self):
         engine = self._engine(["hello"])
-        engine.configure_prompt_options(formatting_style="preserve_spoken_wording")
 
-        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en", punctuation=False)
+        _transcribe(
+            engine,
+            np.zeros(16000, dtype=np.float32),
+            formatting_style="preserve_spoken_wording",
+            punctuation=False,
+        )
 
         content = engine._tokenizer.chats[0][0]["content"]
         self.assertIn("<|audio|>can you transcribe the speech into a written format?", content)
@@ -84,18 +102,24 @@ class TestGranitePrompting(unittest.TestCase):
 
     def test_plain_text_formatting_prompt(self):
         engine = self._engine(["hello"])
-        engine.configure_prompt_options(formatting_style="plain_text")
 
-        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en")
+        _transcribe(
+            engine,
+            np.zeros(16000, dtype=np.float32),
+            formatting_style="plain_text",
+        )
 
         content = engine._tokenizer.chats[0][0]["content"]
         self.assertIn("Transcribe the speech as plain text.", content)
 
     def test_preserve_spoken_wording_formatting_prompt(self):
         engine = self._engine(["hello"])
-        engine.configure_prompt_options(formatting_style="preserve_spoken_wording")
 
-        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en")
+        _transcribe(
+            engine,
+            np.zeros(16000, dtype=np.float32),
+            formatting_style="preserve_spoken_wording",
+        )
 
         content = engine._tokenizer.chats[0][0]["content"]
         self.assertIn(
@@ -106,24 +130,27 @@ class TestGranitePrompting(unittest.TestCase):
 
     def test_translate_prompt_uses_target_language(self):
         engine = self._engine(["bonjour"])
-        engine.configure_prompt_options(
-            speech_task="translate",
-            translation_target_language="French",
-        )
 
-        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en")
+        _transcribe(
+            engine,
+            np.zeros(16000, dtype=np.float32),
+            task="translate",
+            translation_target="French",
+        )
 
         content = engine._tokenizer.chats[0][0]["content"]
         self.assertIn("translate the speech to French with proper punctuation and capitalization.", content)
 
     def test_translate_prompt_can_omit_punctuation_clause(self):
         engine = self._engine(["bonjour"])
-        engine.configure_prompt_options(
-            speech_task="translate",
-            translation_target_language="French",
-        )
 
-        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en", punctuation=False)
+        _transcribe(
+            engine,
+            np.zeros(16000, dtype=np.float32),
+            task="translate",
+            translation_target="French",
+            punctuation=False,
+        )
 
         content = engine._tokenizer.chats[0][0]["content"]
         self.assertIn("translate the speech to French.", content)
@@ -131,9 +158,12 @@ class TestGranitePrompting(unittest.TestCase):
 
     def test_keyword_bias_prompt_is_normalized(self):
         engine = self._engine(["acme rocket"])
-        engine.configure_prompt_options(keyword_bias="Acme,  PX-42\nGranite")
 
-        engine._transcribe_impl(np.zeros(16000, dtype=np.float32), "en")
+        _transcribe(
+            engine,
+            np.zeros(16000, dtype=np.float32),
+            keyword_bias="Acme,  PX-42\nGranite",
+        )
 
         content = engine._tokenizer.chats[0][0]["content"]
         self.assertIn("transcribe the speech with proper punctuation and capitalization.", content)

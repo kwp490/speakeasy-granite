@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import sys
 import time
 from enum import Enum
 from pathlib import Path
@@ -38,8 +37,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import numpy as np
-
 from .audio import AudioRecorder, play_beep
 from .app_identity import app_icon_path
 from .clipboard import set_clipboard_text, simulate_paste
@@ -56,15 +53,17 @@ from ._constants import (
     WM_POWERBROADCAST,
 )
 from .config import DEFAULT_LOG_DIR, DEFAULT_PRESETS_DIR, Settings
-from ._build_variant import VARIANT
-from .engine import ENGINES
-from .engine.granite_transcribe import GraniteTranscribeEngine
+from .core.contract import TranscriptionOptions, TranscriptionService
+from .services.inprocess import InProcessEngineService
 from .hotkeys import HotkeyManager
 from ._resource_monitor import ResourceMonitor
 from .pro_preset import ProPreset, bootstrap_presets, load_all_presets
 from .pro_mode_widget import PROFILE_NONE
 from .status_pills import ProMode, StatusPillBar
 from .text_processor import TextProcessor, load_api_key_from_keyring
+from .ui.metrics_bridge import MetricsBridge
+from .ui.model_controller import ModelController
+from .ui.dictation_controller import DictationController
 from .workers import DedicatedWorkerPool, Worker
 
 log = logging.getLogger(__name__)
@@ -268,11 +267,26 @@ class MainWindow(QMainWindow):
         self._engine_pool.setMaxThreadCount(1)
         self._engine_pool.setExpiryTimeout(-1)
 
+        # ── Controllers ──────────────────────────────────────────────────────
+        # Plain-QObject controllers (plan §9) that hold a back-reference to this
+        # window and own the model lifecycle and dictation state machine.
+        self._model_controller = ModelController(self)
+        self._dictation_controller = DictationController(self)
+
         # ── Engine ───────────────────────────────────────────────────────────
+        # MainWindow talks only to a TranscriptionService.  A caller may inject
+        # either a ready-made service or a raw duck-typed engine (tests do the
+        # latter); wrap the latter in the in-process adapter.  With no injection
+        # we build the in-process service for the configured engine — the heavy
+        # torch/transformers import is deferred to model-load time.
         if engine is not None:
-            self._engine = engine
+            self._service: TranscriptionService = (
+                engine
+                if isinstance(engine, InProcessEngineService)
+                else InProcessEngineService(engine)
+            )
         else:
-            self._engine = GraniteTranscribeEngine()
+            self._service = self._model_controller._build_service_from_settings()
 
         # ── Audio ────────────────────────────────────────────────────────────
         self._recorder = AudioRecorder(
@@ -297,7 +311,8 @@ class MainWindow(QMainWindow):
         self._res_monitor = ResourceMonitor(
             pool=self._pool, interval_ms=METRICS_POLL_MS, parent=self,
         )
-        self._res_monitor.metrics_updated.connect(self._on_metrics_result)
+        self._metrics_bridge = MetricsBridge(self)
+        self._res_monitor.metrics_updated.connect(self._metrics_bridge.on_metrics_result)
         self._res_monitor.metrics_error.connect(
             lambda err: log.error("Metrics poll error: %s", err)
         )
@@ -347,15 +362,15 @@ class MainWindow(QMainWindow):
             self._log_ui(f"Microphone error: {exc}", error=True)
 
         # ── Begin model loading ──────────────────────────────────────────────
-        if self._granite_model_ready():
-            self._load_model()
+        if self._model_controller._granite_model_ready():
+            self._model_controller._load_model()
         else:
-            health_summary = self._granite_model_health_summary()
+            health_summary = self._model_controller._granite_model_health_summary()
             log.warning("Granite model is not ready: %s", health_summary)
-            self._set_model_status(ModelStatus.ERROR)
+            self._model_controller._set_model_status(ModelStatus.ERROR)
             self._log_ui("Model incomplete or missing — setup required", error=True)
             # Defer dialog to after the event loop starts so the window is visible
-            QTimer.singleShot(500, self._prompt_model_setup_on_start)
+            QTimer.singleShot(500, self._model_controller._prompt_model_setup_on_start)
 
     # ═════════════════════════════════════════════════════════════════════════
     # UI CONSTRUCTION
@@ -389,7 +404,7 @@ class MainWindow(QMainWindow):
         self._btn_record.setMinimumHeight(Size.BUTTON_HEIGHT_PRIMARY)
         self._btn_record.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_record.setStyleSheet(primary_record_button_style("idle"))
-        self._btn_record.clicked.connect(self._on_toggle_recording)
+        self._btn_record.clicked.connect(self._dictation_controller._on_toggle_recording)
 
         record_button_layout = QHBoxLayout(self._btn_record)
         record_button_layout.setContentsMargins(Spacing.MD, 0, Spacing.MD, 0)
@@ -455,7 +470,7 @@ class MainWindow(QMainWindow):
         self._status_bar.pro_mode_clicked.connect(self._on_open_pro_settings)
         root.addWidget(self._status_bar)
         self._update_global_status()
-        self._refresh_dictation_buttons()
+        self._dictation_controller._refresh_dictation_buttons()
 
         # ── Transcription Mode ───────────────────────────────────────────────
         transcription_section, transcription_layout = make_section_panel(
@@ -572,7 +587,7 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "_status_bar"):
             return
 
-        engine_display = str(getattr(self._engine, "name", "granite")).capitalize()
+        engine_display = str(self._service.descriptor().name).capitalize()
         device_label = "GPU" if self.settings.device == "cuda" and not self._device_fallback_to_cpu else "CPU"
         self._status_bar.set_ai_model(
             name=engine_display,
@@ -751,14 +766,15 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _on_open_ai_providers(self) -> None:
-        """Open the Developer Panel on the AI Providers tab."""
-        from .developer_panel import TAB_PROVIDERS
+        """Open the Developer Panel on the AI Writing Profiles tab (AI Providers
+        is folded in there since Phase 6) and focus the API-key field."""
+        from .developer_panel import TAB_PRO
 
         if self._dev_panel is None:
             self._on_toggle_dev_panel()
         if self._dev_panel is not None:
             self._dev_panel.show_snapped()
-            self._dev_panel.activate_tab(TAB_PROVIDERS)
+            self._dev_panel.activate_tab(TAB_PRO)
             ap = getattr(self._dev_panel, "ai_providers_widget", None)
             if ap is not None:
                 ap.focus_api_key()
@@ -806,7 +822,7 @@ class MainWindow(QMainWindow):
     def _setup_timers(self) -> None:
         # Model loading elapsed timer (updates label during loading)
         self._loading_timer = QTimer(self)
-        self._loading_timer.timeout.connect(self._update_loading_label)
+        self._loading_timer.timeout.connect(self._model_controller._update_loading_label)
         self._loading_timer.setInterval(LOADING_TICK_MS)
 
         # Start resource-metrics polling
@@ -817,7 +833,7 @@ class MainWindow(QMainWindow):
     # ═════════════════════════════════════════════════════════════════════════
 
     def _connect_hotkeys(self) -> None:
-        self._hotkey_mgr.toggle_requested.connect(self._on_toggle_recording)
+        self._hotkey_mgr.toggle_requested.connect(self._dictation_controller._on_toggle_recording)
         self._hotkey_mgr.quit_requested.connect(self.close)
         self._hotkey_mgr.dev_panel_toggle_requested.connect(self._on_toggle_dev_panel)
         if self.settings.hotkeys_enabled:
@@ -855,177 +871,19 @@ class MainWindow(QMainWindow):
     # MODEL ENGINE MANAGEMENT
     # ═════════════════════════════════════════════════════════════════════════
 
-    def _set_model_status(self, status: ModelStatus) -> None:
-        from .theme import Color as TC
-        self._model_status = status
-        color_map = {
-            ModelStatus.READY: TC.SUCCESS,
-            ModelStatus.VALIDATED: TC.SUCCESS,
-            ModelStatus.LOADING: TC.WARNING,
-            ModelStatus.NOT_LOADED: TC.TEXT_MUTED,
-            ModelStatus.VALIDATING: TC.INFO,
-            ModelStatus.ERROR: TC.DANGER,
-        }
-        color = color_map.get(status, TC.TEXT_MUTED)
-        self._lbl_model_status.setText(
-            f'Status: <span style="color:{color}"><b>{status.value}</b></span>'
-        )
-        if self._dev_panel is not None:
-            self._dev_panel.realtime_widget.update_engine_status(
-                self._engine.name, self.settings.device, status.value, color,
-            )
-        self._update_global_status()
-        self._refresh_dictation_buttons()
-
-    def _load_model(self) -> None:
-        """Begin model loading on a worker thread."""
-        self._device_fallback_to_cpu = False
-        self._set_model_status(ModelStatus.LOADING)
-        self._model_load_start = time.time()
-        self._loading_timer.start()
-        self._log_ui(f"Loading {self._engine.name} model…")
-
-        def _do_load():
-            self._engine.load(self.settings.model_path, self.settings.device)
-
-        worker = Worker(_do_load)
-        worker.signals.result.connect(self._on_model_loaded)
-        worker.signals.error.connect(self._on_model_load_error)
-        self._engine_pool.start(worker)
-
-    @Slot(object)
-    def _on_model_loaded(self, _result) -> None:
-        self._loading_timer.stop()
-        elapsed = time.time() - self._model_load_start
-        actual_device = self._actual_engine_device()
-        self._device_fallback_to_cpu = (
-            self.settings.device == "cuda" and actual_device == "cpu"
-        )
-        self._set_model_status(ModelStatus.READY)
-        device_label = "CPU" if actual_device == "cpu" else "GPU"
-        self._lbl_engine.setText(f"Engine: {self._engine.name}  \u00b7  Device: {device_label}")
-        self._log_ui(f"Model loaded in {elapsed:.1f}s")
-
-    def _actual_engine_device(self) -> str:
-        actual_device = getattr(self._engine, "actual_device", None)
-        if actual_device is None:
-            actual_device = getattr(self._engine, "device", self.settings.device)
-        actual_text = str(actual_device).lower()
-        return "cuda" if actual_text.startswith("cuda") else "cpu"
-
-    @Slot(str)
-    def _on_model_load_error(self, err: str) -> None:
-        self._loading_timer.stop()
-        self._set_model_status(ModelStatus.ERROR)
-        self._log_ui(f"Model load failed: {err}", error=True)
-
-    def _update_loading_label(self) -> None:
-        """Update the status label with elapsed loading time."""
-        from .theme import Color as TC
-        if self._model_status == ModelStatus.LOADING:
-            elapsed = int(time.time() - self._model_load_start)
-            self._lbl_model_status.setText(
-                f'Status: <span style="color:{TC.WARNING}"><b>Loading… {elapsed}s</b></span>'
-            )
-
-    @Slot()
-    def _on_reload_model(self) -> None:
-        """Unload then reload the model."""
-        self._log_ui("Reloading model…")
-
-        def _do_reload():
-            self._engine.unload()
-            self._engine.load(self.settings.model_path, self.settings.device)
-
-        self._device_fallback_to_cpu = False
-        self._set_model_status(ModelStatus.LOADING)
-        self._model_load_start = time.time()
-        self._loading_timer.start()
-
-        worker = Worker(_do_reload)
-        worker.signals.result.connect(self._on_model_loaded)
-        worker.signals.error.connect(self._on_model_load_error)
-        self._engine_pool.start(worker)
+    # ── Model lifecycle ───────────────────────────────────────────────────────
+    # Moved to speakeasy.ui.model_controller.ModelController (plan §9, Phase 6).
 
     # ── Resource metrics ──────────────────────────────────────────────────────
-
-    @Slot(object)
-    def _on_metrics_result(self, metrics) -> None:
-        from .theme import Color as TC
-
-        def _bar_color(pct: float) -> str:
-            if pct > 90:
-                return TC.DANGER
-            if pct > 75:
-                return TC.WARNING
-            return TC.PRIMARY
-
-        def _bar_style(pct: float) -> str:
-            c = _bar_color(pct)
-            return (
-                f"QProgressBar {{ border: 1px solid {TC.BORDER}; border-radius: 3px; background: {TC.INPUT_BG}; }}"
-                f"QProgressBar::chunk {{ background-color: {c}; border-radius: 3px; }}"
-            )
-
-        if metrics.ram_total_gb > 0:
-            self._lbl_ram.setText(
-                f"RAM: {metrics.ram_used_gb:.1f} / {metrics.ram_total_gb:.1f} GB "
-                f"({metrics.ram_percent:.0f}%)"
-            )
-            self._pb_ram.setValue(int(metrics.ram_percent))
-            self._pb_ram.setStyleSheet(_bar_style(metrics.ram_percent))
-        else:
-            self._lbl_ram.setText("RAM: —")
-            self._pb_ram.setValue(0)
-
-        gpu = metrics.gpu
-        if VARIANT != "cpu" and gpu.vram_total_gb > 0:
-            pct = gpu.vram_percent
-            vram_text_color = _bar_color(pct)
-            self._lbl_vram.setText(
-                f'VRAM: <span style="color:{vram_text_color}"><b>{gpu.vram_used_gb:.1f}</b></span>'
-                f" / {gpu.vram_total_gb:.1f} GB ({pct:.0f}%)"
-            )
-            self._pb_vram.setValue(int(pct))
-            self._pb_vram.setStyleSheet(_bar_style(pct))
-            self._lbl_gpu_info.setText(f"GPU: {gpu.name} ({gpu.temperature_c}°C)")
-        else:
-            self._lbl_vram.setText("VRAM: —")
-            self._pb_vram.setValue(0)
-            self._lbl_gpu_info.setText("GPU: —")
-
-        # Forward to Developer Panel
-        if self._dev_panel is not None:
-            rw = self._dev_panel.realtime_widget
-            rw.update_ram(metrics.ram_used_gb, metrics.ram_total_gb, metrics.ram_percent)
-            gpu = metrics.gpu
-            if VARIANT != "cpu" and gpu.vram_total_gb > 0:
-                rw.update_vram(gpu.vram_used_gb, gpu.vram_total_gb, gpu.vram_percent)
-                rw.update_gpu(f"{gpu.name} ({gpu.temperature_c}°C)")
-            else:
-                rw.update_vram(0, 0, 0)
-                rw.update_gpu("—")
-            # Forward LLM token stats so the sparkline updates continuously
-            if self._text_processor is not None:
-                tps, ti, to, llm_seq = self._text_processor.token_stats
-            else:
-                tps, ti, to, llm_seq = 0.0, 0, 0, 0
-            rw.update_tokens(tps, ti, to, seq=llm_seq)
-            # Forward speech-engine token stats
-            if self._engine is not None and hasattr(self._engine, 'token_stats'):
-                asr_tps, asr_tot, asr_audio, asr_rtf, asr_seq = self._engine.token_stats
-            else:
-                asr_tps, asr_tot, asr_audio, asr_rtf, asr_seq = 0.0, 0, 0.0, 0.0, 0
-            rw.update_asr_tokens(asr_tps, asr_tot, asr_audio, asr_rtf, seq=asr_seq)
 
     # —— Validate ——————————————————————————————————————————————————————————————
 
     @Slot()
     def _on_validate(self) -> None:
-        if not self._engine.is_loaded:
+        if not self._service.is_loaded:
             self._log_ui("Cannot validate — model not loaded", error=True)
             return
-        self._set_model_status(ModelStatus.VALIDATING)
+        self._model_controller._set_model_status(ModelStatus.VALIDATING)
         self._log_ui("Running functional validation…")
 
         def _do_validate():
@@ -1038,7 +896,8 @@ class MainWindow(QMainWindow):
             audio, sr = sf.read(fixture_path, dtype="float32")
             if audio.ndim == 2:
                 audio = audio[:, 0]
-            text = self._engine.transcribe(audio, sr)
+            audio_16k = self._model_controller._resample_to_16k(audio, sr)
+            text = self._service.transcribe(audio_16k, TranscriptionOptions()).text
             # Loose match — just check for some expected words
             text_lower = text.lower()
             if any(w in text_lower for w in ("testing", "one", "two", "three")):
@@ -1057,423 +916,22 @@ class MainWindow(QMainWindow):
     def _on_validate_result(self, result: tuple) -> None:
         ok, msg = result
         if ok:
-            self._set_model_status(ModelStatus.VALIDATED)
+            self._model_controller._set_model_status(ModelStatus.VALIDATED)
             self._log_ui(f"Validation passed: {msg}")
         else:
-            self._set_model_status(ModelStatus.ERROR)
+            self._model_controller._set_model_status(ModelStatus.ERROR)
             self._log_ui(f"Validation failed: {msg}", error=True)
 
     # ═════════════════════════════════════════════════════════════════════════
     # DICTATION
     # ═════════════════════════════════════════════════════════════════════════
-
-    def _set_dictation_state(self, state: DictationState) -> None:
-        self._dictation_state = state
-        self._update_global_status()
-        self._refresh_dictation_buttons()
-
-    def _refresh_dictation_buttons(self) -> None:
-        """Enable/disable and relabel the record toggle button based on dictation + model state."""
-        is_idle = self._dictation_state == DictationState.IDLE
-        is_recording = self._dictation_state == DictationState.RECORDING
-        is_processing = self._dictation_state == DictationState.PROCESSING
-        model_ready = self._model_status in (ModelStatus.READY, ModelStatus.VALIDATED)
-        if is_recording:
-            self._btn_record.setEnabled(True)
-            self._set_record_button_state("recording")
-        elif is_processing:
-            self._btn_record.setEnabled(False)
-            self._set_record_button_state("processing")
-        else:
-            self._btn_record.setEnabled(is_idle and model_ready)
-            self._set_record_button_state("idle" if model_ready else "disabled")
-
-    def _set_record_button_state(self, state: str) -> None:
-        from .theme import Color, primary_record_button_style
-
-        if state == "recording":
-            title = "Recording..."
-            status = "Recording"
-            dot_color = Color.DANGER
-        elif state == "processing":
-            title = "Transcribing..."
-            status = "Please wait"
-            dot_color = Color.INFO
-        elif state == "disabled":
-            title = "Start Recording"
-            status = "Please wait"
-            dot_color = Color.TEXT_MUTED
-        else:
-            title = "Start Recording"
-            status = "Ready"
-            dot_color = Color.SUCCESS
-
-        self._btn_record.setText("")
-        self._btn_record.setAccessibleName(f"{title}, {status}")
-        self._btn_record.setStyleSheet(primary_record_button_style(state))
-        self._record_title.setText(title)
-        self._record_dot.setStyleSheet(f"color: {dot_color}; background: transparent; font-weight: 700;")
-        self._record_status.setText(status)
-
-    @Slot()
-    def _on_toggle_recording(self) -> None:
-        """Single hotkey/button handler — start when idle, stop when recording."""
-        if self._dictation_state == DictationState.IDLE:
-            self._on_start_recording()
-        elif self._dictation_state == DictationState.RECORDING:
-            self._on_stop_and_transcribe()
-
-    @Slot()
-    def _on_start_recording(self) -> None:
-        if self._dictation_state != DictationState.IDLE:
-            return
-        if self._model_status not in (ModelStatus.READY, ModelStatus.VALIDATED):
-            self._log_ui("Cannot record — model not ready yet", error=True)
-            return
-        # Health-check the audio stream before recording
-        if not self._recorder.stream_is_alive():
-            self._log_ui("Audio stream stale — attempting recovery…")
-            if not self._recorder.recover_stream():
-                self._log_ui(
-                    "Microphone not responding — try changing the audio "
-                    "device in Settings",
-                    error=True,
-                )
-                return
-            self._log_ui("Audio stream recovered")
-        play_beep((600, 900))   # ascending chirp → "go!"
-        self._recorder.start_recording()
-        self._set_dictation_state(DictationState.RECORDING)
-        self._log_ui("Recording started")
-
-    @Slot()
-    def _on_stop_and_transcribe(self) -> None:
-        """Stop recording, trim, transcribe in-process, clipboard, paste — threaded."""
-        if self._dictation_state != DictationState.RECORDING:
-            return
-        play_beep((900, 500))   # descending chirp → "done"
-        self._set_dictation_state(DictationState.PROCESSING)
-
-        # Pause NVIDIA Management Library polling while Granite transcribes.
-        # On some driver/CUDA combinations, overlapping NVML queries and CUDA
-        # generation calls can deadlock the worker and leave the UI stuck.
-        self._res_monitor.stop()
-
-        # Wait for any in-flight metrics poll to finish before dispatching
-        # the transcription worker so NVML and CUDA calls do not overlap.
-        import time as _time
-        _deadline = _time.monotonic() + 2.0
-        while self._res_monitor.is_in_flight and _time.monotonic() < _deadline:
-            from PySide6.QtCore import QCoreApplication
-            QCoreApplication.processEvents()
-            _time.sleep(0.05)
-
-        # Get raw audio (fast, on main thread)
-        audio = self._recorder.get_raw_audio()
-        if audio is None:
-            self._log_ui("No audio recorded", error=True)
-            self._res_monitor.start()
-            self._set_dictation_state(DictationState.IDLE)
-            return
-
-        self._log_ui(f"Recording stopped \u2014 captured {len(audio)/self.settings.sample_rate:.1f}s of audio")
-
-        self._suspend_mic_stream_for_processing()
-
-        # Heavy work on thread pool — NO clipboard ops here
-        def _process():
-            # Trim silence
-            trim_result = self._recorder.trim_silence(audio)
-            if trim_result is None:
-                raise RuntimeError("No speech detected — audio was pure silence")
-            trimmed, pct = trim_result
-            if pct > 1:
-                log.info("Trimmed %.0f%% silence", pct)
-
-            # Contiguous copy — trim_silence returns a view/slice that can
-            # cause native-code crashes in CUDA / torch.
-            trimmed = np.ascontiguousarray(trimmed, dtype=np.float32)
-
-            configure_prompt_options = getattr(self._engine, "configure_prompt_options", None)
-            if callable(configure_prompt_options):
-                configure_prompt_options(
-                    speech_task=self.settings.speech_task,
-                    translation_target_language=self.settings.translation_target_language,
-                    keyword_bias=self.settings.keyword_bias,
-                    formatting_style=self.settings.formatting_style,
-                )
-
-            # Transcribe in-process
-            text = self._engine.transcribe(
-                trimmed, self.settings.sample_rate, self.settings.language,
-                punctuation=self.settings.punctuation,
-                timeout=self.settings.inference_timeout,
-            )
-            return text
-
-        worker = Worker(_process)
-        worker.signals.result.connect(self._on_transcription_result)
-        worker.signals.error.connect(self._on_transcription_error)
-        self._engine_pool.start(worker)
-
-    @Slot(object)
-    def _on_transcription_result(self, text: str) -> None:
-        """Handle transcription result — runs on MAIN THREAD (safe for clipboard)."""
-        self._res_monitor.start()
-        self._resume_mic_stream_after_processing()
-        text = str(text).strip()
-        ts = datetime.datetime.now().strftime("%H:%M:%S")
-        if text:
-            self._set_dictation_state(DictationState.SUCCESS)
-            self._log_ui(f"Transcribed: {len(text)} chars")
-
-            # AI Writing Profiles: send to OpenAI for cleanup
-            if (
-                self.settings.professional_mode
-                and self._text_processor is not None
-                and self._active_preset is not None
-            ):
-                self._log_ui("Cleaning up text…")
-
-                preset = self._active_preset
-                processor = self._text_processor
-
-                def _cleanup():
-                    result = processor.process(
-                        text,
-                        preset=preset,
-                    )
-                    log.info("Professional cleanup worker finished (%d chars)", len(result))
-                    return result
-
-                # Store context for the bound-method handlers so we
-                # don't need lambdas (lambdas prevent QObject connection
-                # tracking and allow the Worker to be GC'd prematurely).
-                self._pro_context = (ts, text)
-                self._pro_worker = Worker(_cleanup)
-                self._pro_worker.setAutoDelete(False)  # we manage lifetime
-                self._pro_worker.signals.result.connect(self._on_professional_result)
-                self._pro_worker.signals.error.connect(self._on_professional_error)
-                self._pro_worker.signals.finished.connect(self._on_professional_finished)
-                self._update_global_status()
-                self._pool.start(self._pro_worker)
-
-                # Safety timeout — if signal delivery fails for any
-                # reason, fall back after the API timeout + buffer.
-                self._pro_timeout = QTimer(self)
-                self._pro_timeout.setSingleShot(True)
-                self._pro_timeout.timeout.connect(self._on_professional_timeout)
-                self._pro_timeout.start(20_000)  # 20 s
-                return
-
-            self._add_history(ts, text, success=True)
-
-            copied = True
-            if self._chk_auto_copy.isChecked():
-                copied = set_clipboard_text(text)  # MAIN THREAD — safe
-                if copied:
-                    self._log_ui("Copied to clipboard")
-                else:
-                    self._log_ui("Failed to copy to clipboard", error=True)
-
-            if copied and self._chk_auto_paste.isChecked():
-                # Run paste in a thread to avoid blocking UI during modifier wait
-                def _paste():
-                    simulate_paste(wait_for_modifiers=self._chk_hotkeys.isChecked())
-                w = Worker(_paste)
-                self._pool.start(w)
-        else:
-            self._log_ui("Transcription returned empty text")
-            self._add_history(ts, "(empty)", success=True)
-            self._set_dictation_state(DictationState.SUCCESS)
-
-        QTimer.singleShot(
-            STATE_RESET_IDLE_MS,
-            lambda: self._set_dictation_state(DictationState.IDLE)
-            if self._dictation_state in (DictationState.SUCCESS, DictationState.ERROR)
-            else None,
-        )
-
-    @Slot(object)
-    def _on_professional_result(self, cleaned_raw: object) -> None:
-        """Handle the cleaned text from AI Writing Profiles."""
-        log.info("Professional result signal delivered to main thread")
-        ctx = self._pro_context  # read BEFORE cancel clears it
-        self._cancel_pro_timeout()
-        if ctx is None:
-            return  # already handled (e.g. by timeout)
-        ts, original = ctx
-        cleaned = str(cleaned_raw).strip()
-
-        # Forward token stats to Developer Panel
-        if self._dev_panel is not None and self._text_processor is not None:
-            tps, ti, to, llm_seq = self._text_processor.token_stats
-            self._dev_panel.realtime_widget.update_tokens(tps, ti, to, seq=llm_seq)
-
-        if cleaned and cleaned != original:
-            self._log_ui(f"Professional cleanup: {len(original)} -> {len(cleaned)} chars")
-            self._add_history(ts, cleaned, success=True, original_text=original)
-            output = cleaned
-        else:
-            self._log_ui("Professional cleanup returned unchanged text")
-            self._add_history(ts, original, success=True)
-            output = original
-
-        copied = True
-        if self._chk_auto_copy.isChecked():
-            copied = set_clipboard_text(output)
-            if copied:
-                self._log_ui("Copied to clipboard")
-            else:
-                self._log_ui("Failed to copy to clipboard", error=True)
-
-        if copied and self._chk_auto_paste.isChecked():
-            def _paste():
-                simulate_paste(wait_for_modifiers=self._chk_hotkeys.isChecked())
-            w = Worker(_paste)
-            self._pool.start(w)
-
-        QTimer.singleShot(
-            STATE_RESET_IDLE_MS,
-            lambda: self._set_dictation_state(DictationState.IDLE)
-            if self._dictation_state in (DictationState.SUCCESS, DictationState.ERROR)
-            else None,
-        )
-
-    @Slot(str)
-    def _on_professional_error(self, err: str) -> None:
-        """AI Writing Profiles cleanup failed — fall back to raw text."""
-        log.info("Professional error signal delivered to main thread")
-        ctx = self._pro_context  # read BEFORE cancel clears it
-        self._cancel_pro_timeout()
-        if ctx is None:
-            return  # already handled (e.g. by timeout)
-        ts, original = ctx
-        self._log_ui(f"Professional cleanup failed: {err}", error=True)
-        self._add_history(ts, original, success=True)
-
-        copied = True
-        if self._chk_auto_copy.isChecked():
-            copied = set_clipboard_text(original)
-            if copied:
-                self._log_ui("Copied original text to clipboard (cleanup failed)")
-            else:
-                self._log_ui("Failed to copy to clipboard", error=True)
-
-        if copied and self._chk_auto_paste.isChecked():
-            def _paste():
-                simulate_paste(wait_for_modifiers=self._chk_hotkeys.isChecked())
-            w = Worker(_paste)
-            self._pool.start(w)
-
-        QTimer.singleShot(
-            STATE_RESET_IDLE_MS,
-            lambda: self._set_dictation_state(DictationState.IDLE)
-            if self._dictation_state in (DictationState.SUCCESS, DictationState.ERROR)
-            else None,
-        )
-
-    @Slot()
-    def _on_professional_finished(self) -> None:
-        """Worker done — drop the reference (prevent leak)."""
-        self._pro_worker = None
-        self._update_global_status()
-
-    def _cancel_pro_timeout(self) -> None:
-        """Stop the safety timer and clear professional-mode context."""
-        if self._pro_timeout is not None:
-            self._pro_timeout.stop()
-            self._pro_timeout.deleteLater()
-            self._pro_timeout = None
-        self._pro_context = None
-
-    @Slot()
-    def _on_professional_timeout(self) -> None:
-        """Safety net — professional cleanup did not complete in time."""
-        ctx = self._pro_context
-        self._pro_timeout = None
-        self._pro_context = None
-        self._pro_worker = None
-        self._update_global_status()
-        if ctx is None:
-            return  # result/error already handled normally
-        ts, original = ctx
-        log.warning("Professional cleanup timed out — falling back to original text")
-        self._log_ui("Professional cleanup timed out — using original text", error=True)
-        self._add_history(ts, original, success=True)
-
-        copied = True
-        if self._chk_auto_copy.isChecked():
-            copied = set_clipboard_text(original)
-            if copied:
-                self._log_ui("Copied original text to clipboard")
-            else:
-                self._log_ui("Failed to copy to clipboard", error=True)
-
-        if copied and self._chk_auto_paste.isChecked():
-            def _paste():
-                simulate_paste(wait_for_modifiers=self._chk_hotkeys.isChecked())
-            w = Worker(_paste)
-            self._pool.start(w)
-
-        QTimer.singleShot(
-            STATE_RESET_IDLE_MS,
-            lambda: self._set_dictation_state(DictationState.IDLE)
-            if self._dictation_state in (DictationState.SUCCESS, DictationState.ERROR)
-            else None,
-        )
-
-    @Slot(str)
-    def _on_transcription_error(self, err: str) -> None:
-        self._res_monitor.start()
-        self._resume_mic_stream_after_processing()
-        ts = datetime.datetime.now().strftime("%H:%M:%S")
-        self._set_dictation_state(DictationState.ERROR)
-
-        # Detect CUDA errors and trigger automatic model reload so the next
-        # transcription attempt has a clean GPU context.
-        is_cuda_error = any(s in err for s in (
-            "CUDA error", "AcceleratorError", "cudaError",
-        ))
-        if is_cuda_error and self._engine is not None and self._engine.is_loaded:
-            self._log_ui("CUDA error detected — reloading model to recover…", error=True)
-            self._add_history(ts, "CUDA error — reloading model…", success=False)
-            self._on_reload_model()
-            return
-
-        self._log_ui(f"Transcription error: {err}", error=True)
-        self._add_history(ts, f"Error: {err}", success=False)
-        QTimer.singleShot(
-            STATE_RESET_ERROR_MS,
-            lambda: self._set_dictation_state(DictationState.IDLE)
-            if self._dictation_state in (DictationState.SUCCESS, DictationState.ERROR)
-            else None,
-        )
+    # The record → transcribe → paste state machine moved to
+    # speakeasy.ui.dictation_controller.DictationController (plan §9, Phase 6).
 
     # ═════════════════════════════════════════════════════════════════════════
     # HISTORY
     # ═════════════════════════════════════════════════════════════════════════
-
-    def _add_history(
-        self,
-        timestamp: str,
-        text: str,
-        success: bool,
-        original_text: Optional[str] = None,
-    ) -> None:
-        from .history_widget import _HistoryEntry
-
-        if self._dev_panel is None:
-            self._history_buffer.append((timestamp, text, success, original_text))
-            return
-
-        hw = self._dev_panel.history_widget
-        entry = _HistoryEntry(
-            timestamp, text, success, parent=hw.history_content,
-            original_text=original_text,
-        )
-        count = hw.history_layout.count()
-        hw.history_layout.insertWidget(max(0, count - 1), entry)
+    # _add_history moved to DictationController (plan §9, Phase 6).
 
     # ═════════════════════════════════════════════════════════════════════════
     # CLEAR LOGS & HISTORY
@@ -1526,43 +984,8 @@ class MainWindow(QMainWindow):
                 except OSError:
                     pass
 
-    def _suspend_mic_stream_for_processing(self) -> None:
-        """Close the live input stream before model inference starts."""
-        if self._mic_suspended_for_processing:
-            return
-        try:
-            self._recorder.close_stream()
-            self._mic_suspended_for_processing = True
-            self._log_ui("Microphone stream suspended for transcription")
-        except Exception as exc:
-            self._log_ui(f"Microphone suspend failed: {exc}", error=True)
-
-    def _resume_mic_stream_after_processing(self) -> None:
-        """Re-open the live input stream after model inference finishes."""
-        if not self._mic_suspended_for_processing:
-            return
-        try:
-            self._recorder.open_stream()
-            self._log_ui("Microphone stream resumed")
-        except Exception as exc:
-            self._log_ui(f"Microphone resume failed: {exc}", error=True)
-        finally:
-            self._mic_suspended_for_processing = False
-
-        # Delayed health check — verify the stream is actually delivering audio
-        def _verify_stream():
-            if not self._recorder.stream_is_alive():
-                self._log_ui("Microphone stream stale after resume — recovering…")
-                if self._recorder.recover_stream():
-                    self._log_ui("Microphone stream recovered after resume")
-                else:
-                    self._log_ui(
-                        "Microphone recovery failed — try changing the "
-                        "audio device in Settings",
-                        error=True,
-                    )
-
-        QTimer.singleShot(500, _verify_stream)
+    # _suspend_mic_stream_for_processing / _resume_mic_stream_after_processing
+    # moved to DictationController (plan §9, Phase 6).
 
     # ═════════════════════════════════════════════════════════════════════════
     # SETTINGS
@@ -1588,7 +1011,7 @@ class MainWindow(QMainWindow):
             self._dev_panel.closed.connect(self._on_dev_panel_closed)
             self._flush_log_buffer()
             self._flush_history_buffer()
-            self._set_model_status(self._model_status)
+            self._model_controller._set_model_status(self._model_status)
 
     def _on_toggle_dev_panel(self) -> None:
         """Show or hide the Developer Panel; create it lazily."""
@@ -1643,151 +1066,7 @@ class MainWindow(QMainWindow):
         self.settings.save()
 
     # ── Granite model setup helpers ───────────────────────────────────────────
-
-    def _prompt_model_setup_on_start(self) -> None:
-        """Show the Granite setup dialog at startup when model is missing."""
-        if self._prompt_granite_setup():
-            # User ran setup successfully — try loading
-            if self._granite_model_ready():
-                self._load_model()
-            else:
-                self._log_ui("Model still not found after setup", error=True)
-        else:
-            self._log_ui(
-                "Model setup declined — use Settings to configure later",
-                error=True,
-            )
-
-    def _granite_model_ready(self) -> bool:
-        """Return True if Granite model files are present locally."""
-        from .model_downloader import model_ready
-        return model_ready("granite", self.settings.model_path)
-
-    def _granite_model_health_summary(self) -> str:
-        """Return a user-facing summary of Granite model health."""
-        from .model_downloader import model_health
-        return model_health("granite", self.settings.model_path).summary()
-
-    def _prompt_granite_setup(self) -> bool:
-        """Show a dialog explaining Granite model download requirements.
-
-        If the user chooses to proceed, launch ``granite-model-setup.ps1``
-        and return True if the model was successfully downloaded.
-        If the user declines, return False.
-        """
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Information)
-        msg.setWindowTitle("IBM Granite Speech — Setup Required")
-        msg.setTextFormat(Qt.TextFormat.RichText)
-        msg.setText(
-            "The IBM Granite Speech model is missing or incomplete and must be "
-            "repaired before local transcription can run."
-        )
-        msg.setInformativeText(
-            "The model is publicly available — no HuggingFace account or "
-            "access token is required.<br><br>"
-            f"Health check:<br>&nbsp;&nbsp;&nbsp;{self._granite_model_health_summary()}<br><br>"
-            "Model page:<br>"
-            '&nbsp;&nbsp;&nbsp;<a href="https://huggingface.co/ibm-granite/granite-speech-4.1-2b">'
-            "https://huggingface.co/ibm-granite/granite-speech-4.1-2b</a><br><br>"
-            "Would you like to download or repair the Granite model now?"
-        )
-        msg.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        msg.setDefaultButton(QMessageBox.StandardButton.Yes)
-
-        if msg.exec() != QMessageBox.StandardButton.Yes:
-            return False
-
-        # In source (non-frozen) mode, download directly — no elevation needed
-        # since dev-temp/ is user-writable and speakeasy.exe doesn't exist.
-        if not getattr(sys, "frozen", False):
-            return self._run_source_model_download()
-
-        # Launch granite-model-setup.ps1 (frozen/installed builds)
-        return self._run_granite_setup_script()
-
-    def _run_source_model_download(self) -> bool:
-        """Download the public Granite model directly (no token required)."""
-        self._log_ui("Downloading Granite model (this may take several minutes)...")
-        from .model_download_dialog import run_model_download_dialog
-
-        if run_model_download_dialog(self.settings.model_path, self):
-            self._log_ui("Granite model downloaded successfully")
-            return True
-        QMessageBox.warning(
-            self,
-            "Download Failed",
-            "The model download failed. Check the log for details.\n\n"
-            "You can retry from Settings or run:\n"
-            "  uv run python -m speakeasy download-model",
-        )
-        return False
-
-    def _run_granite_setup_script(self) -> bool:
-        """Launch ``granite-model-setup.ps1`` and return True if the model
-        is present afterwards."""
-        from .model_downloader import (
-            get_granite_setup_script_candidates,
-            launch_granite_setup_script,
-        )
-
-        install_script, repo_script = get_granite_setup_script_candidates()
-        if install_script == repo_script:
-            searched_paths = f"  {install_script}"
-        else:
-            searched_paths = f"  {install_script}\n  {repo_script}"
-
-        model_dir = Path(self.settings.model_path) / "granite"
-
-        self._log_ui("Launching Granite model setup…")
-        try:
-            ret = launch_granite_setup_script(target_dir=self.settings.model_path)
-        except FileNotFoundError:
-            QMessageBox.critical(
-                self,
-                "Setup Script Missing",
-                f"Could not find granite-model-setup.ps1 in:\n"
-                f"{searched_paths}\n\n"
-                "Please reinstall SpeakEasy AI Granite or run the Granite setup manually.",
-            )
-            return False
-        except Exception as exc:
-            self._log_ui(f"Failed to launch Granite setup: {exc}", error=True)
-            return False
-
-        if ret <= 32:
-            self._log_ui("Granite setup was cancelled or failed to launch", error=True)
-            return False
-
-        confirm = QMessageBox.question(
-            self,
-            "Granite Setup",
-            "The Granite model setup wizard has been launched in a\n"
-            "separate window. Click OK once it has finished.",
-            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Ok,
-        )
-        if confirm == QMessageBox.StandardButton.Cancel:
-            return False
-
-        # Check if the model was actually downloaded
-        if self._granite_model_ready():
-            self._log_ui("Granite model is ready")
-            return True
-        else:
-            health_summary = self._granite_model_health_summary()
-            QMessageBox.warning(
-                self,
-                "Granite Model Not Ready",
-                "The Granite model still looks incomplete after setup.\n\n"
-                f"Expected model directory:\n  {model_dir}\n\n"
-                f"Health check:\n  {health_summary}\n\n"
-                "You can try again later from Settings, or run\n"
-                "granite-model-setup.ps1 from the install directory.",
-            )
-            return False
+    # Moved to speakeasy.ui.model_controller.ModelController (plan §9, Phase 6).
 
     def _apply_settings(self) -> None:
         """Re-apply changed settings to live components."""
@@ -1956,23 +1235,17 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._log_ui(f"Microphone error after resume: {exc}", error=True)
 
-        # Proactive CUDA health check: after sleep/wake the GPU context can
+        # Proactive device health check: after sleep/wake the GPU context can
         # be silently corrupted, causing "CUDA error: unknown error" on the
-        # next transcription.  A small allocation test catches this early and
-        # triggers a model reload before the user hits the error.
-        if (
-            self._engine is not None
-            and self._engine.is_loaded
-            and self._actual_engine_device() == "cuda"
-        ):
-            try:
-                import torch
-                _probe = torch.zeros(1, device="cuda")
-                del _probe
-            except Exception:
+        # next transcription.  The service probes the device (a tiny CUDA
+        # allocation) behind the boundary — no torch import in the UI — and a
+        # non-"ok" report triggers a model reload before the user hits the error.
+        if self._service.is_loaded and self._model_controller._actual_engine_device() == "cuda":
+            report = self._service.probe_device()
+            if report.status != "ok":
                 log.warning("CUDA health check failed after resume — reloading model")
                 self._log_ui("CUDA context lost after sleep — reloading model…", error=True)
-                self._on_reload_model()
+                self._model_controller._on_reload_model()
 
     # ═════════════════════════════════════════════════════════════════════════
     # CLEANUP
@@ -1998,7 +1271,7 @@ class MainWindow(QMainWindow):
         engine_tasks_done = self._engine_pool.waitForDone(5000)
         self._engine_pool.shutdown(wait=False, cancel_futures=False)
         if engine_tasks_done:
-            self._engine.unload()
+            self._service.unload()
         else:
             log.warning("Skipping engine unload during shutdown because an engine task is still running")
         # Wait for any in-flight thread-pool workers (transcription, model

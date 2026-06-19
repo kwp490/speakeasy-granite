@@ -25,16 +25,16 @@ SpeakEasy AI Granite lets you dictate text anywhere on your Windows PC, complete
 
 ## Download Installers
 
-The current public test build is available from the [v0.15.0rc1 GitHub release](https://github.com/kwp490/speakeasy-granite/releases/tag/v0.15.0rc1).
+The current public test build is available from the [v0.15.0 GitHub release](https://github.com/kwp490/speakeasy-granite/releases/tag/v0.15.0).
 
 | Installer | Best for | Download | Size |
 | --- | --- | --- | ---: |
-| GPU+CPU installer | Windows 10/11 systems with an NVIDIA GPU and >= 8GB VRAM for fast, local transcription. | [SpeakEasy-AI-Granite-Setup-0.15.0rc1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0rc1/SpeakEasy-AI-Granite-Setup-0.15.0rc1.exe) | 1.87 GB |
-| CPU installer | Windows 10/11 systems without NVIDIA CUDA support; slower but does not require a dedicated NVIDIA GPU. | [SpeakEasy-AI-Granite-CPU-Setup-0.15.0rc1.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0rc1/SpeakEasy-AI-Granite-CPU-Setup-0.15.0rc1.exe) | 202 MB |
+| GPU+CPU installer | Windows 10/11 systems with an NVIDIA GPU and >= 8GB VRAM for fast, local transcription. | [SpeakEasy-AI-Granite-Setup-0.15.0.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0/SpeakEasy-AI-Granite-Setup-0.15.0.exe) | 1.87 GB |
+| CPU installer | Windows 10/11 systems without NVIDIA CUDA support; slower but does not require a dedicated NVIDIA GPU. | [SpeakEasy-AI-Granite-CPU-Setup-0.15.0.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0/SpeakEasy-AI-Granite-CPU-Setup-0.15.0.exe) | 202 MB |
 
 **Important:** Windows SmartScreen will show a red "Windows protected your PC" warning when you open the installer because this test build has not yet received a SmartScreen exception. If you trust this release, choose **More info**, then **Run anyway** to continue. The installer does not add Microsoft Defender exclusions by default; if Defender quarantines a verified download, see [SECURITY.md](SECURITY.md) for manual troubleshooting steps.
 
-SHA-256 checksums are attached to the same release for teams that want to verify downloaded installers before testing: [SHA256SUMS.txt](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0rc1/SHA256SUMS.txt), [GPU+CPU installer checksum](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0rc1/SpeakEasy-AI-Granite-Setup-0.15.0rc1.exe.sha256), and [CPU installer checksum](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0rc1/SpeakEasy-AI-Granite-CPU-Setup-0.15.0rc1.exe.sha256).
+SHA-256 checksums are attached to the same release for teams that want to verify downloaded installers before testing: [SHA256SUMS.txt](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0/SHA256SUMS.txt), [GPU+CPU installer checksum](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0/SpeakEasy-AI-Granite-Setup-0.15.0.exe.sha256), and [CPU installer checksum](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0/SpeakEasy-AI-Granite-CPU-Setup-0.15.0.exe.sha256).
 
 ## Install From Source
 
@@ -212,6 +212,8 @@ Post-processing keeps the user-facing result as one final text string. Clipboard
 
 AI Writing Profiles are a separate optional text-cleanup stage after local transcription. They send transcript text to an external API only when the user enables a profile and provides an API key.
 
+Internally the UI talks to the speech engine through one transport-agnostic contract (`TranscriptionService`), so the same interface serves both the default in-process engine and an optional remote server. The UI layer never imports the heavy ML stack (`torch`/`transformers`); those load lazily on the engine worker thread only when a model is loaded. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layering, threading model, and wire protocol.
+
 ### Local Mode
 
 Local Mode is the default behavior. Audio capture, preprocessing, Granite inference, chunk stitching, history, clipboard copy, and optional paste all run on the local Windows machine.
@@ -219,6 +221,27 @@ Local Mode is the default behavior. Audio capture, preprocessing, Granite infere
 ### AI Writing Profiles
 
 AI Writing Profiles keep transcription local, then optionally send the completed transcript text to an external API for rewriting. Raw audio is not sent through this path. If the API call fails or times out, SpeakEasy falls back to the original local transcript. New profiles default to OpenAI `gpt-5.5`; existing `gpt-5.4-mini` and `gpt-5.4-nano` options remain selectable for users who prefer faster or lower-cost cleanup.
+
+## Model Location & Remote Server
+
+The model location is configured in **Settings → Advanced → Model location**:
+
+| Mode | What it does |
+| --- | --- |
+| Managed location | The default. The Granite model is downloaded to and loaded from the app-managed models directory. |
+| Custom folder | Loads the model from a folder you choose, including a UNC/network path. An unreachable custom path is preserved and flagged, never silently reset. |
+| Remote server | Sends recorded audio to a SpeakEasy Server on another machine over HTTP and receives the transcript back. |
+
+Remote mode lets one machine with a capable GPU transcribe for other machines on a trusted LAN. It is **opt-in and off by default**: in every local mode no audio leaves your computer, and remote mode requires a one-time disclosure acknowledgement before any audio is sent. The server is loopback-only by default and requires a bearer token for any non-loopback bind.
+
+Start a server on the GPU machine:
+
+```powershell
+speakeasy serve --generate-token
+speakeasy serve --bind 0.0.0.0:8765 --allow-remote --token "<paste-token-here>"
+```
+
+Then, on the client, choose **Remote** in the Model location settings, enter the server URL and token, and use **Test connection**. Full setup, firewall/TLS guidance, and the privacy/threat model are in [docs/REMOTE.md](docs/REMOTE.md) and [SECURITY.md](SECURITY.md).
 
 ## Requirements
 

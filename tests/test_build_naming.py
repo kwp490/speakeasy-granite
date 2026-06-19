@@ -179,6 +179,8 @@ class TestNoStaleProjectNames(unittest.TestCase):
         "installer/Build-Installer.ps1",
         "installer/speakeasy-setup.iss",
         "speakeasy.spec",
+        "speakeasy-cpu.spec",
+        "spec_common.py",
         "pyproject.toml",
         "installer/Install-SpeakEasy-Source.ps1",
     ]
@@ -210,20 +212,24 @@ class TestCrossFileVersionConsistency(unittest.TestCase):
     """Version strings must agree across package metadata and installer scripts."""
 
     def test_versions_match(self):
-        pyproject = _read("pyproject.toml")
-        m_py = re.search(r'version\s*=\s*"([^"]+)"', pyproject)
-        self.assertIsNotNone(m_py, "Could not parse version from pyproject.toml")
-        assert m_py is not None
-
+        # speakeasy/__init__.py __version__ is the single source of truth.
+        # pyproject.toml derives it dynamically (hatch), so it carries no literal
+        # version of its own; the .iss files keep a #define fallback that must
+        # stay in sync (Build-Installer injects the real value via /DMyAppVersion).
         package_init = _read("speakeasy/__init__.py")
         m_package = re.search(r'__version__\s*=\s*"([^"]+)"', package_init)
         self.assertIsNotNone(m_package, "Could not parse __version__ from speakeasy/__init__.py")
         assert m_package is not None
+        version = m_package.group(1)
 
-        self.assertEqual(
-            m_py.group(1), m_package.group(1),
-            f"pyproject.toml version '{m_py.group(1)}' != package version "
-            f"'{m_package.group(1)}'",
+        pyproject = _read("pyproject.toml")
+        self.assertIn(
+            'dynamic = ["version"]', pyproject,
+            "pyproject.toml must declare a dynamic version sourced from __init__.py",
+        )
+        self.assertNotRegex(
+            pyproject, r'(?m)^version\s*=\s*"',
+            "pyproject.toml must not duplicate a literal version; it is dynamic",
         )
 
         for relpath in ("installer/speakeasy-setup.iss", "installer/speakeasy-cpu-setup.iss"):
@@ -232,9 +238,52 @@ class TestCrossFileVersionConsistency(unittest.TestCase):
             self.assertIsNotNone(m_iss, f"Could not parse MyAppVersion from {relpath}")
             assert m_iss is not None
             self.assertEqual(
-                m_py.group(1), m_iss,
-                f"pyproject.toml version '{m_py.group(1)}' != {relpath} version '{m_iss}'",
+                version, m_iss,
+                f"speakeasy/__init__.py version '{version}' != {relpath} fallback '{m_iss}'",
             )
+
+
+class TestChangelogAndContractVersion(unittest.TestCase):
+    """The CHANGELOG head and the wire contract version must stay in sync with
+    the single-source ``__version__`` / ``CONTRACT_VERSION`` constants."""
+
+    @staticmethod
+    def _package_version() -> str:
+        m = re.search(r'__version__\s*=\s*"([^"]+)"', _read("speakeasy/__init__.py"))
+        assert m is not None, "Could not parse __version__"
+        return m.group(1)
+
+    def test_changelog_head_matches_package_version(self):
+        # The most recent "## [<version>]" entry must describe the version that
+        # ships from speakeasy/__init__.py, so the release notes never lag the
+        # code (plan §12.1 CHANGELOG-head check).
+        changelog = _read("CHANGELOG.md")
+        m_head = re.search(r"(?m)^##\s*\[([^\]]+)\]", changelog)
+        self.assertIsNotNone(m_head, "CHANGELOG.md has no '## [version]' section")
+        assert m_head is not None
+        self.assertEqual(
+            m_head.group(1), self._package_version(),
+            "CHANGELOG.md head version must match speakeasy/__init__.py __version__",
+        )
+
+    def test_server_reports_core_contract_version(self):
+        # The server's /v1/health contract_version must come from the single
+        # core.contract.CONTRACT_VERSION constant, never a hardcoded literal.
+        from speakeasy.core.contract import CONTRACT_VERSION
+
+        self.assertIsInstance(CONTRACT_VERSION, int)
+        self.assertGreaterEqual(CONTRACT_VERSION, 1)
+
+        server_src = _read("speakeasy/services/server.py")
+        self.assertIn("from ..core.contract import CONTRACT_VERSION", server_src)
+        self.assertIn('"contract_version": CONTRACT_VERSION', server_src)
+
+    def test_remote_client_checks_core_contract_version(self):
+        # The client must reject a server whose contract_version differs from
+        # the same core constant (version-skew guard).
+        client_src = _read("speakeasy/services/remote_client.py")
+        self.assertIn("CONTRACT_VERSION", client_src)
+        self.assertIn("RemoteVersionMismatch", client_src)
 
 
 class TestInstallerProgramDataPaths(unittest.TestCase):
@@ -514,14 +563,10 @@ class TestInstallerHandlesModelDownload(unittest.TestCase):
         """Xet-backed Hugging Face model downloads need hf_xet in frozen builds."""
         pyproject = _read("pyproject.toml")
         self.assertIn("hf_xet>=", pyproject)
-        for name, spec_path in (
-            ("GPU", "speakeasy.spec"),
-            ("CPU", "speakeasy-cpu.spec"),
-        ):
-            with self.subTest(variant=name):
-                spec_text = _read(spec_path)
-                self.assertIn("collect_dynamic_libs('hf_xet')", spec_text)
-                self.assertIn("'hf_xet'", spec_text)
+        # Both variants share spec_common.py, which collects the hf_xet libs.
+        spec_text = _read("spec_common.py")
+        self.assertIn("collect_dynamic_libs('hf_xet')", spec_text)
+        self.assertIn("'hf_xet'", spec_text)
 
     def test_installers_require_full_model_health_for_ready_summary(self):
         """A partial granite directory must not be reported as model-ready."""
@@ -619,9 +664,9 @@ class TestReadmeLinks(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.readme = _read("README.md")
-        pyproject = _read("pyproject.toml")
-        m = re.search(r'version\s*=\s*"([^"]+)"', pyproject)
-        assert m, "Could not parse version from pyproject.toml"
+        # pyproject.toml is dynamic now; __version__ is the source of truth.
+        m = re.search(r'__version__\s*=\s*"([^"]+)"', _read("speakeasy/__init__.py"))
+        assert m, "Could not parse __version__ from speakeasy/__init__.py"
         cls.version = m.group(1)
 
     def test_no_wrong_repo_slug_in_links(self):

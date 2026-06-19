@@ -63,13 +63,14 @@ class TestIntegrationMainWindowLayout:
 
     def test_panel_wires_reload_model_to_main_window(self):
         dp_source = _DEV_PANEL_PATH.read_text(encoding="utf-8")
-        assert "reload_model_requested.connect(self._main_window._on_reload_model)" in dp_source
+        assert "reload_model_requested.connect(self._main_window._model_controller._on_reload_model)" in dp_source
 
-    # ── Phase 4: Metric forwarding is guarded ────────────────────────────────
+    # ── Phase 4 / 6: Metric forwarding lives in MetricsBridge ────────────────
 
     def test_metrics_forwarding_guarded_by_none_check(self):
-        src = self._method_source("_on_metrics_result")
-        guard_pos = src.find("self._dev_panel is not None")
+        from speakeasy.ui import metrics_bridge as mb
+        src = (Path(mb.__file__)).read_text(encoding="utf-8")
+        guard_pos = src.find("mw._dev_panel is not None")
         update_pos = src.find("rw.update_ram(")
         assert guard_pos != -1
         assert guard_pos < update_pos
@@ -101,8 +102,9 @@ class TestIntegrationMainWindowLayout:
             )
         )
         assert "not self._api_key" in src
-        assert "TAB_PROVIDERS" in src
-        assert "activate_tab(TAB_PROVIDERS)" in src
+        # AI Providers folded into the AI Writing Profiles tab (Phase 6).
+        assert "TAB_PRO" in src
+        assert "activate_tab(TAB_PRO)" in src
 
     def test_no_on_professional_toggled(self):
         assert "_on_professional_toggled" not in self._method_names()

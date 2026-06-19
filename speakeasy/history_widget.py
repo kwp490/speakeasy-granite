@@ -152,6 +152,7 @@ class HistoryWidget(QWidget):
         actions.addStretch()
         self._btn_clear = QPushButton("Clear History")
         self._btn_clear.setMinimumHeight(Size.BUTTON_HEIGHT)
+        self._btn_clear.setToolTip("Remove every entry from the history list.")
         self._btn_clear.clicked.connect(self.clear_requested.emit)
         actions.addWidget(self._btn_clear)
         layout.addLayout(actions)

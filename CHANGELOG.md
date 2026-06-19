@@ -5,21 +5,90 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.15.0rc1] - Phase 0: Baseline & Measurement Harness
+## [0.15.0] - 2026-06-19
+
+Re-architecture release. A formal, transport-agnostic transcription contract now
+sits between the UI and the inference engine; heavy ML imports are isolated behind
+that boundary; a discriminated model-location schema (managed / local folder / UNC
+/ remote) replaces the bare `model_path`; and an opt-in **Remote ASR** server lets
+one machine transcribe for others. Local, private dictation remains the unchanged
+default. The dictation flow (hotkey → record → transcribe → copy/paste) is
+behaviorally identical to 0.14.5. Developed across phased `0.15.0rc1` test builds.
 
 ### Added
-- **Benchmark harness** (`tools/bench.py`) measuring cold-start, model-load time, per-fixture p50/p95 latency, realtime factor, peak RAM/VRAM, and WER against committed references; ships a zero-dependency `--smoke` mode that runs without torch or a downloaded model
-- **Packaging inventory tool** (`tools/measure_dist.py`) reporting installed dependency sizes and PyInstaller onedir top-N file breakdown
-- **Synthetic audio fixtures** (`tests/fixtures/audio/{10s,30s,120s}.wav`) with a deterministic generator and reference-transcript manifest
-- **Baseline document** (`docs/benchmarks/baseline-0.14.5.md`) capturing the 0.14.5 dependency size table and resolving the re-architecture open questions
+- **Engine contract** (`speakeasy/core/contract.py`) — `TranscriptionService`
+  protocol with frozen dataclasses (`EngineCapabilities`, `TranscriptionOptions`,
+  `TranscriptionResult`, `HealthReport`, `EngineStats`, …) and an integer
+  `CONTRACT_VERSION` reported over the wire; a typed error taxonomy
+  (`speakeasy/core/errors.py`)
+- **Model-location schema** (`speakeasy/core/model_source.py`) — a discriminated
+  `ManagedSource` / `LocalDirSource` / `RemoteSource` union with parse/serialize,
+  UNC and removable-drive classification, and a redesigned Advanced → **Model
+  Location** settings group; bearer tokens are stored in the OS keyring and never
+  serialized to `settings.json`
+- **Remote ASR mode** — `speakeasy serve` HTTP transcription server
+  (`speakeasy/services/server.py`) plus a `RemoteEngineClient`
+  (`speakeasy/services/remote_client.py`) that satisfies the same contract; opt-in
+  behind a one-time privacy disclosure, loopback-only by default, mandatory bearer
+  token for non-loopback binds, with a **Test connection** action. See
+  [docs/REMOTE.md](docs/REMOTE.md)
+- **Provisioning service** (`speakeasy/services/provisioning.py`) — `ensure_model`
+  moves the model-download trigger out of the engine and maps downloader exit codes
+  onto the typed error taxonomy
+- **UI controllers** (`speakeasy/ui/`) — `ModelController`, `DictationController`,
+  `MetricsBridge`, and a central tooltip registry (`speakeasy/ui/tooltips.py`)
+- **Architecture & benchmark docs** — new [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+  [docs/REMOTE.md](docs/REMOTE.md), benchmark baseline/backends reports under
+  `docs/benchmarks/`, and a benchmark harness (`tools/bench.py`, with a
+  zero-dependency `--smoke` mode) plus `tools/measure_dist.py`
+
+### Changed
+- **ML imports isolated behind the boundary** — the UI process no longer imports
+  `torch`/`transformers`/`librosa`/`accelerate` at module scope; the Granite engine
+  loads them lazily on the engine thread at model-load time (preserving the CUDA
+  `DllMain` invariant). A torch-free lazy engine registry (`engines/registry.py`)
+  selects engines
+- **`MainWindow` simplified** — model lifecycle and the dictation state machine
+  moved into dedicated controllers (MainWindow reduced from ~1,989 to ~1,287 LOC);
+  the Developer Panel consolidated from seven tabs to five (Settings · AI Writing
+  Profiles · Diagnostics · History · Advanced)
+- **Resampling unified on `soxr`** — `librosa` (and its numba/llvmlite/scipy chain)
+  dropped as a dependency in favor of `soxr` for client-side 16 kHz resampling
+  (bit-identical output)
+- **Single-source versioning** — `speakeasy/__init__.py` `__version__` is the one
+  source of truth; `pyproject.toml` derives it dynamically via hatch and
+  `installer/Build-Installer.ps1` injects it into both `.iss` files (the `#define`
+  remains a guarded fallback)
+- **Packaging consolidated** — `speakeasy.spec` / `speakeasy-cpu.spec` are thin
+  shims over a shared `spec_common.py`; the CPU build selects its variant via a
+  `--variant` argument and a bundle marker instead of mutating tracked source
+- **Version metadata** updated to `0.15.0` across the Python package and both
+  installer variants
+
+### Fixed
+- **Offline custom model paths are preserved** — an unreachable custom or UNC model
+  folder no longer silently resets `model_path` to the default; the location is kept
+  and flagged as needing attention (closes the C-4 destructive-reset regression)
 
 ### Findings
-- **OQ-1 (torchaudio):** confirmed **required** — the Granite feature extractor calls `requires_backends(["torchaudio"])` and builds `torchaudio.transforms.MelSpectrogram`; torchaudio removal is rejected
-- **OQ-2 (GGUF):** upgraded from "unknown" to **supported** — `llama.cpp` has native `granite_speech` multimodal support, making a future sub-300 MB CPU runtime spike viable
+- **OQ-1 (torchaudio):** confirmed **required** — the Granite feature extractor
+  calls `requires_backends(["torchaudio"])` and builds
+  `torchaudio.transforms.MelSpectrogram`; torchaudio removal is rejected (GPU build
+  keeps it)
+- **OQ-2 (GGUF):** `llama.cpp` has native `granite_speech` multimodal support; a
+  sub-300 MB CPU runtime via GGUF is parked pending a time-boxed conversion + WER
+  spike (see `docs/benchmarks/backends-0.15.md`). No backend swap ships in 0.15
 
 ### Tests
-- Added `tests/test_bench_smoke.py` covering the harness WER/percentile helpers, fixture presence, and an end-to-end `--smoke` run
-- **Version metadata** moved to the 0.15.0 development line (`0.15.0rc1`) across the Python package and both installer variants
+- New suites for the contract, conformance (in-process **and** real-HTTP remote
+  legs), model-source schema, settings migration, provisioning, wire protocol,
+  remote client/server, tooltips, UI-simplification regressions, ML-import
+  isolation, and version consistency; `core/` + `services/` coverage ≥ 90%
+- A 0.14.5 `settings.json` loads cleanly into 0.15.0 (migration matrix incl.
+  offline-UNC preservation); a 0.15.0 file keeps a legacy `model_path` mirror so a
+  downgrade still boots
+- Migration of the build-invariant tests onto `spec_common` and split of
+  `test_frozen_compat.py` into `test_frozen_layout.py` + `test_frozen_ml_isolation.py`
 
 ## [0.14.5] - Model Download Completion Handling
 

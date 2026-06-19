@@ -109,6 +109,7 @@ class AIProvidersWidget(QWidget):
         # Validation row
         validate_row = QHBoxLayout()
         self._btn_validate = QPushButton("Validate API Key")
+        self._btn_validate.setToolTip("Verify the API key with the provider.")
         self._btn_validate.clicked.connect(self._on_validate)
         validate_row.addWidget(self._btn_validate)
         self._lbl_status = QLabel("")

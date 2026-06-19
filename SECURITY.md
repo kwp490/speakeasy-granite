@@ -80,9 +80,48 @@ Remove-MpPreference -ExclusionProcess "C:\Program Files\SpeakEasy AI Granite\spe
 
 The Inno Setup uninstaller removes `config\`, `models\`, and the application directory. Per-user logs under `%LOCALAPPDATA%` are not removed by the system-level uninstaller.
 
-**Network**: SpeakEasy AI makes network requests **only** in two scenarios:
+**Network**: SpeakEasy AI makes network requests **only** in these scenarios:
 
 1. **Model downloads** — to HuggingFace Hub when downloading the IBM Granite Speech model. A token may be supplied if HuggingFace denies anonymous access.
 2. **Professional Mode** (when enabled) — transcribed text is sent to the OpenAI API (`api.openai.com`) for tone, grammar, and punctuation cleanup. This requires a user-provided API key and is **opt-in only** — disabled by default. No audio data is sent; only the transcribed text string is transmitted.
+3. **Remote ASR mode** (when enabled) — recorded audio is sent to a user-operated SpeakEasy transcription server and the transcribed text is returned. This is **opt-in only**, disabled by default, and requires an explicit one-time disclosure acknowledgement (see [Remote ASR mode](#remote-asr-mode) below and [docs/REMOTE.md](docs/REMOTE.md)).
 
 No telemetry, analytics, or usage data is collected or transmitted.
+
+## Remote ASR mode
+
+Remote ASR mode (`speakeasy serve` + the in-app *Remote* model source) lets one machine run the
+Granite engine and serve transcription to one or more clients over HTTP. It is **disabled by
+default** and never engages unless the user explicitly selects a Remote model source and accepts the
+privacy disclosure dialog.
+
+### What leaves the machine
+
+- In remote mode **only**: recorded audio (16 kHz mono PCM16 WAV) is transmitted to the configured
+  server, and the resulting transcript text is returned. In all local engine modes, audio never
+  leaves the machine.
+- The disclosure dialog must be accepted once (`remote_disclosure_accepted` in `settings.json`)
+  before any audio is sent. Changing the remote URL re-shows the dialog.
+
+### Threat model & controls
+
+- **Authentication**: every request carries an `Authorization: Bearer <token>` header. The server
+  rejects mismatched tokens with HTTP 401 using a constant-time comparison
+  (`secrets.compare_digest`) to avoid timing oracles.
+- **Network exposure**: the server binds to `127.0.0.1` (loopback) by default. Binding to a
+  non-loopback address requires **both** `--allow-remote` **and** a token; the server refuses to
+  start in an unsafe configuration (non-loopback bind without a token) with a `ValueError`.
+- **Token storage**: the client stores the bearer token in the OS keyring (Windows Credential
+  Manager, service `speakeasy`, key `remote_asr_token`) — never in `settings.json` or logs. The
+  server token is generated with `secrets.token_urlsafe(32)` via `--generate-token`.
+- **Transport**: HTTP is plaintext. For any link beyond a trusted LAN, run the server behind a TLS
+  terminator (reverse proxy) or an SSH/WireGuard tunnel and point the client at the `https://`
+  endpoint. The bearer token alone does **not** protect audio confidentiality on the wire.
+- **Request limits**: request bodies are capped (16 MB default) and rejected with HTTP 413 to bound
+  memory use. A single inference lock serializes transcription so one client cannot starve the GPU
+  with concurrent requests; excess work queues rather than over-subscribing the device.
+- **No persistence**: the server processes audio in memory and returns the transcript; it does not
+  write audio or transcripts to disk. Server logs contain diagnostic data only (no speech content).
+
+Operating a server reachable from hostile networks is the operator's responsibility — see
+[docs/REMOTE.md](docs/REMOTE.md) for hardening guidance (firewall, TLS, tunnels).

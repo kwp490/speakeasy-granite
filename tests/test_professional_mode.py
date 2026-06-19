@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, patch
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MAIN_WINDOW_PATH = _REPO_ROOT / "speakeasy" / "main_window.py"
+_DICTATION_CONTROLLER_PATH = _REPO_ROOT / "speakeasy" / "ui" / "dictation_controller.py"
 
 
 # Structural tests  -  verify the source code meets safety invariants
@@ -44,6 +45,14 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
                 cls._mw_class = node
                 break
         assert cls._mw_class is not None, "MainWindow class not found"
+
+        # The professional-mode state machine moved to DictationController
+        # (Phase 6, plan §9).  Parse it so method-source lookups resolve.
+        cls._dc_source = _DICTATION_CONTROLLER_PATH.read_text(encoding="utf-8")
+        cls._dc_class = next(
+            n for n in ast.walk(ast.parse(cls._dc_source, filename="dictation_controller.py"))
+            if isinstance(n, ast.ClassDef) and n.name == "DictationController"
+        )
 
     # 1. Worker must be stored on self
 
@@ -73,18 +82,18 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
         """
         result_src = self._get_method_source("_on_transcription_result")
 
-        # The worker must be stored on self
+        # The worker must be stored on the window
         self.assertIn(
-            "self._pro_worker",
+            "mw._pro_worker",
             result_src,
-            "_on_transcription_result must store the worker as self._pro_worker",
+            "_on_transcription_result must store the worker as mw._pro_worker",
         )
         # Must appear before pool.start
-        store_pos = result_src.find("self._pro_worker")
-        start_pos = result_src.find("self._pool.start(self._pro_worker)")
+        store_pos = result_src.find("mw._pro_worker")
+        start_pos = result_src.find("mw._pool.start(mw._pro_worker)")
         self.assertGreater(
             start_pos, store_pos,
-            "self._pro_worker must be assigned before self._pool.start()",
+            "mw._pro_worker must be assigned before mw._pool.start()",
         )
 
     # 2. No lambda signal connections
@@ -136,7 +145,7 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
         """
         result_src = self._get_method_source("_on_transcription_result")
         self.assertIn(
-            "self._pro_timeout",
+            "mw._pro_timeout",
             result_src,
             "_on_transcription_result must create a safety timeout",
         )
@@ -145,13 +154,13 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
         """_on_professional_timeout must be defined as a method."""
         method_names = [
             node.name
-            for node in ast.walk(self._mw_class)
+            for node in ast.walk(self._dc_class)
             if isinstance(node, ast.FunctionDef)
         ]
         self.assertIn(
             "_on_professional_timeout",
             method_names,
-            "MainWindow must define _on_professional_timeout() as a safety net",
+            "DictationController must define _on_professional_timeout() as a safety net",
         )
 
     # 5. Context stored on self (not captured by closure)
@@ -164,9 +173,9 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
         """
         result_src = self._get_method_source("_on_transcription_result")
         self.assertIn(
-            "self._pro_context",
+            "mw._pro_context",
             result_src,
-            "_on_transcription_result must store (ts, text) as self._pro_context",
+            "_on_transcription_result must store (ts, text) as mw._pro_context",
         )
 
     # 6. Handlers read context BEFORE clearing it
@@ -180,10 +189,10 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
         """
         src = self._get_method_source("_on_professional_result")
         cancel_pos = src.find("_cancel_pro_timeout")
-        context_read_pos = src.find("self._pro_context")
+        context_read_pos = src.find("mw._pro_context")
         self.assertGreater(
             cancel_pos, context_read_pos,
-            "_on_professional_result must read self._pro_context BEFORE calling "
+            "_on_professional_result must read mw._pro_context BEFORE calling "
             "_cancel_pro_timeout() (which clears it)",
         )
 
@@ -194,10 +203,10 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
         """
         src = self._get_method_source("_on_professional_error")
         cancel_pos = src.find("_cancel_pro_timeout")
-        context_read_pos = src.find("self._pro_context")
+        context_read_pos = src.find("mw._pro_context")
         self.assertGreater(
             cancel_pos, context_read_pos,
-            "_on_professional_error must read self._pro_context BEFORE calling "
+            "_on_professional_error must read mw._pro_context BEFORE calling "
             "_cancel_pro_timeout() (which clears it)",
         )
 
@@ -211,10 +220,10 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
         )
 
     def test_finished_handler_clears_worker_ref(self):
-        """_on_professional_finished must set self._pro_worker = None."""
+        """_on_professional_finished must set mw._pro_worker = None."""
         src = self._get_method_source("_on_professional_finished")
         self.assertIn(
-            "self._pro_worker = None",
+            "mw._pro_worker = None",
             src,
             "_on_professional_finished must clear the worker reference",
         )
@@ -234,11 +243,15 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
     # Helpers
 
     def _get_method_source(self, method_name: str) -> str:
-        """Extract the source text of a method from MainWindow."""
-        for node in ast.walk(self._mw_class):
-            if isinstance(node, ast.FunctionDef) and node.name == method_name:
-                return ast.get_source_segment(self._source, node) or ""
-        self.fail(f"Method '{method_name}' not found in MainWindow")
+        """Extract the source text of a method from MainWindow or DictationController."""
+        for cls_node, source in (
+            (self._mw_class, self._source),
+            (self._dc_class, self._dc_source),
+        ):
+            for node in ast.walk(cls_node):
+                if isinstance(node, ast.FunctionDef) and node.name == method_name:
+                    return ast.get_source_segment(source, node) or ""
+        self.fail(f"Method '{method_name}' not found in MainWindow or DictationController")
 
 
 # Integration tests  -  verify signal delivery with a real Qt environment
@@ -410,11 +423,23 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
                 break
         assert cls._mw_class is not None
 
+        # Transcription/professional state machine moved to DictationController
+        # (Phase 6, plan §9).
+        cls._dc_source = _DICTATION_CONTROLLER_PATH.read_text(encoding="utf-8")
+        cls._dc_class = next(
+            n for n in ast.walk(ast.parse(cls._dc_source, filename="dictation_controller.py"))
+            if isinstance(n, ast.ClassDef) and n.name == "DictationController"
+        )
+
     def _get_method_source(self, method_name: str) -> str:
-        for node in ast.walk(self._mw_class):
-            if isinstance(node, ast.FunctionDef) and node.name == method_name:
-                return ast.get_source_segment(self._source, node) or ""
-        self.fail(f"Method '{method_name}' not found in MainWindow")
+        for cls_node, source in (
+            (self._mw_class, self._source),
+            (self._dc_class, self._dc_source),
+        ):
+            for node in ast.walk(cls_node):
+                if isinstance(node, ast.FunctionDef) and node.name == method_name:
+                    return ast.get_source_segment(source, node) or ""
+        self.fail(f"Method '{method_name}' not found in MainWindow or DictationController")
 
     # Init invariants
 
@@ -448,9 +473,9 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
                        "_on_transcription_result must pass a preset to process()")
 
     def test_transcription_checks_active_preset(self):
-        """_on_transcription_result must check self._active_preset is not None."""
+        """_on_transcription_result must check mw._active_preset is not None."""
         src = self._get_method_source("_on_transcription_result")
-        self.assertIn("self._active_preset is not None", src)
+        self.assertIn("mw._active_preset is not None", src)
 
     def test_transcription_captures_preset_locally(self):
         """Preset must be captured as a local variable before worker dispatch.
@@ -458,7 +483,7 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
         This prevents a race where the user changes presets mid-cleanup.
         """
         src = self._get_method_source("_on_transcription_result")
-        self.assertIn("preset = self._active_preset", src)
+        self.assertIn("preset = mw._active_preset", src)
 
     # No references to removed settings fields
 
@@ -508,19 +533,15 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
 
     # Settings dialog no longer has pro fields
 
-    def test_settings_dialog_no_api_key_param(self):
-        """SettingsDialog no longer accepts api_key parameter."""
+    def test_settings_dialog_shim_removed(self):
+        """The legacy SettingsDialog modal shim must be removed entirely (Phase 6)."""
         settings_src = (_REPO_ROOT / "speakeasy" / "settings_dialog.py").read_text(encoding="utf-8")
         tree = ast.parse(settings_src)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and node.name == "SettingsDialog":
-                for item in ast.walk(node):
-                    if isinstance(item, ast.FunctionDef) and item.name == "__init__":
-                        arg_names = [a.arg for a in item.args.args]
-                        self.assertNotIn("api_key", arg_names,
-                                         "SettingsDialog.__init__ must not accept api_key")
-                        return
-        self.fail("SettingsDialog.__init__ not found")
+        class_names = [
+            node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
+        ]
+        self.assertNotIn("SettingsDialog", class_names,
+                         "SettingsDialog shim must be removed (Phase 6 §9.4)")
 
     def test_settings_dialog_no_professional_mode_section(self):
         """SettingsDialog must NOT contain Professional Mode section (moved to dedicated dialog)."""

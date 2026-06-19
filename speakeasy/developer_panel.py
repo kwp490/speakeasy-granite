@@ -1,6 +1,6 @@
 """
 Developer Panel — a snapped-but-movable side window with tabs for
-Settings, AI Writing Profiles, Metrics, Logs, History, and Advanced.
+Settings, AI Writing Profiles, Diagnostics, History, and Advanced.
 
 Opened from the gear button on the main window or via a global hotkey.
 Closing the panel hides it; reopening restores the last active tab.
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSplitter,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -34,14 +35,19 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Tab keys — must match Settings.dev_panel_active_tab valid values
+# Tab keys — must match Settings.dev_panel_active_tab valid values.
+# Phase 6 merged the panel to five tabs: Settings · AI Writing Profiles ·
+# Diagnostics · History · Advanced.  TAB_PROVIDERS/TAB_REALTIME/TAB_LOGS are
+# retained as legacy aliases so old callers and saved settings still resolve.
 TAB_SETTINGS = "settings"
-TAB_PROVIDERS = "providers"
+TAB_PRO = "pro"
+TAB_DIAGNOSTICS = "diagnostics"
+TAB_HISTORY = "history"
 TAB_ADVANCED = "advanced"
+# Legacy aliases (pre-Phase 6) — remapped to the merged tabs.
+TAB_PROVIDERS = "providers"
 TAB_REALTIME = "realtime"
 TAB_LOGS = "logs"
-TAB_PRO = "pro"
-TAB_HISTORY = "history"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -601,35 +607,41 @@ class DeveloperPanel(QWidget):
         settings_scroll.setWidget(self._settings_widget)
         self._tabs.addTab(settings_scroll, "\u2699\ufe0f  Settings")
 
+        # ── AI Writing Profiles (AI Providers folded in on top) ───────────────
         from .ai_providers_widget import AIProvidersWidget
+        from .pro_mode_widget import ProModeWidget
 
         self.ai_providers_widget = AIProvidersWidget(
             settings=self.settings,
             parent=self,
             api_key=getattr(self._main_window, "_api_key", ""),
         )
-        providers_scroll = QScrollArea()
-        providers_scroll.setWidgetResizable(True)
-        providers_scroll.setWidget(self.ai_providers_widget)
-        self._tabs.addTab(providers_scroll, "\U0001f511  AI Providers")
-
-        from .pro_mode_widget import ProModeWidget  # noqa: F811
-
         self.pro_mode_widget = ProModeWidget(
             settings=self.settings,
             on_disclosure_required=self._show_pro_disclosure,
             parent=self,
         )
-        pro_scroll = QScrollArea()
-        pro_scroll.setWidgetResizable(True)
-        pro_scroll.setWidget(self.pro_mode_widget)
-        self._tabs.addTab(pro_scroll, "\U0001f4bc  AI Writing Profiles")
+        profiles_container = QWidget()
+        profiles_layout = QVBoxLayout(profiles_container)
+        profiles_layout.setContentsMargins(0, 0, 0, 0)
+        profiles_layout.setSpacing(Spacing.SM)
+        profiles_layout.addWidget(self.ai_providers_widget)
+        profiles_layout.addWidget(self.pro_mode_widget)
+        profiles_layout.addStretch()
+        profiles_scroll = QScrollArea()
+        profiles_scroll.setWidgetResizable(True)
+        profiles_scroll.setWidget(profiles_container)
+        self._tabs.addTab(profiles_scroll, "\U0001f4bc  AI Writing Profiles")
 
+        # ── Diagnostics (Metrics over Logs) ───────────────────────────────────
         self.realtime_widget = RealtimeDataWidget(self)
-        self._tabs.addTab(self.realtime_widget, "\U0001f4ca  Metrics")
-
         self.logs_widget = LogsWidget(self)
-        self._tabs.addTab(self.logs_widget, "\U0001f4cb  Logs")
+        diagnostics_splitter = QSplitter(Qt.Orientation.Vertical)
+        diagnostics_splitter.addWidget(self.realtime_widget)
+        diagnostics_splitter.addWidget(self.logs_widget)
+        diagnostics_splitter.setStretchFactor(0, 1)
+        diagnostics_splitter.setStretchFactor(1, 1)
+        self._tabs.addTab(diagnostics_splitter, "\U0001f4ca  Diagnostics")
 
         from .history_widget import HistoryWidget
 
@@ -648,13 +660,13 @@ class DeveloperPanel(QWidget):
 
     def _wire_signals(self) -> None:
         # Settings tab
-        self._settings_widget.reload_model_requested.connect(self._main_window._on_reload_model)
+        self._settings_widget.reload_model_requested.connect(self._main_window._model_controller._on_reload_model)
         self._settings_widget.settings_applied.connect(self._main_window._apply_settings)
         # Advanced tab
-        self._advanced_settings_widget.reload_model_requested.connect(self._main_window._on_reload_model)
+        self._advanced_settings_widget.reload_model_requested.connect(self._main_window._model_controller._on_reload_model)
         self._advanced_settings_widget.settings_applied.connect(self._main_window._apply_settings)
         # Realtime tab
-        self.realtime_widget.reload_model_requested.connect(self._main_window._on_reload_model)
+        self.realtime_widget.reload_model_requested.connect(self._main_window._model_controller._on_reload_model)
         self.realtime_widget.validate_requested.connect(self._main_window._on_validate)
         # Logs tab
         self.logs_widget.clear_requested.connect(self._main_window._on_clear_logs)
@@ -735,17 +747,19 @@ class DeveloperPanel(QWidget):
     def _tab_key_to_index(key: str) -> int:
         return {
             TAB_SETTINGS: 0,
+            TAB_PRO: 1,
+            TAB_DIAGNOSTICS: 2,
+            TAB_HISTORY: 3,
+            TAB_ADVANCED: 4,
+            # Legacy aliases (pre-Phase 6 merge).
             TAB_PROVIDERS: 1,
-            TAB_PRO: 2,
-            TAB_REALTIME: 3,
-            TAB_LOGS: 4,
-            TAB_HISTORY: 5,
-            TAB_ADVANCED: 6,
+            TAB_REALTIME: 2,
+            TAB_LOGS: 2,
         }.get(key, 0)
 
     @staticmethod
     def _index_to_tab_key(idx: int) -> str:
-        tabs = [TAB_SETTINGS, TAB_PROVIDERS, TAB_PRO, TAB_REALTIME, TAB_LOGS, TAB_HISTORY, TAB_ADVANCED]
+        tabs = [TAB_SETTINGS, TAB_PRO, TAB_DIAGNOSTICS, TAB_HISTORY, TAB_ADVANCED]
         return tabs[idx] if 0 <= idx < len(tabs) else TAB_SETTINGS
 
     def _on_tab_changed(self, idx: int) -> None:

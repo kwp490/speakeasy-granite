@@ -148,6 +148,42 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Validate download dependencies and target access without downloading files",
     )
 
+    srv = sub.add_parser(
+        "serve",
+        help="Run a SpeakEasy ASR server so another computer can transcribe remotely",
+    )
+    srv.add_argument(
+        "--bind",
+        default="127.0.0.1:8765",
+        help="host:port to bind (default: 127.0.0.1:8765, loopback-only)",
+    )
+    srv.add_argument(
+        "--device",
+        default=None,
+        choices=("cuda", "cpu"),
+        help="Compute device for the server engine (default: cpu)",
+    )
+    srv.add_argument(
+        "--model-dir",
+        default=None,
+        help="Directory containing the model (default: managed models dir)",
+    )
+    srv.add_argument(
+        "--token",
+        default=None,
+        help="Bearer token clients must present (required for non-loopback binds)",
+    )
+    srv.add_argument(
+        "--generate-token",
+        action="store_true",
+        help="Print a fresh random bearer token and exit",
+    )
+    srv.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="Permit binding a non-loopback address (requires --token)",
+    )
+
     return parser
 
 
@@ -166,6 +202,37 @@ def _cmd_download_model(args: argparse.Namespace) -> int:
         progress_format=args.progress_format,
         progress_file=args.progress_file,
         check_only=args.check_only,
+    )
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:
+    """Handle the serve subcommand (remote ASR server)."""
+    from speakeasy._build_variant import VARIANT
+    from speakeasy.services.server import generate_token, serve
+
+    if args.generate_token:
+        print(generate_token())
+        return 0
+
+    bind = str(args.bind)
+    host, _, port_str = bind.rpartition(":")
+    if not host or not port_str:
+        print(f"ERROR: invalid --bind {bind!r}; expected host:port")
+        return 2
+    try:
+        port = int(port_str)
+    except ValueError:
+        print(f"ERROR: invalid port in --bind {bind!r}")
+        return 2
+
+    device = args.device or ("cpu" if VARIANT == "cpu" else "cuda")
+    return serve(
+        host=host,
+        port=port,
+        device=device,
+        model_dir=args.model_dir,
+        token=args.token,
+        allow_remote=args.allow_remote,
     )
 
 
@@ -274,6 +341,10 @@ def main() -> int:
         _setup_logging()
         return _cmd_download_model(args)
 
+    if args.command == "serve":
+        _setup_logging()
+        return _cmd_serve(args)
+
     # Default: launch GUI
     try:
         faulthandler.enable()
@@ -323,15 +394,17 @@ def main() -> int:
     # certain CUDA builds corrupts the stack of any newly created thread via
     # this callback, causing access violations in otherwise-innocent code (even
     # os.path.isdir) and occasional startup "CUDA unknown error" crashes.
-    # Creating and warming up the engine pool thread here —
-    # before the MainWindow import below pulls in torch/CUDA — ensures the
-    # thread already exists when the DLLs load and is therefore immune.
+    # Creating and warming up the engine pool thread here ensures it already
+    # exists when the DLLs eventually load.  As of Phase 2 the heavy imports are
+    # lazy: torch/transformers are no longer pulled in by importing MainWindow —
+    # they import on this engine thread when the model is loaded (engine.load()
+    # runs on _engine_pool), which keeps the DllMain invariant satisfied.
     _engine_pool = DedicatedWorkerPool()
     _engine_pool.warmup()
 
-    # Import MainWindow now; this transitively imports granite_transcribe
-    # which imports torch and transformers at module level, loading CUDA DLLs.
-    # The engine thread is already alive at this point, so its stack is safe.
+    # Import MainWindow now.  This no longer imports torch/transformers at module
+    # scope (the engine boundary defers them to model-load time on the engine
+    # thread above), so the UI can paint before any CUDA DLL is loaded.
     from speakeasy.main_window import MainWindow
 
     window = MainWindow(settings, engine_pool=_engine_pool)

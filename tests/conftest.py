@@ -138,6 +138,6 @@ def _suppress_model_setup_dialog(monkeypatch):
     processEvents() fires this timer between tests, hanging the suite.
     """
     monkeypatch.setattr(
-        "speakeasy.main_window.MainWindow._prompt_model_setup_on_start",
+        "speakeasy.ui.model_controller.ModelController._prompt_model_setup_on_start",
         lambda self: None,
     )

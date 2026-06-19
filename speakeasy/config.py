@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 from ._build_variant import VARIANT
@@ -72,7 +72,12 @@ class Settings:
 
     # ── Model Engine ──────────────────────────────────────────────────────────
     engine: str = "granite"
+    # ``model_path`` is the resolved *local* directory the engine loads from.  It
+    # is kept as a legacy mirror of ``model_source`` so a downgrade to 0.14.x
+    # still boots; ``model_source`` (the discriminated schema in
+    # ``core.model_source``) is the forward-looking source of truth.
     model_path: str = DEFAULT_MODELS_DIR
+    model_source: dict = field(default_factory=dict)
     device: str = "cpu" if VARIANT == "cpu" else "cuda"
     language: str = "en"
     speech_task: str = "transcribe"
@@ -104,13 +109,22 @@ class Settings:
     pro_disclosure_accepted: bool = False  # True once user acknowledges data-privacy notice
     provider: str = "openai"               # AI Providers tab: openai | local_granite (future)
 
+    # ── Remote ASR ────────────────────────────────────────────────────────────
+    remote_disclosure_accepted: bool = False  # True once user accepts the remote-audio notice
+
     # ── Developer Panel ──────────────────────────────────────────────────────
     dev_panel_open: bool = False
-    dev_panel_active_tab: str = "settings"   # one of: settings, providers, pro, realtime, logs, history, advanced
+    dev_panel_active_tab: str = "settings"   # one of: settings, pro, diagnostics, history, advanced
     dev_panel_width: int = 629
     dev_panel_height: int = 880
     dev_panel_snapped: bool = True           # True = follows main window's right edge
     hotkey_dev_panel: str = "ctrl+alt+d"     # user-configurable in Hotkeys section
+
+    # Transient (NOT persisted — plain class attribute, not a dataclass field):
+    # set by validate() when a custom model location is configured but currently
+    # unreachable (offline UNC share / disconnected removable drive).  The UI
+    # surfaces this as a "needs attention" badge instead of erasing the setting.
+    model_location_needs_attention = False
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -143,9 +157,7 @@ class Settings:
             )
             self.formatting_style = "sentence_case"
         self.keyword_bias = str(self.keyword_bias or "").strip()
-        if self.model_path != DEFAULT_MODELS_DIR and not os.path.isdir(self.model_path):
-            log.warning("model_path '%s' does not exist; resetting to default", self.model_path)
-            self.model_path = DEFAULT_MODELS_DIR
+        self._resolve_model_source()
         _default_device = "cpu" if VARIANT == "cpu" else "cuda"
         if self.device not in self._VALID_DEVICES:
             log.warning("Unknown device '%s'; falling back to '%s'", self.device, _default_device)
@@ -157,7 +169,14 @@ class Settings:
             self.inference_timeout = 30
         if self.silence_threshold <= 0:
             self.silence_threshold = 0.0015
-        valid_tabs = {"settings", "providers", "advanced", "realtime", "logs", "pro", "history"}
+        # Phase 6 merged the Developer Panel down to five tabs.  Remap legacy
+        # tab keys saved by older builds: AI Providers folded into AI Writing
+        # Profiles; Metrics + Logs merged into Diagnostics.
+        _tab_remap = {"providers": "pro", "realtime": "diagnostics", "logs": "diagnostics"}
+        self.dev_panel_active_tab = _tab_remap.get(
+            self.dev_panel_active_tab, self.dev_panel_active_tab
+        )
+        valid_tabs = {"settings", "pro", "diagnostics", "history", "advanced"}
         if self.provider not in {"openai", "local_granite"}:
             self.provider = "openai"
         if self.dev_panel_active_tab not in valid_tabs:
@@ -170,6 +189,58 @@ class Settings:
             self.dev_panel_width = 800
         if self.dev_panel_height < 400:
             self.dev_panel_height = 880
+
+    def _resolve_model_source(self) -> None:
+        """Normalize ``model_source`` and keep the legacy ``model_path`` mirror in sync.
+
+        Migration rules (also covers a 0.14.x ``settings.json`` that only has
+        ``model_path``):
+
+        * No / empty ``model_source`` ⇒ derive it from ``model_path`` —
+          ``managed`` when it equals the default models dir, otherwise
+          ``local_dir`` (even if the path is currently unreachable).
+        * An invalid ``model_source`` falls back to ``managed``.
+
+        Unlike the previous behavior, a custom directory that is offline (an
+        unplugged removable drive or an offline UNC share) is **never** reset to
+        the default — the setting is preserved and ``model_location_needs_attention``
+        is raised so the UI can show a badge.
+        """
+        from .core import model_source as ms
+
+        raw = self.model_source if isinstance(self.model_source, dict) else {}
+        if not raw or "type" not in raw:
+            if self.model_path and self.model_path != DEFAULT_MODELS_DIR:
+                src: ms.ModelSource = ms.LocalDirSource(path=self.model_path)
+            else:
+                src = ms.ManagedSource()
+        else:
+            try:
+                src = ms.parse(raw)
+            except (ValueError, TypeError):
+                log.warning(
+                    "Invalid model_source %r; falling back to managed location", raw
+                )
+                src = ms.ManagedSource()
+
+        self.model_location_needs_attention = False
+        if isinstance(src, ms.LocalDirSource):
+            path = src.path or DEFAULT_MODELS_DIR
+            self.model_path = path
+            src = ms.LocalDirSource(path=path)
+            if path != DEFAULT_MODELS_DIR and not os.path.isdir(path):
+                self.model_location_needs_attention = True
+                log.info(
+                    "Model location '%s' is not currently reachable; "
+                    "the saved setting was kept",
+                    path,
+                )
+        else:
+            # Managed and remote sources both mirror the managed default so a
+            # downgrade to 0.14.x still finds a usable local path.
+            self.model_path = DEFAULT_MODELS_DIR
+
+        self.model_source = ms.to_dict(src)
 
     def save(self, path: Path | None = None) -> None:
         """Persist settings to JSON file."""

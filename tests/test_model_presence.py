@@ -118,18 +118,22 @@ class TestModelPathResolution(unittest.TestCase):
 
     def test_source_mode_speakeasy_home(self):
         """When SPEAKEASY_HOME is set, INSTALL_DIR / 'models' should match."""
+        import importlib
+        import speakeasy.config as cfg
+
         with tempfile.TemporaryDirectory() as d:
-            with mock.patch.dict(os.environ, {"SPEAKEASY_HOME": d}):
-                # Re-import to pick up the env var
-                import importlib
-                import speakeasy.config as cfg
-                importlib.reload(cfg)
-                try:
+            try:
+                with mock.patch.dict(os.environ, {"SPEAKEASY_HOME": d}):
+                    # Re-import to pick up the env var
+                    importlib.reload(cfg)
                     expected = Path(d) / "models"
                     self.assertEqual(cfg.DEFAULT_MODELS_DIR, str(expected))
-                finally:
-                    # Restore so other tests are not affected
-                    importlib.reload(cfg)
+            finally:
+                # Restore *after* leaving the patched environment so the module
+                # global no longer points at the (now-deleted) temp dir — a leak
+                # here pollutes DEFAULT_MODELS_DIR for every later test in a
+                # single-process run.
+                importlib.reload(cfg)
 
     def test_frozen_mode_default(self):
         """Without SPEAKEASY_HOME, DEFAULT_MODELS_DIR points to %ProgramData%."""
@@ -216,6 +220,70 @@ class TestStartupModelSetup(unittest.TestCase):
                             self.assertFalse(app_main._ensure_startup_model_ready(settings))
 
         critical.assert_called_once()
+
+
+class TestNetworkAndRemovableModelPaths(unittest.TestCase):
+    """Model locations on network shares / removable drives must be
+    classified for the UI badge and never crash the presence check."""
+
+    def test_unc_paths_classified_as_network(self):
+        from speakeasy.core.model_source import PATH_UNC, classify_path
+
+        self.assertEqual(classify_path(r"\\fileserver\ml\granite"), PATH_UNC)
+        self.assertEqual(classify_path(r"\\?\UNC\fileserver\ml"), PATH_UNC)
+
+    @unittest.skipUnless(os.name == "nt", "drive-type detection is Windows-only")
+    def test_removable_drive_classified(self):
+        from speakeasy.core import model_source as ms
+
+        with mock.patch(
+            "ctypes.windll.kernel32.GetDriveTypeW",
+            return_value=ms._DRIVE_REMOVABLE,
+            create=True,
+        ):
+            self.assertEqual(ms.classify_path(r"E:\models\granite"), ms.PATH_REMOVABLE)
+
+
+class TestOfflineModelSourceHealth(unittest.TestCase):
+    """Offline / unreachable custom model sources must degrade gracefully:
+    reported as not-ready, path preserved (no destructive reset), and the
+    health check must not hang on a dead mount."""
+
+    def test_offline_local_source_reports_not_ready_without_raising(self):
+        from speakeasy.core.model_source import LocalDirSource
+        from speakeasy.services.provisioning import model_health
+
+        with tempfile.TemporaryDirectory() as d:
+            gone = os.path.join(d, "offline-share", "models")  # never created
+            health = model_health(LocalDirSource(path=gone))
+            self.assertFalse(health.ready)
+
+    def test_offline_source_path_is_preserved_not_redirected(self):
+        # The provisioning layer must resolve a custom offline source to its
+        # own path, never silently redirecting to the managed models dir
+        # (the C-4 "no destructive reset" guarantee at the source layer).
+        from speakeasy.core.model_source import LocalDirSource
+        from speakeasy.services.provisioning import model_local_path
+
+        offline = r"\\offline-host\share\models"
+        self.assertEqual(model_local_path(LocalDirSource(path=offline)), offline)
+
+    def test_unc_health_check_is_bounded(self):
+        # A dead network mount must resolve to not-ready promptly rather than
+        # hanging the startup health check.  Simulate the share being absent
+        # (pathlib reports no directory) and assert the check returns quickly.
+        import time
+
+        from speakeasy.core.model_source import LocalDirSource
+        from speakeasy.services.provisioning import model_health
+
+        unc = r"\\offline-host\share\models"
+        with mock.patch("pathlib.Path.is_dir", return_value=False):
+            start = time.monotonic()
+            health = model_health(LocalDirSource(path=unc))
+            elapsed = time.monotonic() - start
+        self.assertFalse(health.ready)
+        self.assertLess(elapsed, 2.0)
 
 
 if __name__ == "__main__":

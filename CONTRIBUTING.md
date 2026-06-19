@@ -27,6 +27,83 @@ uv run python -m compileall speakeasy
 uv run python -c "from speakeasy.engine import ENGINES; print(list(ENGINES.keys()))"
 ```
 
+## Test Suite
+
+The suite is built around the **parametrized conformance spine**
+([tests/test_contract_conformance.py](tests/test_contract_conformance.py)): every
+`TranscriptionService` implementation (the in-process adapter, the remote client,
+and the `FakeEngine` double) is driven through the same `TranscriptionOptions`
+cases, so behavior stays identical across transports.
+
+Run the whole suite in parallel:
+
+```bash
+uv run pytest -n auto
+```
+
+### Layering rules
+
+`core/`, `services/`, and `engines/` must stay import-light so the UI and the
+remote client can load without pulling in the ML stack. **No module-scope import
+of `torch`, `transformers`, `librosa`, `accelerate`, or `PySide6`** is allowed in
+those packages — heavy imports live inside functions or behind the engine
+boundary. This keeps cold-start fast and lets a frozen build defer the ML import
+until a real model is loaded.
+
+This rule is enforced automatically:
+
+```bash
+# Fails if a forbidden module is imported at module scope in core/services/engines
+uv run pytest tests/test_ml_import_isolation.py
+# Frozen-build import isolation (PyInstaller layout):
+uv run pytest tests/test_frozen_ml_isolation.py
+```
+
+### Driving engines in tests with FakeEngine
+
+Use [`FakeEngine`](speakeasy/engines/fake.py) for all UI, controller, and
+service-level tests — it is a deterministic `SpeechEngine` double with no model
+download or GPU dependency. Drive transcription through the public contract
+rather than engine internals: wrap the engine in `InProcessEngineService` and
+pass a `TranscriptionOptions`, instead of calling private engine methods or the
+`configure_prompt_options` side-channel directly.
+
+```python
+from speakeasy.core.contract import TranscriptionOptions
+from speakeasy.core.model_source import LocalDirSource
+from speakeasy.services.inprocess import InProcessEngineService
+from speakeasy.engines.fake import FakeEngine
+
+service = InProcessEngineService(FakeEngine(transcript="hello world"))
+service.load(LocalDirSource(path="/dummy"), "cpu")
+result = service.transcribe(audio, TranscriptionOptions(task="transcribe"))
+```
+
+### Nightly real-model regression job
+
+The fast suite never loads the real Granite weights. A separate **nightly
+real-model regression job** runs out of CI band against the downloaded model to
+guard transcription quality:
+
+- **Scope:** loads the real Granite engine on both **GPU and CPU**, transcribes
+  the committed fixtures in [tests/fixtures/audio/](tests/fixtures/audio/), and
+  compares the output against the reference transcripts in that fixture set.
+- **Gate:** the measured Word Error Rate (WER) must stay at or below the
+  committed baseline; a regression fails the job and **gates merges that touch
+  the engine layer** (`speakeasy/engine/`).
+- **Why nightly:** loading the model and running full inference is too slow and
+  hardware-dependent for per-PR CI, so it runs on a schedule rather than on every
+  push.
+
+To reproduce the nightly check locally with a downloaded model:
+
+```bash
+# Requires the Granite model present locally and a GPU for the GPU pass.
+uv run python tools/bench.py --device cuda    # GPU pass: latency + WER vs references
+uv run python tools/bench.py --device cpu     # CPU pass
+uv run python tools/bench.py --smoke          # zero-dependency harness self-check (no model)
+```
+
 ## Code Style
 
 - Use type hints where practical

@@ -41,7 +41,7 @@ class TestDevPanelRoundTrip:
         path = tmp_path / "settings.json"
         s = Settings(
             dev_panel_open=True,
-            dev_panel_active_tab="logs",
+            dev_panel_active_tab="diagnostics",
             dev_panel_width=629,
             dev_panel_height=900,
             dev_panel_snapped=False,
@@ -51,7 +51,7 @@ class TestDevPanelRoundTrip:
         loaded = Settings.load(path)
 
         assert loaded.dev_panel_open is True
-        assert loaded.dev_panel_active_tab == "logs"
+        assert loaded.dev_panel_active_tab == "diagnostics"
         assert loaded.dev_panel_width == 629
         assert loaded.dev_panel_height == 900
         assert loaded.dev_panel_snapped is False
@@ -102,11 +102,21 @@ class TestDevPanelValidation:
         s.validate()
         assert s.dev_panel_height == 880
 
-    @pytest.mark.parametrize("tab", ["settings", "advanced", "realtime", "logs", "pro", "history"])
+    @pytest.mark.parametrize("tab", ["settings", "advanced", "diagnostics", "pro", "history"])
     def test_validate_accepts_all_valid_tab_keys(self, tab):
         s = Settings(dev_panel_active_tab=tab)
         s.validate()
         assert s.dev_panel_active_tab == tab
+
+    @pytest.mark.parametrize(
+        "legacy,merged",
+        [("providers", "pro"), ("realtime", "diagnostics"), ("logs", "diagnostics")],
+    )
+    def test_validate_remaps_legacy_tab_keys(self, legacy, merged):
+        """Phase 6 merged the panel to five tabs; legacy keys remap."""
+        s = Settings(dev_panel_active_tab=legacy)
+        s.validate()
+        assert s.dev_panel_active_tab == merged
 
     def test_validate_accepts_valid_dimensions(self):
         s = Settings(dev_panel_width=629, dev_panel_height=800)

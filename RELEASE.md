@@ -4,12 +4,26 @@ Step-by-step checklist for publishing a new SpeakEasy AI release.
 
 ## Pre-release
 
-- [ ] **Bump version** in `pyproject.toml` (`version = "X.Y.Z"`)
-  — this is the single source of truth; installer filenames derive from it.
+- [ ] **Bump version** in `speakeasy/__init__.py` (`__version__ = "X.Y.Z"`)
+  — this is the single source of truth. `pyproject.toml` derives it dynamically
+  (`[tool.hatch.version]`), and `installer/Build-Installer.ps1` reads it to inject
+  `/DMyAppVersion` into Inno Setup, so installer filenames follow automatically.
+  Keep the `#define MyAppVersion` fallback in both `installer/*.iss` files and the
+  README release links in sync (enforced by `tests/test_build_naming.py` and
+  `tests/test_installer_version_consistency.py`).
 - [ ] **Finalize changelog** in `CHANGELOG.md`:
   - Rename `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`
   - Add a fresh `## [Unreleased]` section above it
 - [ ] **Update supported versions** in `SECURITY.md` to include the new `X.Y.x` line.
+- [ ] **Run the settings-migration check** — confirm a real `settings.json` written by
+  the previous release loads cleanly into the new build (no destructive `model_path`
+  reset for offline custom/UNC paths). `tests/test_settings_migration.py` covers the
+  matrix; for a real-world check, copy an old `settings.json` into the active
+  `%ProgramData%\SpeakEasy AI Granite\config` and launch the app once.
+- [ ] **Run the benchmark diff** — on benchmark hardware, run
+  `uv run python tools/bench.py --device {cuda,cpu}` and compare WER + p50/p95
+  latency against `docs/benchmarks/baseline-0.14.5.md` (WER within 0.5 abs). For a
+  quick zero-dependency smoke, `uv run python tools/bench.py --smoke`.
 - [ ] Commit the version bump, changelog, and security updates together.
 
 ## Local Validation (optional)
@@ -25,6 +39,10 @@ Requires admin (the script auto-elevates).
 This runs the test suite, builds via PyInstaller + Inno Setup, uninstalls the
 previous version, installs the new build, validates the frozen bundle, and
 launches the app.
+
+- [ ] **Measure the built installer sizes** and update the README download table
+  (the GPU+CPU and CPU `Size` column) with the actual `.exe` sizes from this build,
+  e.g. `Get-Item installer\Output\*.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,0)}}`.
 
 ## Tag & Push
 

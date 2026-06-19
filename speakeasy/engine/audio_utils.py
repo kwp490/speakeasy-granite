@@ -9,20 +9,13 @@ from typing import List
 
 import numpy as np
 
-TARGET_SR = 16000
+from speakeasy.core.resample import TARGET_SR
+from speakeasy.core.resample import ensure_16khz as ensure_16khz
 
-
-def ensure_16khz(audio: np.ndarray, source_sr: int) -> np.ndarray:
-    """Resample audio to 16 kHz if needed.  Input must be 1D float32."""
-    if source_sr == TARGET_SR:
-        return audio
-    if len(audio) == 0:
-        return np.array([], dtype=np.float32)
-    import librosa
-
-    return librosa.resample(audio, orig_sr=source_sr, target_sr=TARGET_SR).astype(
-        np.float32
-    )
+# ``ensure_16khz`` is re-exported from :mod:`speakeasy.core.resample` so there is
+# exactly one resampling implementation (soxr primary).  The engine path
+# (``SpeechEngine.transcribe``) imports it from here for backwards compatibility;
+# ``chunk_audio`` / ``stitch_transcripts`` continue to live in this module.
 
 
 def chunk_audio(

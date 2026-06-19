@@ -1,3 +1,3 @@
 """SpeakEasy AI — Native Windows Voice-to-Text."""
 
-__version__ = "0.15.0rc1"
+__version__ = "0.15.0"

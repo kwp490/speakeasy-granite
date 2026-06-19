@@ -13,12 +13,6 @@ import logging
 import os
 
 import numpy as np
-import torch
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
-from transformers.generation.stopping_criteria import (
-    MaxTimeCriteria,
-    StoppingCriteriaList,
-)
 
 from .base import SpeechEngine
 
@@ -77,27 +71,27 @@ class GraniteTranscribeEngine(SpeechEngine):
         )
 
     def load(self, model_path: str, device: str = "cuda") -> None:
+        import torch
+        from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
+
         self._device = device
         granite_dir = os.path.join(model_path, "granite")
 
         if not os.path.isdir(granite_dir) or not os.path.isfile(
             os.path.join(granite_dir, "config.json")
         ):
-            log.info("Granite model not found at %s; downloading", granite_dir)
-            from speakeasy.model_downloader import (
-                EXIT_AUTH_REQUIRED,
-                EXIT_SUCCESS,
-                download_model,
-            )
+            # The engine no longer downloads (that was coupling problem C-2 —
+            # the UI now provisions via speakeasy.services.provisioning before
+            # calling load()).  Signal the missing files with a typed error.
+            from ..core.errors import ModelFilesMissing
 
-            rc = download_model("granite", model_path)
-            if rc == EXIT_AUTH_REQUIRED:
-                raise RuntimeError(
-                    "The IBM Granite Speech model requires HuggingFace authentication. "
-                    f"Please provide a token with access to {GRANITE_REPO_ID}."
-                )
-            if rc != EXIT_SUCCESS:
-                raise RuntimeError(f"Failed to download Granite model from {GRANITE_REPO_ID}.")
+            raise ModelFilesMissing(
+                missing=("config.json",),
+                message=(
+                    f"Granite model not found at {granite_dir}. "
+                    "Run model setup to download it."
+                ),
+            )
 
         log.info("Loading IBM Granite Speech from %s", granite_dir)
 
@@ -244,6 +238,12 @@ class GraniteTranscribeEngine(SpeechEngine):
     ) -> str:
         import time as _time
 
+        import torch
+        from transformers.generation.stopping_criteria import (
+            MaxTimeCriteria,
+            StoppingCriteriaList,
+        )
+
         user_prompt = f"<|audio|>{self._build_user_prompt(language, punctuation)}"
         chat = [{"role": "user", "content": user_prompt}]
         prompt = self._tokenizer.apply_chat_template(
@@ -290,6 +290,8 @@ class GraniteTranscribeEngine(SpeechEngine):
         return str(text).strip()
 
     def _move_inputs_to_model(self, inputs):
+        import torch
+
         if hasattr(inputs, "to"):
             try:
                 return inputs.to(self._actual_device)

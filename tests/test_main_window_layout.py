@@ -13,6 +13,8 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MAIN_WINDOW_PATH = _REPO_ROOT / "speakeasy" / "main_window.py"
+_MODEL_CONTROLLER_PATH = _REPO_ROOT / "speakeasy" / "ui" / "model_controller.py"
+_DICTATION_CONTROLLER_PATH = _REPO_ROOT / "speakeasy" / "ui" / "dictation_controller.py"
 
 
 def _qt_available() -> bool:
@@ -40,11 +42,30 @@ class TestLayoutStructure(unittest.TestCase):
                 break
         assert cls._mw_class is not None
 
+        # The model lifecycle + dictation state machine moved to dedicated
+        # controllers (Phase 6, plan §9).  Parse them too so method-source
+        # lookups can find the relocated methods.
+        cls._mc_source = _MODEL_CONTROLLER_PATH.read_text(encoding="utf-8")
+        cls._mc_class = next(
+            n for n in ast.walk(ast.parse(cls._mc_source, filename="model_controller.py"))
+            if isinstance(n, ast.ClassDef) and n.name == "ModelController"
+        )
+        cls._dc_source = _DICTATION_CONTROLLER_PATH.read_text(encoding="utf-8")
+        cls._dc_class = next(
+            n for n in ast.walk(ast.parse(cls._dc_source, filename="dictation_controller.py"))
+            if isinstance(n, ast.ClassDef) and n.name == "DictationController"
+        )
+
     def _get_method_source(self, method_name: str) -> str:
-        for node in ast.walk(self._mw_class):
-            if isinstance(node, ast.FunctionDef) and node.name == method_name:
-                return ast.get_source_segment(self._source, node) or ""
-        self.fail(f"Method '{method_name}' not found in MainWindow")
+        for cls_node, source in (
+            (self._mw_class, self._source),
+            (self._mc_class, self._mc_source),
+            (self._dc_class, self._dc_source),
+        ):
+            for node in ast.walk(cls_node):
+                if isinstance(node, ast.FunctionDef) and node.name == method_name:
+                    return ast.get_source_segment(source, node) or ""
+        self.fail(f"Method '{method_name}' not found in MainWindow or controllers")
 
     # Phase 1
 
@@ -250,14 +271,14 @@ class TestLayoutStructure(unittest.TestCase):
     def test_load_model_uses_engine_pool(self):
         """Model load must run on the dedicated engine pool, not the global pool."""
         src = self._get_method_source("_load_model")
-        self.assertIn("self._engine_pool.start(worker)", src)
-        self.assertNotIn("self._pool.start(worker)", src)
+        self.assertIn("mw._engine_pool.start(worker)", src)
+        self.assertNotIn("mw._pool.start(worker)", src)
 
     def test_reload_model_uses_engine_pool(self):
         """Model reload must run on the dedicated engine pool."""
         src = self._get_method_source("_on_reload_model")
-        self.assertIn("self._engine_pool.start(worker)", src)
-        self.assertNotIn("self._pool.start(worker)", src)
+        self.assertIn("mw._engine_pool.start(worker)", src)
+        self.assertNotIn("mw._pool.start(worker)", src)
 
     def test_validate_uses_engine_pool(self):
         """Validation must run on the dedicated engine pool."""
@@ -268,8 +289,8 @@ class TestLayoutStructure(unittest.TestCase):
     def test_transcription_uses_engine_pool(self):
         """Transcription must run on the dedicated engine pool."""
         src = self._get_method_source("_on_stop_and_transcribe")
-        self.assertIn("self._engine_pool.start(worker)", src)
-        self.assertNotIn("self._pool.start(worker)", src)
+        self.assertIn("mw._engine_pool.start(worker)", src)
+        self.assertNotIn("mw._pool.start(worker)", src)
 
     def test_stop_and_transcribe_suspends_mic_stream(self):
         """The live mic stream must be suspended before transcription starts."""
@@ -287,9 +308,9 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertIn("self._resume_mic_stream_after_processing()", src)
 
     def test_suspend_resume_helpers_exist(self):
-        """MainWindow must define explicit mic suspend/resume helpers."""
+        """DictationController must define explicit mic suspend/resume helpers."""
         method_names = [
-            n.name for n in ast.walk(self._mw_class)
+            n.name for n in ast.walk(self._dc_class)
             if isinstance(n, ast.FunctionDef)
         ]
         self.assertIn("_suspend_mic_stream_for_processing", method_names)
@@ -338,8 +359,9 @@ class TestLayoutStructure(unittest.TestCase):
             )
         )
         self.assertIn("QMessageBox.information", src)
-        self.assertIn("TAB_PROVIDERS", src)
-        self.assertIn("activate_tab(TAB_PROVIDERS)", src)
+        # AI Providers folded into the AI Writing Profiles tab (Phase 6).
+        self.assertIn("TAB_PRO", src)
+        self.assertIn("activate_tab(TAB_PRO)", src)
         self.assertIn("focus_api_key()", src)
 
     def test_no_pending_professional_enable_state(self):
@@ -621,7 +643,7 @@ class TestFinalHistoryEntries(unittest.TestCase):
         win = self._make_window()
         try:
             win._ensure_dev_panel()
-            win._add_history("12:34:56", "final text", success=True)
+            win._dictation_controller._add_history("12:34:56", "final text", success=True)
             entries = self._history_entries(win)
             self.assertEqual(len(entries), 1)
             self.assertEqual(entries[0].text, "final text")
@@ -632,7 +654,7 @@ class TestFinalHistoryEntries(unittest.TestCase):
         win = self._make_window()
         try:
             win._ensure_dev_panel()
-            win._add_history(
+            win._dictation_controller._add_history(
                 "12:34:56", "polished cleaned text", success=True,
                 original_text="raw text cleaned later",
             )

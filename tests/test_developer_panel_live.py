@@ -7,6 +7,7 @@ that AST tests cannot reach.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -45,7 +46,7 @@ def mock_main_window(tmp_path, monkeypatch, qtbot):
     mw.resize(720, 640)
     mw.move(100, 100)
     # DeveloperPanel accesses these MainWindow methods:
-    mw._on_reload_model = MagicMock()
+    mw._model_controller = SimpleNamespace(_on_reload_model=MagicMock())
     mw._apply_settings = MagicMock()
     mw._on_validate = MagicMock()
     mw._on_clear_logs = MagicMock()
@@ -78,19 +79,17 @@ class TestDeveloperPanelConstruction:
         assert panel.parentWidget() is mock_main_window
         assert panel.isWindow()
 
-    def test_panel_has_seven_tabs(self, dev_panel):
+    def test_panel_has_five_tabs(self, dev_panel):
         panel, _ = dev_panel
-        assert panel._tabs.count() == 7
+        assert panel._tabs.count() == 5
 
     def test_panel_tab_order(self, dev_panel):
         panel, _ = dev_panel
         labels = [panel._tabs.tabText(i).strip() for i in range(panel._tabs.count())]
         assert labels == [
             "⚙️  Settings",
-            "🔑  AI Providers",
             "💼  AI Writing Profiles",
-            "📊  Metrics",
-            "📋  Logs",
+            "📊  Diagnostics",
             "🕒  History",
             "Advanced",
         ]
@@ -104,45 +103,41 @@ class TestDeveloperPanelConstruction:
         from speakeasy.config import Settings
         from speakeasy.developer_panel import DeveloperPanel
 
+        # Legacy "logs" key resolves to the merged Diagnostics tab (index 2).
         settings = Settings(dev_panel_active_tab="logs")
         panel = DeveloperPanel(settings, mock_main_window)
-        assert panel._tabs.currentIndex() == 4  # logs tab index in new layout
+        assert panel._tabs.currentIndex() == 2  # Diagnostics tab index in merged layout
 
 
 class TestDeveloperPanelTabNavigation:
     def test_switching_tabs_persists_active_tab(self, dev_panel, tmp_path, monkeypatch):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(3)  # Metrics in new layout
-        assert settings.dev_panel_active_tab == "realtime"
+        panel._tabs.setCurrentIndex(2)  # Diagnostics
+        assert settings.dev_panel_active_tab == "diagnostics"
 
     def test_switching_to_advanced_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(6)
+        panel._tabs.setCurrentIndex(4)
         assert settings.dev_panel_active_tab == "advanced"
 
-    def test_switching_to_logs_tab(self, dev_panel):
+    def test_switching_to_diagnostics_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(4)
-        assert settings.dev_panel_active_tab == "logs"
+        panel._tabs.setCurrentIndex(2)
+        assert settings.dev_panel_active_tab == "diagnostics"
 
     def test_switching_to_pro_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(2)
-        assert settings.dev_panel_active_tab == "pro"
-
-    def test_switching_to_providers_tab(self, dev_panel):
-        panel, settings = dev_panel
         panel._tabs.setCurrentIndex(1)
-        assert settings.dev_panel_active_tab == "providers"
+        assert settings.dev_panel_active_tab == "pro"
 
     def test_switching_to_history_tab(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(5)
+        panel._tabs.setCurrentIndex(3)
         assert settings.dev_panel_active_tab == "history"
 
     def test_switching_back_to_settings(self, dev_panel):
         panel, settings = dev_panel
-        panel._tabs.setCurrentIndex(3)
+        panel._tabs.setCurrentIndex(2)
         panel._tabs.setCurrentIndex(0)
         assert settings.dev_panel_active_tab == "settings"
 
@@ -230,17 +225,17 @@ class TestDeveloperPanelSignalWiring:
         panel, _ = dev_panel
         # Emit the signal — should call mock
         panel._settings_widget.reload_model_requested.emit()
-        panel._main_window._on_reload_model.assert_called_once()
+        panel._main_window._model_controller._on_reload_model.assert_called_once()
 
     def test_advanced_settings_widget_reload_connected(self, dev_panel):
         panel, _ = dev_panel
         panel._advanced_settings_widget.reload_model_requested.emit()
-        panel._main_window._on_reload_model.assert_called_once()
+        panel._main_window._model_controller._on_reload_model.assert_called_once()
 
     def test_realtime_reload_connected(self, dev_panel):
         panel, _ = dev_panel
         panel.realtime_widget.reload_model_requested.emit()
-        panel._main_window._on_reload_model.assert_called()
+        panel._main_window._model_controller._on_reload_model.assert_called()
 
     def test_realtime_validate_connected(self, dev_panel):
         panel, _ = dev_panel
@@ -266,6 +261,7 @@ class TestDeveloperPanelActivateTab:
 
     def test_activate_tab_providers(self, dev_panel):
         panel, _ = dev_panel
+        # "providers" is a legacy alias folded into AI Writing Profiles (index 1).
         panel.activate_tab("providers")
         assert panel._tabs.currentIndex() == 1
 
@@ -276,30 +272,37 @@ class TestDeveloperPanelActivateTab:
         panel.ai_providers_widget.focus_api_key()
         assert panel.ai_providers_widget._api_key_edit.selectedText() == "sk-test"
 
+    def test_activate_tab_diagnostics(self, dev_panel):
+        panel, _ = dev_panel
+        panel.activate_tab("diagnostics")
+        assert panel._tabs.currentIndex() == 2
+
     def test_activate_tab_realtime(self, dev_panel):
         panel, _ = dev_panel
+        # Legacy alias → merged Diagnostics tab.
         panel.activate_tab("realtime")
-        assert panel._tabs.currentIndex() == 3
+        assert panel._tabs.currentIndex() == 2
 
     def test_activate_tab_advanced(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("advanced")
-        assert panel._tabs.currentIndex() == 6
+        assert panel._tabs.currentIndex() == 4
 
     def test_activate_tab_logs(self, dev_panel):
         panel, _ = dev_panel
+        # Legacy alias → merged Diagnostics tab.
         panel.activate_tab("logs")
-        assert panel._tabs.currentIndex() == 4
+        assert panel._tabs.currentIndex() == 2
 
     def test_activate_tab_pro(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("pro")
-        assert panel._tabs.currentIndex() == 2
+        assert panel._tabs.currentIndex() == 1
 
     def test_activate_tab_history(self, dev_panel):
         panel, _ = dev_panel
         panel.activate_tab("history")
-        assert panel._tabs.currentIndex() == 5
+        assert panel._tabs.currentIndex() == 3
 
 
 class TestTokenSparklinePainting:

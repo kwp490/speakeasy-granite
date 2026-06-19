@@ -94,18 +94,22 @@ class ProModeWidget(QWidget):
         profile_row.addWidget(QLabel("Profile"))
         self._preset_combo = QComboBox()
         self._preset_combo.setMinimumWidth(220)
+        self._preset_combo.setToolTip("Active writing profile.")
         self._preset_combo.currentTextChanged.connect(self._on_preset_selected)
         profile_row.addWidget(self._preset_combo, 1)
 
         self._btn_new_preset = QPushButton("New")
+        self._btn_new_preset.setToolTip("Create a new writing profile.")
         self._btn_new_preset.clicked.connect(self._on_new_preset)
         profile_row.addWidget(self._btn_new_preset)
 
         self._btn_dup_preset = QPushButton("Duplicate")
+        self._btn_dup_preset.setToolTip("Duplicate the selected writing profile.")
         self._btn_dup_preset.clicked.connect(self._on_duplicate_preset)
         profile_row.addWidget(self._btn_dup_preset)
 
         self._btn_del_preset = QPushButton("Delete")
+        self._btn_del_preset.setToolTip("Delete the selected writing profile.")
         self._btn_del_preset.clicked.connect(self._on_delete_preset)
         profile_row.addWidget(self._btn_del_preset)
         profile_form.addRow(profile_row)

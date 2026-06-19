@@ -5,9 +5,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["speakeasy"]
 
+# Single source of truth for the version: speakeasy/__init__.py __version__.
+# hatchling reads it via the regex below so the version is never duplicated in
+# this file (§14.1). Installers inject the same value into the .iss at build.
+[tool.hatch.version]
+path = "speakeasy/__init__.py"
+
 [project]
 name = "speakeasy-granite"
-version = "0.15.0rc1"
+dynamic = ["version"]
 description = "SpeakEasy AI Granite — Native Windows speech-to-text and speech translation with IBM Granite Speech"
 readme = "README.md"
 license = "MIT"
@@ -30,7 +36,7 @@ dependencies = [
     "hf_xet>=1.1.0",
     "sentencepiece",
     "protobuf",
-    "librosa>=0.10",
+    "soxr>=0.3",
     "safetensors>=0.4",
     "urllib3>=2.7.0",
 ]

@@ -20,7 +20,12 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI Granite"
-#define MyAppVersion "0.15.0rc1"
+; MyAppVersion is injected by Build-Installer.ps1 via /DMyAppVersion=<__version__>.
+; The literal below is a build-time fallback when iscc is run directly; it must
+; stay in sync with speakeasy/__init__.py __version__ (enforced by tests).
+#ifndef MyAppVersion
+#define MyAppVersion "0.15.0"
+#endif
 #define MyAppDataName "SpeakEasy AI Granite"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/speakeasy-granite"

@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpeakEasy Granite Repository Review</title>
+<style>
+:root {
+  --bg: #f0f2f5;
+  --card: #ffffff;
+  --text: #2c3e50;
+  --muted: #626567;
+  --accent: #1a5276;
+  --critical: #922b21;
+  --high: #a04000;
+  --medium: #b7950b;
+  --low: #1a5276;
+  --info: #626567;
+  --green: #1e8449;
+  --orange: #a04000;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.5;
+}
+code, pre, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+a { color: var(--accent); }
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 260px;
+  padding: 18px 14px;
+  background: #ffffff;
+  border-right: 1px solid #d6dbe1;
+  overflow-y: auto;
+  z-index: 10;
+}
+.sidebar h2 { margin: 0 0 14px; font-size: 0.9rem; color: var(--muted); text-transform: uppercase; }
+.sidebar a {
+  display: block;
+  padding: 7px 8px 7px 10px;
+  margin: 2px 0;
+  color: var(--text);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  font-size: 0.92rem;
+}
+.sidebar a.active { border-left-color: var(--accent); color: var(--accent); font-weight: 700; }
+.nav-toggle { display: none; }
+main { margin-left: 260px; padding: 24px; max-width: 1480px; }
+section { margin: 0 0 22px; scroll-margin-top: 16px; }
+.card, .callout, details.category, .table-wrap, .chart-card {
+  background: var(--card);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+}
+.header-card {
+  padding: 24px;
+  background: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+h1 { margin: 0 0 6px; font-size: 2rem; color: var(--text); letter-spacing: 0; }
+h2 { margin: 0 0 12px; color: var(--text); font-size: 1.35rem; letter-spacing: 0; }
+h3 { margin: 0 0 8px; color: var(--text); font-size: 1.05rem; letter-spacing: 0; }
+.subhead { margin: 0 0 12px; color: var(--muted); }
+.meta-grid { display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px 22px; font-size: 0.92rem; }
+.meta-grid span { color: var(--muted); display: block; font-size: 0.78rem; text-transform: uppercase; }
+.badge, .pill {
+  display: inline-block;
+  border-radius: 3px;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.readiness { font-size: 0.95rem; padding: 6px 12px; }
+.sev-Critical { background: #922b21; }
+.sev-High { background: #a04000; }
+.sev-Medium { background: #b7950b; }
+.sev-Low { background: #1a5276; }
+.sev-Informational { background: #626567; }
+.effort-Small { background: #1e8449; }
+.effort-Medium { background: #b7950b; }
+.effort-Large { background: #922b21; }
+.conf-High { background: #1a5276; }
+.conf-Medium { background: #626567; }
+.conf-Low { background: #7b7d7d; }
+.rating-Orange { background: #a04000; }
+.rating-Yellow { background: #b7950b; }
+.rating-Green { background: #1e8449; }
+.rating-Red { background: #922b21; }
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 14px;
+}
+.metric { padding: 14px 16px; border-left: 5px solid var(--accent); }
+.metric .label { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; }
+.metric .value { font-size: 1.8rem; font-weight: 750; margin-top: 4px; }
+.metric.critical { border-left-color: var(--critical); }
+.metric.high { border-left-color: var(--high); }
+.metric.medium { border-left-color: var(--medium); }
+.metric.low { border-left-color: var(--low); }
+.metric.info { border-left-color: var(--info); }
+.charts { display: grid; grid-template-columns: minmax(260px, 0.85fr) minmax(320px, 1.15fr); gap: 16px; }
+.chart-card { padding: 18px; }
+.donut-area { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.donut { min-width: 200px; width: 220px; height: 220px; }
+.legend { display: grid; gap: 7px; }
+.legend-item { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.swatch { width: 13px; height: 13px; border-radius: 2px; display: inline-block; }
+.bar-row { display: grid; grid-template-columns: 185px 1fr 38px; align-items: center; gap: 10px; margin: 8px 0; }
+.bar-label { font-size: 0.9rem; }
+.bar-track { height: 14px; background: #e6eaee; border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; background: #2c3e50; border-radius: 3px; }
+.callout { padding: 18px 20px; border-left: 5px solid var(--accent); background: #f8fbfd; }
+.callout ul { margin: 8px 0 0 20px; padding: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 10px; }
+input[type="search"] { padding: 8px 10px; border: 1px solid #ccd3da; border-radius: 6px; min-width: 260px; font: inherit; }
+.checkbox-row { display: flex; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 0.9rem; }
+.table-wrap { overflow: auto; max-height: 540px; }
+table { width: 100%; border-collapse: collapse; background: #ffffff; }
+th, td { padding: 9px 10px; border-bottom: 1px solid #e2e6ea; text-align: left; vertical-align: top; }
+th { position: sticky; top: 0; background: #eef2f6; color: var(--text); z-index: 1; cursor: pointer; white-space: nowrap; }
+td { font-size: 0.92rem; }
+tr.row-Critical { border-left: 5px solid #922b21; }
+tr.row-High { border-left: 5px solid #a04000; }
+tr.row-Medium { border-left: 5px solid #b7950b; }
+tr.row-Low { border-left: 5px solid #1a5276; }
+tr.row-Informational { border-left: 5px solid #626567; }
+button {
+  border: 1px solid #ccd3da;
+  background: #ffffff;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 11px;
+  cursor: pointer;
+  font: inherit;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+details.category { margin: 10px 0; padding: 0; }
+details.category > summary { padding: 13px 16px; font-weight: 750; cursor: pointer; color: var(--text); }
+.finding { margin: 10px 14px 14px; border: 1px solid #dce2e7; border-radius: 6px; background: #ffffff; }
+.finding > summary { padding: 11px 12px; cursor: pointer; font-weight: 650; }
+.finding-body { padding: 0 12px 12px; display: grid; gap: 7px; }
+.finding-body div strong { color: var(--muted); }
+.empty { padding: 12px 16px 16px; color: var(--muted); }
+.small-table { max-height: none; }
+.question-box { padding: 18px 22px; }
+.question-box ol { margin: 0; padding-left: 22px; }
+.final-pill { font-size: 1rem; padding: 8px 14px; }
+.json-block { max-height: 420px; overflow: auto; padding: 14px; white-space: pre-wrap; }
+@media (max-width: 1050px) {
+  .summary-row { grid-template-columns: repeat(3, 1fr); }
+  .charts { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .nav-toggle { display: block; position: fixed; top: 10px; left: 10px; z-index: 20; background: #ffffff; }
+  .sidebar { transform: translateX(-100%); transition: transform 0.2s ease; }
+  .sidebar.open { transform: translateX(0); }
+  main { margin-left: 0; padding: 58px 14px 18px; }
+  .header-card { display: block; }
+  .meta-grid { grid-template-columns: 1fr; }
+  .summary-row { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+  .bar-row { grid-template-columns: 120px 1fr 30px; }
+}
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #ffffff; }
+  .sidebar, .nav-toggle, .controls, #details-toggle { display: none !important; }
+  main { margin-left: 0; padding: 0; max-width: none; }
+  details { display: block; }
+  details > * { display: block; }
+  .finding, details.category, .card, .chart-card, .callout, .table-wrap { box-shadow: none; page-break-inside: avoid; }
+  .table-wrap { max-height: none; overflow: visible; }
+  th { position: static; }
+}
+</style>
+</head>
+<body>
+<button class="nav-toggle" id="nav-toggle" type="button">Menu</button>
+<nav class="sidebar" id="sidebar" aria-label="Report navigation">
+  <h2>Review</h2>
+  <a href="#header">Header</a>
+  <a href="#dashboard">Dashboard</a>
+  <a href="#severity-chart">Severity Chart</a>
+  <a href="#category-chart">Category Chart</a>
+  <a href="#executive-summary">Executive Summary</a>
+  <a href="#top-findings">Top Findings</a>
+  <a href="#detailed-findings">Detailed Findings</a>
+  <a href="#quick-wins">Quick Wins</a>
+  <a href="#larger-work">Larger Work</a>
+  <a href="#files-removal">Removal Candidates</a>
+  <a href="#documentation-gaps">Documentation Gaps</a>
+  <a href="#questions">Questions</a>
+  <a href="#final-recommendation">Final Recommendation</a>
+  <a href="#json-data">JSON Data</a>
+</nav>
+<main>
+  <section id="header">
+    <div class="header-card">
+      <div>
+        <h1>SpeakEasy Granite Repository Review</h1>
+        <p class="subhead mono">C:\Coding_Projects\Speakeasy-Granite\speakeasy-granite</p>
+        <div class="meta-grid">
+          <div><span>Review date</span>May 29, 2026</div>
+          <div><span>Reviewer</span>GitHub Copilot repository review</div>
+          <div><span>Repository URL</span><span class="mono">https://github.com/kwp490/speakeasy-granite</span></div>
+          <div><span>Primary owner</span>kwp490; PAOD owner not specified</div>
+          <div><span>Business purpose</span>Private local Windows dictation and optional AI text cleanup</div>
+          <div><span>Validation observed</span>compileall passed; 577 tests passed; pip-audit found idna CVE</div>
+        </div>
+      </div>
+      <div><span class="pill readiness rating-Orange">Orange</span></div>
+    </div>
+  </section>
+
+  <section id="dashboard">
+    <h2>Dashboard Summary</h2>
+    <div class="summary-row" id="summary-row"></div>
+  </section>
+
+  <section id="severity-chart">
+    <h2>Severity Distribution</h2>
+    <div class="chart-card">
+      <div class="donut-area">
+        <svg class="donut" viewBox="0 0 200 200" role="img" aria-label="Severity distribution donut chart">
+          <circle cx="100" cy="100" r="70" fill="none" stroke="#dfe5ea" stroke-width="30"></circle>
+          <circle cx="100" cy="100" r="70" fill="none" stroke="#a04000" stroke-width="30" stroke-dasharray="77.6 362.2" stroke-dashoffset="0" transform="rotate(-90 100 100)"></circle>
+          <circle cx="100" cy="100" r="70" fill="none" stroke="#b7950b" stroke-width="30" stroke-dasharray="155.2 284.6" stroke-dashoffset="-77.6" transform="rotate(-90 100 100)"></circle>
+          <circle cx="100" cy="100" r="70" fill="none" stroke="#1a5276" stroke-width="30" stroke-dasharray="155.2 284.6" stroke-dashoffset="-232.8" transform="rotate(-90 100 100)"></circle>
+          <circle cx="100" cy="100" r="70" fill="none" stroke="#626567" stroke-width="30" stroke-dasharray="51.7 388.1" stroke-dashoffset="-388.0" transform="rotate(-90 100 100)"></circle>
+          <text x="100" y="94" text-anchor="middle" font-size="26" font-weight="700" fill="#2c3e50">17</text>
+          <text x="100" y="116" text-anchor="middle" font-size="12" fill="#626567">findings</text>
+        </svg>
+        <div class="legend" id="severity-legend"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="category-chart">
+    <h2>Category Distribution</h2>
+    <div class="chart-card" id="category-bars"></div>
+  </section>
+
+  <section id="executive-summary">
+    <h2>Executive Summary</h2>
+    <div class="callout">
+      <p><strong>Overall health:</strong> SpeakEasy Granite has a coherent architecture, strong privacy-oriented defaults, and a broad passing test suite, but it is not production-support-ready until release automation, source-install reliability, and dependency/security maintenance are corrected.</p>
+      <p><strong>Production readiness:</strong> The app is usable as a pilot or controlled test build. For PAOD-style maintained support, the repo needs required remediation around CI/CD truthfulness, installer behavior, and shared-machine data permissions.</p>
+      <p><strong>Top three risks:</strong></p>
+      <ul>
+        <li>Source installer currently validates a removed dependency and can fail a source install path.</li>
+        <li>Documented CI, release, dependency audit, and Dependabot automation are absent from the current repository.</li>
+        <li>A known dependency vulnerability is present in the locked environment.</li>
+      </ul>
+      <p><strong>Highest-value fixes:</strong></p>
+      <ul>
+        <li>Remove stale `keyboard` checks/import hints and add installer script coverage.</li>
+        <li>Restore or formally remove GitHub workflows and Dependabot documentation.</li>
+        <li>Update `idna` to a non-vulnerable version and run `pip-audit` in automation.</li>
+      </ul>
+      <p><strong>Final recommendation:</strong> Accept after required remediation before treating this as a maintained production-support repository.</p>
+    </div>
+  </section>
+
+  <section id="top-findings">
+    <h2>Top Findings</h2>
+    <div class="controls">
+      <input type="search" id="finding-search" placeholder="Search findings" aria-label="Search findings">
+      <div class="checkbox-row" id="severity-filters"></div>
+    </div>
+    <div class="table-wrap">
+      <table id="findings-table">
+        <thead>
+          <tr>
+            <th data-sort="priority">Priority</th>
+            <th data-sort="severity">Severity</th>
+            <th data-sort="category">Category</th>
+            <th data-sort="title">Finding</th>
+            <th data-sort="evidence">Evidence</th>
+            <th data-sort="recommended_fix">Recommended Fix</th>
+            <th data-sort="effort">Effort</th>
+            <th data-sort="confidence">Confidence</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="detailed-findings">
+    <h2>Detailed Findings</h2>
+    <button type="button" id="details-toggle">Expand All</button>
+    <div id="category-details"></div>
+  </section>
+
+  <section id="quick-wins">
+    <h2>Quick Wins</h2>
+    <div class="table-wrap small-table"><table id="quick-wins-table"><thead><tr><th>Fix</th><th>Why it matters</th><th>Estimated effort</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="larger-work">
+    <h2>Larger Remediation Work</h2>
+    <div class="table-wrap small-table"><table id="remediation-table"><thead><tr><th>Remediation</th><th>Reason</th><th>Suggested owner</th><th>Suggested priority</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="files-removal">
+    <h2>Files Recommended For Removal</h2>
+    <div class="table-wrap small-table"><table id="removal-table"><thead><tr><th>File</th><th>Reason</th><th>Confidence</th><th>Human confirmation needed</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="documentation-gaps">
+    <h2>Documentation Gaps</h2>
+    <div class="table-wrap small-table"><table id="docs-table"><thead><tr><th>Missing or weak document</th><th>Why it matters</th><th>Suggested content</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="questions">
+    <h2>Questions For The Repository Owner</h2>
+    <div class="callout question-box"><ol id="questions-list"></ol></div>
+  </section>
+
+  <section id="final-recommendation">
+    <h2>Final Recommendation</h2>
+    <div class="callout">
+      <p><span class="pill final-pill rating-Orange">Accept after required remediation</span></p>
+      <p>The repository is technically promising and its local privacy model is well explained, but the support envelope is not yet trustworthy enough for maintained production use. Required fixes are concentrated and practical: restore automation truth, fix the source install path, update the vulnerable dependency, and harden shared-machine data permissions. After those items are addressed, this looks suitable for pilot expansion with defined ownership and support documentation.</p>
+    </div>
+  </section>
+
+  <section id="json-data">
+    <h2>Machine-Readable JSON Data Block</h2>
+    <div class="card json-block"><script id="review-data" type="application/json">
+{
+  "repository": {
+    "name": "speakeasy-granite",
+    "url": "https://github.com/kwp490/speakeasy-granite",
+    "primary_owner": "kwp490",
+    "paod_contact": "Not specified",
+    "business_purpose": "Private local Windows dictation and optional AI Writing Profile text cleanup",
+    "review_date": "2026-05-29",
+    "reviewer": "GitHub Copilot repository review"
+  },
+  "readiness_rating": "Orange",
+  "executive_summary": "SpeakEasy Granite has a coherent local-first architecture and a broad passing test suite, but it needs required remediation before PAOD-style production support because source-install validation is stale, release/security automation is absent despite documentation, one locked dependency is vulnerable, and shared-machine data permissions need explicit risk treatment.",
+  "final_recommendation": {
+    "verdict": "Accept after required remediation",
+    "explanation": "Use as a pilot or controlled test build now. Before maintained production support, fix installer reliability, restore or correct CI/CD and dependency automation, remediate idna CVE-2026-45409, and document ownership, support, rollback, and data classification decisions."
+  },
+  "metrics": {
+    "total_findings": 17,
+    "by_severity": {
+      "critical": 0,
+      "high": 3,
+      "medium": 6,
+      "low": 6,
+      "informational": 2
+    },
+    "by_category": {
+      "security": 1,
+      "secrets": 2,
+      "dead_code": 2,
+      "redundant_code": 1,
+      "implementation_quality": 1,
+      "documentation": 1,
+      "testing": 1,
+      "dependencies": 2,
+      "configuration": 0,
+      "cicd": 3,
+      "logging_and_operations": 1,
+      "data_handling": 1,
+      "repository_hygiene": 1
+    }
+  },
+  "findings": [
+    {
+      "id": "F001",
+      "priority": 1,
+      "severity": "High",
+      "category": "CI/CD and deployment",
+      "title": "Source installer validates a removed keyboard dependency",
+      "evidence": "installer/Install-SpeakEasy-Source.ps1:329; speakeasy.spec:69; speakeasy-cpu.spec:86; pyproject.toml dependencies omit keyboard; uv run find_spec('keyboard') returned None",
+      "problem": "The source installer checks that the keyboard module imports even though the dependency was removed and the hotkey implementation now uses Win32 RegisterHotKey. The PyInstaller specs also still list keyboard as a hidden import.",
+      "why_it_matters": "A source-install path can fail after dependencies sync correctly, blocking repeatable setup and creating a confusing support incident. The stale hidden imports also keep build metadata inconsistent with the security claim that no low-level keyboard hook library is used.",
+      "recommended_fix": "Remove keyboard from the source installer import validation and both PyInstaller hiddenimports lists, then add a script-level smoke test for Install-SpeakEasy-Source.ps1 or the equivalent validation block.",
+      "effort": "Small",
+      "confidence": "High"
+    },
+    {
+      "id": "F002",
+      "priority": 2,
+      "severity": "High",
+      "category": "Dependencies",
+      "title": "Locked idna dependency has a known CVE",
+      "evidence": "uv.lock:749-750; uv run pip-audit reported idna 3.13 CVE-2026-45409 fixed in 3.15",
+      "problem": "The locked environment includes idna 3.13, and pip-audit reports CVE-2026-45409 with a fixed version of 3.15.",
+      "why_it_matters": "Known-vulnerable dependencies should not ship in installers or source-install instructions for a maintained application, even when the vulnerable package is transitive.",
+      "recommended_fix": "Update the lock to idna 3.15 or newer, verify dependent packages still resolve, rerun pytest and pip-audit, and publish the lock update with release notes.",
+      "effort": "Small",
+      "confidence": "High"
+    },
+    {
+      "id": "F003",
+      "priority": 3,
+      "severity": "High",
+      "category": "CI/CD and deployment",
+      "title": "Documented GitHub automation is missing from the repository",
+      "evidence": "RELEASE.md:36 references .github/workflows/release.yml; CHANGELOG.md:383-390 says CI pip-audit and Dependabot exist; .github/workflows/ is empty and .github/dependabot.yml is absent",
+      "problem": "Release, dependency audit, and Dependabot automation are described in documentation and changelog history, but those files are not present in the current repository checkout.",
+      "why_it_matters": "Maintainers may believe tags trigger releases and security audits when they do not. This creates release-process drift and weakens supply-chain monitoring.",
+      "recommended_fix": "Restore the intended workflows and Dependabot configuration, or update RELEASE.md and CHANGELOG notes with the current local-only release process and explicit manual audit steps.",
+      "effort": "Medium",
+      "confidence": "High"
+    },
+    {
+      "id": "F004",
+      "priority": 4,
+      "severity": "Medium",
+      "category": "Secrets and credential handling",
+      "title": "HuggingFace token can be passed on the command line",
+      "evidence": "speakeasy/__main__.py:126-131; speakeasy/model_downloader.py:516 and 736",
+      "problem": "The download-model command still accepts --token even though the Granite model is public and the installer text says no token is required.",
+      "why_it_matters": "Command-line tokens can leak through shell history, process listings, support screenshots, or logs around failed runs. The risk is avoidable because the current model does not require a token.",
+      "recommended_fix": "Deprecate --token for Granite downloads or replace it with a secure prompt or environment-variable path that is redacted in diagnostics. Document that the public Granite path is token-free.",
+      "effort": "Medium",
+      "confidence": "High"
+    },
+    {
+      "id": "F005",
+      "priority": 5,
+      "severity": "Medium",
+      "category": "Security",
+      "title": "Shared ProgramData model and config directories are writable by all standard users",
+      "evidence": "installer/speakeasy-setup.iss:69-72; installer/speakeasy-cpu-setup.iss:74-77; installer/speakeasy-setup.iss:444",
+      "problem": "The installer grants BUILTIN\\Users Modify access to the shared ProgramData root, models, config, and temp directories, and repairs settings.json with a broad users-modify ACL.",
+      "why_it_matters": "On shared Windows machines, any local standard user may be able to alter model files, presets, or settings for other users. That creates tampering and supportability risks, especially for transcript-rewriting prompts and model artifacts.",
+      "recommended_fix": "Revisit the data model for shared workstations. Prefer per-user config/presets/logs and either admin-owned model files with integrity verification or a documented least-privilege ACL design with hash checks after download and before load.",
+      "effort": "Large",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F006",
+      "priority": 6,
+      "severity": "Medium",
+      "category": "CI/CD and deployment",
+      "title": "Build script allows continuing after test failures",
+      "evidence": "installer/Build-Installer.ps1:683-697",
+      "problem": "When pytest fails, the build script prompts Continue anyway? and can continue building installers after a failed validation run.",
+      "why_it_matters": "Release artifacts can be produced from a known-bad test state, and interactive prompts are fragile in repeatable automation. A production release script should fail closed unless an explicit override is used and recorded.",
+      "recommended_fix": "Fail the script on test failures by default. If local developers need an escape hatch, add an explicit -AllowFailedTests switch and disallow it in Release mode.",
+      "effort": "Small",
+      "confidence": "High"
+    },
+    {
+      "id": "F007",
+      "priority": 7,
+      "severity": "Medium",
+      "category": "Implementation quality",
+      "title": "Settings load failure silently resets to defaults",
+      "evidence": "speakeasy/config.py:184-228",
+      "problem": "Settings.load catches any exception, logs a warning, and returns a default Settings object without preserving or surfacing the bad file to the user.",
+      "why_it_matters": "A malformed settings file can reset automation, hotkeys, model path, logging, provider, or privacy-related choices without a clear recovery workflow. This is support-hostile and can surprise users after corruption or manual edits.",
+      "recommended_fix": "Use schema validation with field-level errors, rename the corrupt file to a timestamped backup, show a user-facing recovery message, and preserve known-good values where possible.",
+      "effort": "Medium",
+      "confidence": "High"
+    },
+    {
+      "id": "F008",
+      "priority": 8,
+      "severity": "Medium",
+      "category": "Data handling",
+      "title": "Installer still migrates legacy logs into shared ProgramData",
+      "evidence": "installer/speakeasy-setup.iss:415-424; installer/speakeasy-cpu-setup.iss:337-346; SECURITY.md:68-78",
+      "problem": "Security documentation says logs are per-user under LOCALAPPDATA, but the installer migration path copies legacy log files into a common ProgramData logs folder.",
+      "why_it_matters": "Even if current logs avoid transcript text, legacy logs may contain unexpected diagnostics. Copying them to a shared machine-wide path contradicts the per-user log isolation policy and leaves stale data outside the active log lifecycle.",
+      "recommended_fix": "Stop migrating old logs into ProgramData. If migration is needed, move them to the current user's LOCALAPPDATA log directory or leave them in place with a documented cleanup prompt.",
+      "effort": "Medium",
+      "confidence": "High"
+    },
+    {
+      "id": "F009",
+      "priority": 9,
+      "severity": "Medium",
+      "category": "Dependencies",
+      "title": "Runtime dependency ranges are broad for an installer application",
+      "evidence": "pyproject.toml:23-36; uv.lock:2566-2567",
+      "problem": "Several heavy runtime dependencies use lower bounds without upper bounds, including openai, transformers, accelerate, torch, torchaudio, huggingface-hub, sentencepiece, protobuf, librosa, and safetensors.",
+      "why_it_matters": "The committed uv.lock helps uv-based installs, but pip installs and future lock refreshes can pull incompatible major changes into a Windows desktop installer with native libraries.",
+      "recommended_fix": "Add tested upper bounds or a constraints policy for major runtime packages, especially torch/torchaudio/transformers/openai, and document the lock refresh process.",
+      "effort": "Medium",
+      "confidence": "High"
+    },
+    {
+      "id": "F010",
+      "priority": 10,
+      "severity": "Low",
+      "category": "Repository hygiene",
+      "title": "Large ignored runtime and build directories are present locally",
+      "evidence": "git status --short --ignored=matching listed .venv/, build/, dev-temp/, dist/, installer/Output/, .vscode/, .claude/, and __pycache__ directories",
+      "problem": "The working tree contains ignored generated and local-environment directories, including build outputs, frozen dist trees, installer outputs, a virtual environment, and development temp data.",
+      "why_it_matters": "They are not tracked, but they make local scans noisy, can mask stale build behavior, and increase the chance of accidentally packaging or reviewing generated artifacts.",
+      "recommended_fix": "Keep them ignored, but clean them before release review or document which local artifact directories are expected. Consider a cleanup script for release preparation.",
+      "effort": "Small",
+      "confidence": "High"
+    },
+    {
+      "id": "F011",
+      "priority": 11,
+      "severity": "Low",
+      "category": "Dead code",
+      "title": "PyInstaller specs still include the removed keyboard module",
+      "evidence": "speakeasy.spec:69; speakeasy-cpu.spec:86; CHANGELOG.md:409-414",
+      "problem": "Both PyInstaller specs include keyboard as a hidden import even though the changelog says the keyboard package was removed and the source no longer imports it for hotkeys.",
+      "why_it_matters": "Stale hidden imports create confusing build warnings and obscure the security posture around not using a low-level keyboard hook library.",
+      "recommended_fix": "Remove keyboard from both hiddenimports lists and run the frozen-build validation path.",
+      "effort": "Small",
+      "confidence": "High"
+    },
+    {
+      "id": "F012",
+      "priority": 12,
+      "severity": "Low",
+      "category": "Dead code",
+      "title": "Future local_granite provider is wired into settings before implementation",
+      "evidence": "speakeasy/ai_providers_widget.py:73-83; speakeasy/config.py:105 and 161",
+      "problem": "The provider selector includes a disabled Local Granite provider, and settings validation accepts local_granite even though the rewrite pipeline only uses OpenAI today.",
+      "why_it_matters": "A future-provider flag in persisted settings can confuse support and tests if a settings file is edited or carried forward before the feature exists.",
+      "recommended_fix": "Either remove local_granite from persisted valid values until implemented, or document it as an inert reserved value and add tests that prove it cannot activate an incomplete path.",
+      "effort": "Small",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F013",
+      "priority": 13,
+      "severity": "Low",
+      "category": "Redundant code",
+      "title": "Built-in preset prompts duplicate a large common policy block",
+      "evidence": "speakeasy/pro_preset.py:59-260",
+      "problem": "Multiple built-in AI Writing Profile presets repeat the same workplace-safety and rewriting rules with only style-specific endings changed.",
+      "why_it_matters": "Policy updates will require editing many long strings by hand, increasing the chance of inconsistent prompt behavior across presets.",
+      "recommended_fix": "Extract a shared base prompt and compose each preset from the base instructions plus a concise style-specific suffix.",
+      "effort": "Medium",
+      "confidence": "High"
+    },
+    {
+      "id": "F014",
+      "priority": 14,
+      "severity": "Low",
+      "category": "Logging and operations",
+      "title": "Model setup retry loop has no maximum retry guard",
+      "evidence": "installer/granite-model-setup.ps1:173-259",
+      "problem": "Start-Download loops while true and relies on the user choosing Skip to exit after failures.",
+      "why_it_matters": "For helpdesk or unattended support contexts, repeated network failures can leave the model setup in an open-ended interactive loop with inconsistent operator behavior.",
+      "recommended_fix": "Add a maximum retry count, clearer failure exit codes, and a documented unattended repair command.",
+      "effort": "Small",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F015",
+      "priority": 15,
+      "severity": "Low",
+      "category": "Documentation",
+      "title": "Security policy supported-version table is stale",
+      "evidence": "SECURITY.md:5-7; pyproject.toml:9-10",
+      "problem": "SECURITY.md lists 0.13.x as supported while pyproject.toml identifies the current release as 0.14.5.",
+      "why_it_matters": "Security reporters and support staff may not know whether the current public test build is supported for vulnerability handling.",
+      "recommended_fix": "Update SECURITY.md as part of the release checklist so the supported-version table includes 0.14.x or explains the support policy for test builds.",
+      "effort": "Small",
+      "confidence": "High"
+    },
+    {
+      "id": "F016",
+      "priority": 16,
+      "severity": "Informational",
+      "category": "Testing",
+      "title": "Unit tests are strong, but production smoke coverage is still manual",
+      "evidence": "uv run pytest tests/ -q: 577 passed, 25 subtests passed; tests/conftest.py:1-20 mocks hardware and forces offscreen Qt; pyproject.toml:45-46 has timeout but no coverage threshold",
+      "problem": "The current suite is broad and passed locally, but it intentionally mocks hardware, GPU, microphone, and modal setup behavior, and there is no active CI or coverage threshold in the repository.",
+      "why_it_matters": "Mocked tests are appropriate, but release support still needs repeatable installer, frozen-bundle, model-download, and hardware-adjacent smoke validation.",
+      "recommended_fix": "Keep the fast mocked suite, then add CI execution, coverage reporting, and a documented release smoke matrix for installer, source install, CPU/GPU variants, and model download preflight.",
+      "effort": "Medium",
+      "confidence": "High"
+    },
+    {
+      "id": "F017",
+      "priority": 17,
+      "severity": "Informational",
+      "category": "Secrets and credential handling",
+      "title": "No real source-controlled secrets found in targeted scans",
+      "evidence": "rg key-format scan found no real source matches; git log pickaxe checks for sk-, hf_, OPENAI_API_KEY, api_key, and private-key text returned no matches; ignored .venv/dist scans produced dependency hash/test-token false positives",
+      "problem": "No current secret exposure was confirmed in source-controlled project files or the checked history patterns. The noisy false positives came from ignored dependency/build artifacts.",
+      "why_it_matters": "This is a positive finding, but future scans should exclude ignored dependency and build trees or use a dedicated scanner to avoid burying real issues under false positives.",
+      "recommended_fix": "Add a documented secret-scanning command or pre-commit/CI rule with exclusions for .venv, dist, build, model files, and installer outputs.",
+      "effort": "Small",
+      "confidence": "Medium"
+    }
+  ],
+  "quick_wins": [
+    {
+      "fix": "Remove keyboard from Install-SpeakEasy-Source.ps1 and both PyInstaller specs.",
+      "why_it_matters": "Unblocks source installs and removes stale low-level keyboard-hook metadata.",
+      "estimated_effort": "Small"
+    },
+    {
+      "fix": "Update idna to 3.15 or newer and rerun pip-audit.",
+      "why_it_matters": "Clears the confirmed dependency CVE before the next installer build.",
+      "estimated_effort": "Small"
+    },
+    {
+      "fix": "Restore release/dependency workflows or correct RELEASE.md and CHANGELOG claims.",
+      "why_it_matters": "Prevents maintainers from relying on automation that is not present.",
+      "estimated_effort": "Medium"
+    },
+    {
+      "fix": "Make Build-Installer.ps1 fail closed on test failures.",
+      "why_it_matters": "Keeps release artifacts from being produced after failed validation.",
+      "estimated_effort": "Small"
+    },
+    {
+      "fix": "Update SECURITY.md supported versions to 0.14.x or the current policy.",
+      "why_it_matters": "Clarifies vulnerability-reporting expectations for the public test build.",
+      "estimated_effort": "Small"
+    },
+    {
+      "fix": "Stop migrating legacy logs to shared ProgramData logs.",
+      "why_it_matters": "Aligns installer behavior with the per-user log isolation policy.",
+      "estimated_effort": "Medium"
+    }
+  ],
+  "remediation_items": [
+    {
+      "remediation": "Restore CI, release, pip-audit, and Dependabot automation or document the local-only process.",
+      "reason": "The current repository contradicts RELEASE.md and CHANGELOG automation claims.",
+      "suggested_owner": "Repository maintainer / platform owner",
+      "suggested_priority": "Required before production support"
+    },
+    {
+      "remediation": "Define and implement a shared-machine data permission model.",
+      "reason": "ProgramData model/config/preset paths are writable by all standard users.",
+      "suggested_owner": "Desktop platform owner / security reviewer",
+      "suggested_priority": "Required for managed shared workstations"
+    },
+    {
+      "remediation": "Create an operational runbook for install, rollback, model repair, log collection, and support triage.",
+      "reason": "Supportability currently depends on README and release notes rather than an operator playbook.",
+      "suggested_owner": "Application owner / PAOD support lead",
+      "suggested_priority": "High before broader pilot"
+    },
+    {
+      "remediation": "Add dependency governance: upper bounds, lock refresh cadence, audit command, and skipped-package review for CUDA wheels.",
+      "reason": "The app depends on heavy native and ML packages where accidental upgrades have high blast radius.",
+      "suggested_owner": "Maintainer / security reviewer",
+      "suggested_priority": "High"
+    },
+    {
+      "remediation": "Add installer and frozen-bundle smoke coverage for source, GPU, CPU, and model-download preflight paths.",
+      "reason": "The unit suite passes but does not cover all packaging and hardware-adjacent behaviors.",
+      "suggested_owner": "Maintainer / QA owner",
+      "suggested_priority": "Medium"
+    }
+  ],
+  "files_for_removal": [
+    {
+      "file": "build/",
+      "reason": "Ignored PyInstaller/build cache present locally; clean before release review unless actively building.",
+      "confidence": "High",
+      "human_confirmation_needed": true
+    },
+    {
+      "file": "dist/",
+      "reason": "Ignored frozen application output present locally; regenerate from source rather than review as source.",
+      "confidence": "High",
+      "human_confirmation_needed": true
+    },
+    {
+      "file": "installer/Output/",
+      "reason": "Ignored installer artifacts and checksums present locally; keep release assets attached to GitHub releases, not source review state.",
+      "confidence": "High",
+      "human_confirmation_needed": true
+    },
+    {
+      "file": "dev-temp/",
+      "reason": "Ignored development runtime state with config/log/temp/model subfolders; should not be part of repository review or release packaging.",
+      "confidence": "High",
+      "human_confirmation_needed": true
+    },
+    {
+      "file": ".github/workflows/",
+      "reason": "Empty local directory; either restore workflow files or remove the empty directory to avoid implying automation exists.",
+      "confidence": "Medium",
+      "human_confirmation_needed": true
+    },
+    {
+      "file": ".github/disabled-workflows/",
+      "reason": "Empty local directory; remove if workflows are intentionally absent or document why disabled workflow storage exists.",
+      "confidence": "Medium",
+      "human_confirmation_needed": true
+    }
+  ],
+  "documentation_gaps": [
+    {
+      "document": "Current CI/CD and release automation documentation",
+      "why_it_matters": "RELEASE.md and CHANGELOG describe missing workflows and dependency automation.",
+      "suggested_content": "State whether releases are local-only or GitHub-driven, list exact commands, required approvals, artifact attachment steps, and audit checks."
+    },
+    {
+      "document": "Operational support runbook",
+      "why_it_matters": "Support teams need repeatable steps for install failures, model repair, log collection, rollback, and known Windows Defender/SmartScreen cases.",
+      "suggested_content": "Triage flow, log paths, model health commands, installer exit codes, rollback steps, escalation owners, and data-handling cautions."
+    },
+    {
+      "document": "PAOD data classification and OpenAI usage guidance",
+      "why_it_matters": "AI Writing Profiles can transmit transcript text to OpenAI when enabled.",
+      "suggested_content": "Allowed/disallowed transcript categories, approval requirements, user disclosure language, and institutional policy references."
+    },
+    {
+      "document": "Dependency update and vulnerability response process",
+      "why_it_matters": "pip-audit found a live CVE and CUDA wheels were skipped by PyPI audit.",
+      "suggested_content": "Lock refresh cadence, pip-audit command, how to review skipped packages, PyTorch advisory checks, and release-blocking severity thresholds."
+    },
+    {
+      "document": "Shared workstation permission model",
+      "why_it_matters": "Installer grants broad modify permissions under ProgramData.",
+      "suggested_content": "Threat model, ACL rationale, model integrity checks, per-user versus shared data decisions, and cleanup expectations."
+    }
+  ],
+  "questions_for_owner": [
+    "Who is the primary PAOD owner and support contact for this application?",
+    "Is the intended state production, pilot, prototype, or personal test build?",
+    "Are shared Windows workstations in scope, or is this only for single-user assigned devices?",
+    "Is optional transmission of transcript text to OpenAI approved for the target user population and data classes?",
+    "Should GitHub Actions and Dependabot be restored, or is release automation intentionally local-only?",
+    "What is the expected rollback process if a new installer or model download fails in the field?",
+    "Should HuggingFace token support remain at all now that the Granite model is public?"
+  ]
+}
+    </script><pre id="json-visible" aria-label="Machine-readable review JSON"></pre></div>
+  </section>
+</main>
+<script>
+(function () {
+  const data = JSON.parse(document.getElementById('review-data').textContent);
+  document.getElementById('json-visible').textContent = JSON.stringify(data, null, 2);
+  const severityColors = { Critical: '#922b21', High: '#a04000', Medium: '#b7950b', Low: '#1a5276', Informational: '#626567' };
+  const severityOrder = { Critical: 0, High: 1, Medium: 2, Low: 3, Informational: 4 };
+  const categories = [
+    ['Security', 'security'],
+    ['Secrets and credential handling', 'secrets'],
+    ['Dead code', 'dead_code'],
+    ['Redundant code', 'redundant_code'],
+    ['Implementation quality', 'implementation_quality'],
+    ['Documentation', 'documentation'],
+    ['Testing', 'testing'],
+    ['Dependencies', 'dependencies'],
+    ['Configuration', 'configuration'],
+    ['CI/CD and deployment', 'cicd'],
+    ['Logging and operations', 'logging_and_operations'],
+    ['Data handling', 'data_handling'],
+    ['Repository hygiene', 'repository_hygiene']
+  ];
+  function esc(value) {
+    return String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  }
+  function badge(sev) { return `<span class="badge sev-${esc(sev)}">${esc(sev)}</span>`; }
+  function effort(value) { return `<span class="pill effort-${esc(value)}">${esc(value)}</span>`; }
+  function confidence(value) { return `<span class="pill conf-${esc(value)}">${esc(value)}</span>`; }
+
+  const summary = document.getElementById('summary-row');
+  const cards = [
+    ['Total Findings', data.metrics.total_findings, 'info'],
+    ['Critical', data.metrics.by_severity.critical, 'critical'],
+    ['High', data.metrics.by_severity.high, 'high'],
+    ['Medium', data.metrics.by_severity.medium, 'medium'],
+    ['Low', data.metrics.by_severity.low, 'low'],
+    ['Informational', data.metrics.by_severity.informational, 'info']
+  ];
+  summary.innerHTML = cards.map(([label, value, cls]) => `<div class="card metric ${cls}"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');
+
+  const legend = document.getElementById('severity-legend');
+  legend.innerHTML = ['High', 'Medium', 'Low', 'Informational'].map(sev => {
+    const key = sev.toLowerCase();
+    const count = data.metrics.by_severity[key];
+    return `<div class="legend-item"><span class="swatch" style="background:${severityColors[sev]}"></span><span>${sev}: ${count}</span></div>`;
+  }).join('');
+
+  const bars = document.getElementById('category-bars');
+  const maxCount = Math.max(...Object.values(data.metrics.by_category));
+  bars.innerHTML = categories.map(([label, key]) => {
+    const count = data.metrics.by_category[key] || 0;
+    const width = maxCount ? Math.round((count / maxCount) * 100) : 0;
+    return `<div class="bar-row"><div class="bar-label">${esc(label)}</div><div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div><div>${count}</div></div>`;
+  }).join('');
+
+  const filters = document.getElementById('severity-filters');
+  ['Critical', 'High', 'Medium', 'Low', 'Informational'].forEach(sev => {
+    const id = `filter-${sev}`;
+    filters.insertAdjacentHTML('beforeend', `<label><input type="checkbox" id="${id}" value="${sev}" checked> ${sev}</label>`);
+  });
+
+  const tbody = document.querySelector('#findings-table tbody');
+  const topFindings = data.findings.slice(0, 15);
+  let sortState = { key: 'priority', dir: 1 };
+  function renderTable() {
+    const query = document.getElementById('finding-search').value.toLowerCase();
+    const enabled = new Set(Array.from(filters.querySelectorAll('input:checked')).map(x => x.value));
+    const rows = topFindings.slice().sort((a, b) => {
+      let av = a[sortState.key];
+      let bv = b[sortState.key];
+      if (sortState.key === 'severity') { av = severityOrder[a.severity]; bv = severityOrder[b.severity]; }
+      if (typeof av === 'number') return (av - bv) * sortState.dir;
+      return String(av).localeCompare(String(bv)) * sortState.dir;
+    }).filter(f => enabled.has(f.severity)).filter(f => Object.values(f).join(' ').toLowerCase().includes(query));
+    tbody.innerHTML = rows.map(f => `<tr class="row-${esc(f.severity)}"><td>${f.priority}</td><td>${badge(f.severity)}</td><td>${esc(f.category)}</td><td>${esc(f.title)}</td><td class="mono">${esc(f.evidence)}</td><td>${esc(f.recommended_fix)}</td><td>${effort(f.effort)}</td><td>${confidence(f.confidence)}</td></tr>`).join('');
+  }
+  renderTable();
+  document.getElementById('finding-search').addEventListener('input', renderTable);
+  filters.addEventListener('change', renderTable);
+  document.querySelectorAll('#findings-table th').forEach(th => th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (sortState.key === key) sortState.dir *= -1; else sortState = { key, dir: 1 };
+    document.querySelectorAll('#findings-table th').forEach(h => h.textContent = h.textContent.replace(/ [▲▼]$/, ''));
+    th.textContent += sortState.dir === 1 ? ' ▲' : ' ▼';
+    renderTable();
+  }));
+
+  const details = document.getElementById('category-details');
+  details.innerHTML = categories.map(([label]) => {
+    const items = data.findings.filter(f => f.category === label);
+    const highCount = items.filter(f => f.severity === 'Critical' || f.severity === 'High').length;
+    const body = items.length ? items.map(f => `<details class="finding"><summary>${badge(f.severity)} ${esc(f.title)} <span class="mono">${esc(f.evidence)}</span></summary><div class="finding-body"><div><strong>Severity:</strong> ${badge(f.severity)}</div><div><strong>Category:</strong> ${esc(f.category)}</div><div><strong>Evidence:</strong> <span class="mono">${esc(f.evidence)}</span></div><div><strong>Problem:</strong> ${esc(f.problem)}</div><div><strong>Why it matters:</strong> ${esc(f.why_it_matters)}</div><div><strong>Recommended fix:</strong> ${esc(f.recommended_fix)}</div><div><strong>Effort:</strong> ${effort(f.effort)}</div><div><strong>Confidence:</strong> ${confidence(f.confidence)}</div></div></details>`).join('') : '<div class="empty">No findings in this category.</div>';
+    return `<details class="category"><summary>${esc(label)} (${items.length} findings, ${highCount} Critical+High)</summary>${body}</details>`;
+  }).join('');
+
+  const detailsToggle = document.getElementById('details-toggle');
+  detailsToggle.addEventListener('click', () => {
+    const all = Array.from(details.querySelectorAll('details'));
+    const shouldOpen = all.some(d => !d.open);
+    all.forEach(d => { d.open = shouldOpen; });
+    detailsToggle.textContent = shouldOpen ? 'Collapse All' : 'Expand All';
+  });
+
+  function fillTable(id, rows, cells) {
+    document.querySelector(`#${id} tbody`).innerHTML = rows.map(row => `<tr>${cells(row).join('')}</tr>`).join('');
+  }
+  fillTable('quick-wins-table', data.quick_wins, r => [`<td>${esc(r.fix)}</td>`, `<td>${esc(r.why_it_matters)}</td>`, `<td>${effort(r.estimated_effort)}</td>`]);
+  fillTable('remediation-table', data.remediation_items, r => [`<td>${esc(r.remediation)}</td>`, `<td>${esc(r.reason)}</td>`, `<td>${esc(r.suggested_owner)}</td>`, `<td>${esc(r.suggested_priority)}</td>`]);
+  fillTable('removal-table', data.files_for_removal, r => [`<td class="mono">${esc(r.file)}</td>`, `<td>${esc(r.reason)}</td>`, `<td>${confidence(r.confidence)}</td>`, `<td>${r.human_confirmation_needed ? 'Yes' : 'No'}</td>`]);
+  fillTable('docs-table', data.documentation_gaps, r => [`<td>${esc(r.document)}</td>`, `<td>${esc(r.why_it_matters)}</td>`, `<td>${esc(r.suggested_content)}</td>`]);
+  document.getElementById('questions-list').innerHTML = data.questions_for_owner.map(q => `<li>${esc(q)}</li>`).join('');
+
+  const navToggle = document.getElementById('nav-toggle');
+  const sidebar = document.getElementById('sidebar');
+  navToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
+  sidebar.addEventListener('click', e => { if (e.target.tagName === 'A') sidebar.classList.remove('open'); });
+  const links = Array.from(sidebar.querySelectorAll('a'));
+  const sections = links.map(link => document.querySelector(link.getAttribute('href'))).filter(Boolean);
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(link => link.classList.toggle('active', link.getAttribute('href') === `#${entry.target.id}`));
+      }
+    });
+  }, { rootMargin: '-35% 0px -55% 0px', threshold: 0 });
+  sections.forEach(section => observer.observe(section));
+  window.addEventListener('beforeprint', () => document.querySelectorAll('details').forEach(d => { d.open = true; }));
+})();
+</script>
+</body>
+</html>

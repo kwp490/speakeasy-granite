@@ -3,7 +3,6 @@ Settings UI for SpeakEasy AI.
 
 ``SettingsWidget`` is the user-facing settings form used by the Developer Panel.
 ``AdvancedSettingsWidget`` contains developer/runtime tuning controls.
-``SettingsDialog`` wraps it in a modal dialog for backward compatibility.
 
 All settings fields are deferred until Apply. Device changes and model-path changes
 emit reload requests from their respective tabs.
@@ -17,9 +16,8 @@ from typing import Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -28,6 +26,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -260,6 +259,9 @@ class SettingsWidget(QWidget):
         self._btn_apply.clicked.connect(self._on_apply)
         self._btn_restore = QPushButton("Restore Defaults")
         self._btn_restore.setStyleSheet(ghost_button_style())
+        self._btn_restore.setToolTip(
+            "Reset every setting on this page to its default value."
+        )
         self._btn_restore.clicked.connect(self._on_restore_defaults)
         action_row.addWidget(self._btn_apply)
         action_row.addWidget(self._btn_restore)
@@ -425,6 +427,7 @@ class AdvancedSettingsWidget(QWidget):
         super().__init__(parent)
         self.setMinimumWidth(500)
         self.settings = settings
+        self._populating = False
         self._snapshot = self._take_snapshot()
         self._build_ui()
         self._populate()
@@ -442,19 +445,96 @@ class AdvancedSettingsWidget(QWidget):
         layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
         layout.setSpacing(Spacing.SECTION)
 
-        runtime_section, runtime_form = make_section("Model Runtime", self)
+        # ── Model Location ───────────────────────────────────────────────────
+        from .config import DEFAULT_MODELS_DIR
 
+        location_section, location_form = make_section("Model Location", self)
+        self._location_group = QButtonGroup(self)
+
+        self._rb_managed = QRadioButton("Use managed location")
+        self._rb_managed.setToolTip(
+            "Let SpeakEasy store and update the model in its managed folder:\n"
+            f"{DEFAULT_MODELS_DIR}"
+        )
+        self._rb_custom = QRadioButton("Custom folder")
+        self._rb_custom.setToolTip(
+            "Load the model from a folder you choose (local disk, removable\n"
+            "drive, or a network share). The folder must contain a 'granite'\n"
+            "subfolder with the model weights."
+        )
+        self._rb_remote = QRadioButton("Remote server (requires SpeakEasy Server)")
+        self._rb_remote.setToolTip(
+            "Send audio to a SpeakEasy Server running on another computer.\n"
+            "Audio leaves this machine in this mode — see the privacy notice."
+        )
+        for rb in (self._rb_managed, self._rb_custom, self._rb_remote):
+            self._location_group.addButton(rb)
+        location_form.addRow(self._rb_managed)
+
+        self._managed_path = QLabel(DEFAULT_MODELS_DIR)
+        self._managed_path.setWordWrap(True)
+        self._managed_path.setStyleSheet(f"color: {Color.TEXT_MUTED};")
+        location_form.addRow("", self._managed_path)
+
+        location_form.addRow(self._rb_custom)
         model_row = QHBoxLayout()
         self._model_path = QLineEdit()
         self._model_path.setToolTip(
             "Folder containing the downloaded model weights.\n"
             "Use Browse to locate the directory on disk."
         )
-        btn_browse = QPushButton("Browse")
-        btn_browse.clicked.connect(self._browse_model_path)
+        self._btn_browse = QPushButton("Browse")
+        self._btn_browse.setToolTip("Choose the folder that contains the model weights.")
+        self._btn_browse.clicked.connect(self._browse_model_path)
         model_row.addWidget(self._model_path)
-        model_row.addWidget(btn_browse)
-        runtime_form.addRow("Model path:", model_row)
+        model_row.addWidget(self._btn_browse)
+        location_form.addRow("Model path:", model_row)
+
+        self._location_badge = QLabel("")
+        self._location_badge.setWordWrap(True)
+        self._location_badge.setStyleSheet(f"color: {Color.TEXT_MUTED};")
+        location_form.addRow("", self._location_badge)
+
+        location_form.addRow(self._rb_remote)
+
+        self._remote_url = QLineEdit()
+        self._remote_url.setPlaceholderText("http://10.0.0.42:8765")
+        self._remote_url.setToolTip(
+            "URL of the SpeakEasy Server (http://host:port). Use http only on\n"
+            "a trusted LAN/VPN; prefer https when reaching across networks."
+        )
+        location_form.addRow("Server URL:", self._remote_url)
+
+        self._remote_token = QLineEdit()
+        self._remote_token.setEchoMode(QLineEdit.EchoMode.Password)
+        self._remote_token.setPlaceholderText("Bearer token (stored in Windows Credential Manager)")
+        self._remote_token.setToolTip(
+            "Bearer token the server requires. Stored only in the OS keyring,\n"
+            "never written to settings.json. Generate one with:\n"
+            "  speakeasy serve --generate-token"
+        )
+        location_form.addRow("Token:", self._remote_token)
+
+        remote_row = QHBoxLayout()
+        self._btn_test_connection = QPushButton("Test connection")
+        self._btn_test_connection.setToolTip(
+            "Contact the server's /v1/health endpoint and report whether the\n"
+            "URL, token, and contract version are compatible."
+        )
+        self._btn_test_connection.clicked.connect(self._on_test_connection)
+        remote_row.addWidget(self._btn_test_connection)
+        remote_row.addStretch()
+        location_form.addRow("", remote_row)
+
+        self._remote_status = QLabel("")
+        self._remote_status.setWordWrap(True)
+        self._remote_status.setStyleSheet(f"color: {Color.TEXT_MUTED};")
+        location_form.addRow("", self._remote_status)
+
+        layout.addWidget(location_section)
+
+        # ── Model Runtime ────────────────────────────────────────────────────
+        runtime_section, runtime_form = make_section("Model Runtime", self)
 
         self._inference_timeout = QSpinBox()
         self._inference_timeout.setRange(5, 300)
@@ -523,6 +603,9 @@ class AdvancedSettingsWidget(QWidget):
         self._btn_apply.clicked.connect(self._on_apply)
         self._btn_restore = QPushButton("Restore Defaults")
         self._btn_restore.setStyleSheet(ghost_button_style())
+        self._btn_restore.setToolTip(
+            "Reset every setting on this page to its default value."
+        )
         self._btn_restore.clicked.connect(self._on_restore_defaults)
         action_row.addWidget(self._btn_apply)
         action_row.addWidget(self._btn_restore)
@@ -532,21 +615,128 @@ class AdvancedSettingsWidget(QWidget):
         layout.addStretch()
 
     def _populate(self) -> None:
+        from .core import model_source as ms
+        from .config import DEFAULT_MODELS_DIR
+
         s = self.settings
-        self._model_path.setText(s.model_path)
-        self._inference_timeout.setValue(s.inference_timeout)
-        self._silence_threshold.setValue(s.silence_threshold)
-        self._silence_margin.setValue(s.silence_margin_ms)
-        self._sample_rate.setValue(s.sample_rate)
-        self._clear_logs_on_exit.setChecked(s.clear_logs_on_exit)
+        self._populating = True
+        try:
+            try:
+                src = ms.parse(s.model_source) if s.model_source else ms.ManagedSource()
+            except (ValueError, TypeError):
+                src = ms.ManagedSource()
+            if isinstance(src, ms.RemoteSource):
+                self._rb_remote.setChecked(True)
+                self._model_path.setText(s.model_path)
+                self._remote_url.setText(src.url)
+            elif isinstance(src, ms.LocalDirSource):
+                self._rb_custom.setChecked(True)
+                self._model_path.setText(src.path or s.model_path)
+            else:
+                self._rb_managed.setChecked(True)
+                self._model_path.setText(DEFAULT_MODELS_DIR)
+            # Token lives in the keyring, never in settings.json.
+            from .services.remote_client import load_remote_token
+
+            self._initial_remote_token = load_remote_token()
+            self._remote_token.setText(self._initial_remote_token)
+            self._inference_timeout.setValue(s.inference_timeout)
+            self._silence_threshold.setValue(s.silence_threshold)
+            self._silence_margin.setValue(s.silence_margin_ms)
+            self._sample_rate.setValue(s.sample_rate)
+            self._clear_logs_on_exit.setChecked(s.clear_logs_on_exit)
+        finally:
+            self._populating = False
+        self._sync_location_enabled()
+        self._update_location_badge()
 
     def _wire_auto_apply(self) -> None:
-        self._model_path.textChanged.connect(self._on_any_changed)
+        self._rb_managed.toggled.connect(self._on_location_mode_changed)
+        self._rb_custom.toggled.connect(self._on_location_mode_changed)
+        self._rb_remote.toggled.connect(self._on_location_mode_changed)
+        self._model_path.textChanged.connect(self._on_model_path_changed)
+        self._remote_url.textChanged.connect(self._on_any_changed)
+        self._remote_token.textChanged.connect(self._on_any_changed)
         self._inference_timeout.valueChanged.connect(self._on_any_changed)
         self._silence_threshold.valueChanged.connect(self._on_any_changed)
         self._silence_margin.valueChanged.connect(self._on_any_changed)
         self._sample_rate.valueChanged.connect(self._on_any_changed)
         self._clear_logs_on_exit.toggled.connect(self._on_any_changed)
+
+    def _on_location_mode_changed(self, _checked: bool = False) -> None:
+        if self._populating:
+            return
+        self._sync_location_enabled()
+        self._update_location_badge()
+        self._on_any_changed()
+
+    def _on_model_path_changed(self, _text: str = "") -> None:
+        if self._populating:
+            return
+        # Typing a path implies the user wants the custom-folder mode.
+        if self._model_path.text().strip() and not self._rb_custom.isChecked():
+            self._rb_custom.setChecked(True)
+        self._update_location_badge()
+        self._on_any_changed()
+
+    def _sync_location_enabled(self) -> None:
+        custom = self._rb_custom.isChecked()
+        remote = self._rb_remote.isChecked()
+        self._model_path.setEnabled(custom)
+        self._btn_browse.setEnabled(custom)
+        self._remote_url.setEnabled(remote)
+        self._remote_token.setEnabled(remote)
+        self._btn_test_connection.setEnabled(remote)
+
+    def _update_location_badge(self) -> None:
+        from .core import model_source as ms
+
+        if not self._rb_custom.isChecked():
+            self._location_badge.setText("")
+            return
+        path = self._model_path.text().strip()
+        if not path:
+            self._location_badge.setText("Choose a folder that contains the model weights.")
+            return
+        kind = ms.classify_path(path)
+        if kind == ms.PATH_UNC:
+            self._location_badge.setText(
+                "Network path — loads will be slower; weights are read over the network."
+            )
+        elif kind == ms.PATH_REMOVABLE:
+            self._location_badge.setText(
+                "Removable drive — the model will be unavailable if disconnected."
+            )
+        else:
+            self._location_badge.setText("")
+
+    def _selected_model_source(self):
+        """Build the model_source dict implied by the current UI state."""
+        from .core import model_source as ms
+
+        if self._rb_remote.isChecked():
+            url = self._remote_url.text().strip()
+            try:
+                return ms.to_dict(ms.RemoteSource(url=url))
+            except (ValueError, TypeError):
+                # Invalid/empty URL: preserve the saved remote dict (if any) so
+                # diffing still works; Apply will re-validate before committing.
+                saved = self._snapshot.get("model_source") or {}
+                return dict(saved) if saved.get("type") == "remote" else {"type": "remote"}
+        if self._rb_custom.isChecked():
+            return ms.to_dict(ms.LocalDirSource(path=self._model_path.text().strip()))
+        return ms.to_dict(ms.ManagedSource())
+
+    def _snapshot_model_source(self):
+        """Normalized model_source from the snapshot (handles legacy/empty)."""
+        from .core import model_source as ms
+
+        raw = self._snapshot.get("model_source") or {}
+        try:
+            src = ms.parse(raw) if raw else ms.ManagedSource()
+        except (ValueError, TypeError):
+            src = ms.ManagedSource()
+        return ms.to_dict(src)
 
     def _on_any_changed(self, *_) -> None:
         self._btn_apply.setEnabled(self._has_any_diff())
@@ -555,7 +745,8 @@ class AdvancedSettingsWidget(QWidget):
     def _has_any_diff(self) -> bool:
         s = self._snapshot
         return (
-            self._model_path.text().strip() != s.get("model_path")
+            self._selected_model_source() != self._snapshot_model_source()
+            or self._remote_token.text() != getattr(self, "_initial_remote_token", "")
             or self._inference_timeout.value() != s.get("inference_timeout")
             or self._silence_threshold.value() != s.get("silence_threshold")
             or self._silence_margin.value() != s.get("silence_margin_ms")
@@ -564,23 +755,111 @@ class AdvancedSettingsWidget(QWidget):
         )
 
     def _on_apply(self) -> None:
-        old_model_path = self._snapshot.get("model_path")
+        old_model_path = self.settings.model_path
+        old_model_source = self._snapshot_model_source()
+        new_source = self._selected_model_source()
+        is_remote = new_source.get("type") == "remote"
+
+        if is_remote:
+            from .core import model_source as ms
+
+            try:
+                ms.parse(new_source)
+            except (ValueError, TypeError) as exc:
+                self._remote_status.setText(f"Invalid server URL: {exc}")
+                return
+            if not self._confirm_remote_disclosure():
+                return
 
         s = self.settings
-        s.model_path = self._model_path.text().strip()
+        s.model_source = new_source
         s.inference_timeout = self._inference_timeout.value()
         s.silence_threshold = self._silence_threshold.value()
         s.silence_margin_ms = self._silence_margin.value()
         s.sample_rate = self._sample_rate.value()
         s.clear_logs_on_exit = self._clear_logs_on_exit.isChecked()
+        # validate() re-derives the legacy model_path mirror from model_source
+        # and preserves offline custom paths instead of resetting them.
+        s.validate()
         s.save()
+
+        # Persist the remote bearer token to the keyring (never to settings.json).
+        self._persist_remote_token()
 
         self._snapshot = self._take_snapshot()
         self._btn_apply.setEnabled(False)
+        self._update_location_badge()
         self.settings_applied.emit()
 
-        if s.model_path != old_model_path:
+        if s.model_path != old_model_path or self._snapshot_model_source() != old_model_source:
             self.reload_model_requested.emit()
+
+    def _persist_remote_token(self) -> None:
+        from .services.remote_client import (
+            delete_remote_token,
+            save_remote_token,
+        )
+
+        token = self._remote_token.text().strip()
+        if token:
+            save_remote_token(token)
+        elif self._initial_remote_token:
+            delete_remote_token()
+        self._initial_remote_token = token
+
+    def _confirm_remote_disclosure(self) -> bool:
+        """Gate the first switch to remote mode behind a privacy disclosure."""
+        if self.settings.remote_disclosure_accepted:
+            return True
+        answer = QMessageBox.warning(
+            self,
+            "Remote transcription — privacy notice",
+            "In remote mode your recorded audio is sent over the network to the\n"
+            "SpeakEasy Server you configured. It does NOT stay on this computer.\n\n"
+            "Only use a server you trust, on a LAN or VPN, with a bearer token.\n\n"
+            "Continue and enable remote transcription?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        self.settings.remote_disclosure_accepted = True
+        return True
+
+    def _on_test_connection(self) -> None:
+        from .core import model_source as ms
+        from .core.errors import (
+            RemoteAuthFailed,
+            RemoteUnreachable,
+            RemoteVersionMismatch,
+        )
+        from .services.remote_client import RemoteEngineClient
+
+        url = self._remote_url.text().strip()
+        try:
+            source = ms.RemoteSource(url=url)
+        except (ValueError, TypeError) as exc:
+            self._remote_status.setText(f"Invalid server URL: {exc}")
+            return
+
+        token = self._remote_token.text().strip() or None
+        self._remote_status.setText("Contacting server…")
+        client = RemoteEngineClient(source, token=token)
+        try:
+            report = client.test_connection()
+        except RemoteAuthFailed as exc:
+            self._remote_status.setText(f"Auth failed: {exc}")
+        except RemoteVersionMismatch as exc:
+            self._remote_status.setText(str(exc))
+        except RemoteUnreachable as exc:
+            self._remote_status.setText(f"Unreachable: {exc}")
+        except Exception as exc:  # noqa: BLE001 - surface anything unexpected
+            self._remote_status.setText(f"Error: {exc}")
+        else:
+            self._remote_status.setText(
+                f"Connected — {report.detail} "
+                f"(model {'loaded' if report.model_loaded else 'not loaded'})"
+            )
 
     def _browse_model_path(self) -> None:
         path = QFileDialog.getExistingDirectory(
@@ -589,32 +868,24 @@ class AdvancedSettingsWidget(QWidget):
             self._model_path.text(),
         )
         if path:
+            self._rb_custom.setChecked(True)
             self._model_path.setText(path)
 
     def _on_restore_defaults(self) -> None:
+        from .config import DEFAULT_MODELS_DIR
+
         defaults = Settings()
-        self._model_path.setText(defaults.model_path)
+        self._populating = True
+        try:
+            self._model_path.setText(DEFAULT_MODELS_DIR)
+            self._rb_managed.setChecked(True)
+        finally:
+            self._populating = False
+        self._sync_location_enabled()
+        self._update_location_badge()
         self._inference_timeout.setValue(defaults.inference_timeout)
         self._silence_threshold.setValue(defaults.silence_threshold)
         self._silence_margin.setValue(defaults.silence_margin_ms)
         self._sample_rate.setValue(defaults.sample_rate)
         self._clear_logs_on_exit.setChecked(defaults.clear_logs_on_exit)
-
-
-class SettingsDialog(QDialog):
-    """Backwards-compat shim — wraps SettingsWidget in a modal dialog so any
-    legacy callers keep working. New code should embed SettingsWidget directly."""
-
-    def __init__(self, settings: Settings, parent: Optional[QWidget] = None):
-        super().__init__(parent)
-        self.setWindowTitle("Settings")
-        self.setMinimumWidth(500)
-        layout = QVBoxLayout(self)
-        self._widget = SettingsWidget(settings, self)
-        layout.addWidget(self._widget)
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self._on_any_changed()

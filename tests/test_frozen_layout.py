@@ -1,10 +1,14 @@
-"""Tests for PyInstaller frozen-build compatibility.
+"""Frozen-build layout / packaging invariants (PyInstaller).
 
-These tests catch issues that only manifest in --noconsole PyInstaller builds:
+This is the layout half of the original ``test_frozen_compat.py``, split per
+plan §12.1 (the ML-isolation inverse assertions now live in
+``test_frozen_ml_isolation.py``). It catches issues that only manifest in
+``--noconsole`` PyInstaller builds:
 - Relative imports in __main__.py (no parent package context)
 - APIs that assume real file descriptors (faulthandler, fileno)
 - Modules that must be importable via absolute paths
-- Dynamic imports must be listed in speakeasy.spec hiddenimports
+- Dynamic imports must be listed in the spec hiddenimports
+- stdout/stderr guards, the runtime DLL hook, and Qt plugin pruning
 """
 
 import ast
@@ -18,6 +22,15 @@ from pathlib import Path
 # Root of the speakeasy package
 _SPEAKEASY_PKG = Path(__file__).resolve().parent.parent / "speakeasy"
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Shared PyInstaller build logic moved to spec_common.py (Phase 7). The two
+# .spec files are thin shims now, so build-invariant assertions consult
+# spec_common's API (variant-aware) and source text instead of parsing a spec.
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+import spec_common  # noqa: E402
+
+_SPEC_COMMON_SRC = (_REPO_ROOT / "spec_common.py").read_text(encoding="utf-8")
 
 
 class TestNoRelativeImportsInMain(unittest.TestCase):
@@ -95,10 +108,9 @@ class TestStdioSafetyPatches(unittest.TestCase):
                        "Runtime hook must also prepend to PATH for legacy LoadLibraryW")
 
     def test_spec_uses_runtime_hook(self):
-        """speakeasy.spec must reference the DLL runtime hook."""
-        spec = (_REPO_ROOT / "speakeasy.spec").read_text(encoding="utf-8")
-        self.assertIn("_runtime_hook_dll", spec,
-                       "speakeasy.spec runtime_hooks must include _runtime_hook_dll")
+        """The shared build must reference the DLL runtime hook."""
+        self.assertIn("_runtime_hook_dll", _SPEC_COMMON_SRC,
+                       "spec_common runtime_hooks must include _runtime_hook_dll")
 
 
 class TestAllModulesImportable(unittest.TestCase):
@@ -154,15 +166,8 @@ class TestHiddenImportsInSpec(unittest.TestCase):
     })
 
     def _parse_hidden_imports(self) -> set[str]:
-        spec_path = _REPO_ROOT / "speakeasy.spec"
-        spec_text = spec_path.read_text(encoding="utf-8")
-        match = re.search(
-            r"hiddenimports\s*=\s*\[(.*?)\]", spec_text, re.DOTALL
-        )
-        self.assertIsNotNone(match, "Could not find hiddenimports in speakeasy.spec")
-        assert match is not None
-        entries = re.findall(r"['\"]([^'\"]+)['\"]", match.group(1))
-        return set(entries)
+        # GPU variant carries the full hiddenimports superset.
+        return set(spec_common.hidden_imports("gpu"))
 
     def _collect_deferred_imports(self, filepath: Path) -> list[tuple[int, str]]:
         source = filepath.read_text(encoding="utf-8")
@@ -224,81 +229,16 @@ class TestHiddenImportsInSpec(unittest.TestCase):
         )
 
 
-class TestTransitiveDependenciesInSpec(unittest.TestCase):
-    """Transitive dependencies used at runtime must be bundled in the spec."""
-
-    def _read_spec(self) -> str:
-        return (_REPO_ROOT / "speakeasy.spec").read_text(encoding="utf-8")
-
-    def _parse_hidden_imports(self) -> set[str]:
-        spec_text = self._read_spec()
-        match = re.search(
-            r"hiddenimports\s*=\s*\[(.*?)\]", spec_text, re.DOTALL
-        )
-        assert match, "Could not find hiddenimports in speakeasy.spec"
-        return set(re.findall(r"['\"]([^'\"]+)['\"]", match.group(1)))
-
-    def _parse_excludes(self) -> set[str]:
-        spec_text = self._read_spec()
-        match = re.search(
-            r"excludes\s*=\s*\[(.*?)\]", spec_text, re.DOTALL
-        )
-        assert match, "Could not find excludes in speakeasy.spec"
-        return set(re.findall(r"['\"]([^'\"]+)['\"]", match.group(1)))
-
-    def test_transformers_in_hiddenimports(self):
-        hidden = self._parse_hidden_imports()
-        self.assertIn("transformers", hidden)
-
-    def test_torch_in_hiddenimports(self):
-        hidden = self._parse_hidden_imports()
-        self.assertIn("torch", hidden)
-
-    def test_librosa_in_hiddenimports(self):
-        """librosa is required by the shared 16 kHz resampling path."""
-        hidden = self._parse_hidden_imports()
-        self.assertIn("librosa", hidden)
-
-    def test_transformers_model_sources_collected(self):
-        """Frozen builds must ship the root transformers entrypoint and models source tree used by lazy imports."""
-        spec = self._read_spec()
-        self.assertIn("('transformers', {'include_py_files': True, 'includes': ['__init__.py']})", spec)
-        self.assertIn("('transformers.models', {'include_py_files': True})", spec)
-        self.assertIn("include_py_files': True", spec)
-
-    def test_safetensors_in_hiddenimports(self):
-        """safetensors is used by Transformers model weight loading."""
-        hidden = self._parse_hidden_imports()
-        self.assertIn("safetensors", hidden)
-
-    def test_transformers_data_files_collected(self):
-        spec_text = self._read_spec()
-        self.assertIn(
-            "collect_data_files(",
-            spec_text,
-            "speakeasy.spec must call collect_data_files() for transformers data",
-        )
-        self.assertIn(
-            "transformers",
-            spec_text,
-            "speakeasy.spec must reference transformers in data file collection",
-        )
-
-    def test_sklearn_excluded(self):
-        """sklearn should be excluded from the frozen bundle."""
-        excludes = self._parse_excludes()
-        self.assertIn("sklearn", excludes)
-
-
 class TestSpecStripPatterns(unittest.TestCase):
     """Verify stripped binaries are not needed and required ones are kept."""
 
     def _read_spec(self) -> str:
-        return (_REPO_ROOT / "speakeasy.spec").read_text(encoding="utf-8")
+        # Build logic now lives in spec_common.py (specs are thin shims).
+        return _SPEC_COMMON_SRC
 
     def _parse_strip_patterns(self) -> list[str]:
-        spec_text = self._read_spec()
-        return re.findall(r"_re\.compile\(r'([^']+)'", spec_text)
+        # GPU strip set = shared patterns only (no CUDA patterns).
+        return [p.pattern for p in spec_common.strip_patterns("gpu")]
     # Critical CUDA libs must NOT be stripped.
 
     _MUST_KEEP = [
@@ -382,10 +322,7 @@ class TestSpecStripPatterns(unittest.TestCase):
     # Excluded modules must not break engine imports.
 
     def _parse_excludes(self) -> set[str]:
-        spec_text = self._read_spec()
-        m = re.search(r"excludes\s*=\s*\[(.*?)\]", spec_text, re.DOTALL)
-        assert m, "Could not find excludes in speakeasy.spec"
-        return set(re.findall(r"['\"]([^'\"]+)['\"]", m.group(1)))
+        return set(spec_common.excludes_for("gpu"))
 
     _ENGINE_DEPS = [
         "transformers", "torch", "torchaudio", "numpy",
@@ -550,9 +487,8 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
     _CPU_SPEC = _REPO_ROOT / "speakeasy-cpu.spec"
 
     def _parse_cpu_strip_patterns(self) -> list[re.Pattern]:
-        spec_text = self._CPU_SPEC.read_text(encoding="utf-8")
-        raw = re.findall(r"_re\.compile\(r'([^']+)'", spec_text)
-        return [re.compile(p, re.I) for p in raw]
+        # CPU strip set = shared patterns + CUDA binary patterns.
+        return list(spec_common.strip_patterns("cpu"))
 
     # Every CUDA/NVIDIA DLL shipped in a GPU torch's lib/ directory.
     # These must ALL be caught by the CPU spec's strip patterns.
@@ -654,9 +590,9 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
         applied to a.pure, these Python stubs are stripped and the frozen
         CPU build crashes with ImportError.
         """
-        spec_text = self._CPU_SPEC.read_text(encoding="utf-8")
+        spec_text = _SPEC_COMMON_SRC
 
-        # Verify the spec uses separate pattern lists and only applies
+        # Verify the build uses separate pattern lists and only applies
         # _CUDA_BINARY_PATTERNS to a.binaries, not a.pure or a.datas.
         self.assertIn(
             "_CUDA_BINARY_PATTERNS",
@@ -685,7 +621,7 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
     )
     def test_general_strip_patterns_spare_torch_backend_modules(self):
         """_STRIP_PATTERNS (applied to a.pure) must not match torch backend modules."""
-        spec_text = self._CPU_SPEC.read_text(encoding="utf-8")
+        spec_text = _SPEC_COMMON_SRC
         # Parse only _STRIP_PATTERNS (before _CUDA_BINARY_PATTERNS block)
         cuda_block = spec_text.find("_CUDA_BINARY_PATTERNS")
         strip_section = spec_text[:cuda_block] if cuda_block != -1 else spec_text
@@ -715,22 +651,20 @@ class TestCertifiSslBundle(unittest.TestCase):
         return path.read_text(encoding="utf-8")
 
     def test_gpu_spec_collects_certifi_data(self):
-        """speakeasy.spec must call collect_data_files('certifi')."""
-        spec = self._read_spec("speakeasy.spec")
+        """The shared build must call collect_data_files('certifi') (GPU path)."""
         self.assertIn(
             "collect_data_files('certifi')",
-            spec,
-            "speakeasy.spec must include collect_data_files('certifi') — "
+            _SPEC_COMMON_SRC,
+            "spec_common must include collect_data_files('certifi') — "
             "omitting it causes FileNotFoundError when OpenAI/httpx creates an SSL context.",
         )
 
     def test_cpu_spec_collects_certifi_data(self):
-        """speakeasy-cpu.spec must call collect_data_files('certifi')."""
-        spec = self._read_spec("speakeasy-cpu.spec")
+        """The shared build must call collect_data_files('certifi') (CPU path)."""
         self.assertIn(
             "collect_data_files('certifi')",
-            spec,
-            "speakeasy-cpu.spec must include collect_data_files('certifi') — "
+            _SPEC_COMMON_SRC,
+            "spec_common must include collect_data_files('certifi') — "
             "omitting it causes FileNotFoundError when OpenAI/httpx creates an SSL context.",
         )
 
@@ -763,9 +697,7 @@ class TestCertifiSslBundle(unittest.TestCase):
 
     def test_strip_patterns_do_not_remove_certifi_bundle(self):
         """Certifi's cacert.pem must not be accidentally stripped from the build."""
-        spec = self._read_spec("speakeasy.spec")
-        raw_patterns = re.findall(r"_re\.compile\(r'([^']+)'", spec)
-        patterns = [re.compile(p, re.I) for p in raw_patterns]
+        patterns = list(spec_common.strip_patterns("gpu"))
         cacert_entry = "certifi/cacert.pem"
         for pat in patterns:
             self.assertIsNone(

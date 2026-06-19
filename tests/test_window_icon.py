@@ -23,6 +23,7 @@ _DEV_PANEL_PY = _REPO_ROOT / "speakeasy" / "developer_panel.py"
 _ASSETS_DIR = _REPO_ROOT / "speakeasy" / "assets"
 _GPU_SPEC = _REPO_ROOT / "speakeasy.spec"
 _CPU_SPEC = _REPO_ROOT / "speakeasy-cpu.spec"
+_SPEC_COMMON = _REPO_ROOT / "spec_common.py"
 _GPU_INSTALLER = _REPO_ROOT / "installer" / "speakeasy-setup.iss"
 _CPU_INSTALLER = _REPO_ROOT / "installer" / "speakeasy-cpu-setup.iss"
 
@@ -66,22 +67,22 @@ class TestPyInstallerIconConfiguration(unittest.TestCase):
     """Frozen builds must bundle and embed the application icon."""
 
     def test_specs_collect_app_icon_in_package_assets(self):
-        for spec_path in (_GPU_SPEC, _CPU_SPEC):
-            source = spec_path.read_text(encoding="utf-8")
-            self.assertRegex(
-                source,
-                r"\(['\"]speakeasy/assets['\"],\s*['\"]speakeasy/assets['\"]\)",
-                f"{spec_path.name} must collect app.ico under speakeasy/assets",
-            )
+        # Both variants share spec_common.build(), which collects the assets dir.
+        source = _SPEC_COMMON.read_text(encoding="utf-8")
+        self.assertRegex(
+            source,
+            r"\(['\"]speakeasy/assets['\"],\s*['\"]speakeasy/assets['\"]\)",
+            "spec_common must collect app.ico under speakeasy/assets",
+        )
 
     def test_specs_embed_app_icon_in_exe(self):
-        for spec_path in (_GPU_SPEC, _CPU_SPEC):
-            source = spec_path.read_text(encoding="utf-8")
-            self.assertRegex(
-                source,
-                r"icon\s*=\s*['\"]speakeasy/assets/app\.ico['\"]",
-                f"{spec_path.name} must embed app.ico into speakeasy.exe",
-            )
+        # Both variants share spec_common.build(), which embeds the EXE icon.
+        source = _SPEC_COMMON.read_text(encoding="utf-8")
+        self.assertRegex(
+            source,
+            r"icon\s*=\s*['\"]speakeasy/assets/app\.ico['\"]",
+            "spec_common must embed app.ico into speakeasy.exe",
+        )
 
 
 class TestAppUserModelID(unittest.TestCase):
