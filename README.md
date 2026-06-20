@@ -29,8 +29,8 @@ The current public test build is available from the [v0.15.0 GitHub release](htt
 
 | Installer | Best for | Download | Size |
 | --- | --- | --- | ---: |
-| GPU+CPU installer | Windows 10/11 systems with an NVIDIA GPU and >= 8GB VRAM for fast, local transcription. | [SpeakEasy-AI-Granite-Setup-0.15.0.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0/SpeakEasy-AI-Granite-Setup-0.15.0.exe) | 1.87 GB |
-| CPU installer | Windows 10/11 systems without NVIDIA CUDA support; slower but does not require a dedicated NVIDIA GPU. | [SpeakEasy-AI-Granite-CPU-Setup-0.15.0.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0/SpeakEasy-AI-Granite-CPU-Setup-0.15.0.exe) | 202 MB |
+| GPU+CPU installer | Windows 10/11 systems with an NVIDIA GPU and >= 8GB VRAM for fast, local transcription. | [SpeakEasy-AI-Granite-Setup-0.15.0.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0/SpeakEasy-AI-Granite-Setup-0.15.0.exe) | 1.70 GB |
+| CPU installer | Windows 10/11 systems without NVIDIA CUDA support; slower but does not require a dedicated NVIDIA GPU. | [SpeakEasy-AI-Granite-CPU-Setup-0.15.0.exe](https://github.com/kwp490/speakeasy-granite/releases/download/v0.15.0/SpeakEasy-AI-Granite-CPU-Setup-0.15.0.exe) | 148 MB |
 
 **Important:** Windows SmartScreen will show a red "Windows protected your PC" warning when you open the installer because this test build has not yet received a SmartScreen exception. If you trust this release, choose **More info**, then **Run anyway** to continue. The installer does not add Microsoft Defender exclusions by default; if Defender quarantines a verified download, see [SECURITY.md](SECURITY.md) for manual troubleshooting steps.
 
