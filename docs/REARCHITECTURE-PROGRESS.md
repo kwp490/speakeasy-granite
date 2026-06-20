@@ -1051,24 +1051,40 @@ version-consistency, CHANGELOG-head, and README-link tests all pass at `0.15.0`.
 
 ### Deviations / notes
 
-- **Installer size table left at 1.87 GB / 202 MB (0.14.5 baseline).** Real
-  post-dependency-cut installer sizes require a `Build-Installer.ps1 -Mode Release`
-  build, which is an **operator action** (per the phase constraints). RELEASE.md
-  now carries an explicit "measure installer sizes → update README table" step for
-  the operator to apply during the release build.
+- **Installer sizes measured from the Release build and recorded in the README.**
+  `0.15.0` GPU+CPU = **1.70 GB**, CPU = **148 MB** (vs. the local `0.14.5` builds
+  1.74 GB / 193 MB). **§17 criterion 5:** the **CPU** target ("at or below the
+  current 202 MB") is **met comfortably** (148 MB, −23%). The **GPU** target
+  ("≥150 MB off") is **not** met against the actual 1.74 GB baseline (~40 MB off;
+  ~170 MB off the README's older 1.87 GB figure) — this is the **expected**
+  outcome the plan calls out: the GPU footprint sits on a hard floor near
+  torch-cu128's size, and the larger GPU reduction was always gated on the
+  **parked** GGUF/backend spikes (Phase 5), which deliberately do not ship in
+  0.15. Accepted deviation, not a regression.
+- The R-2 frozen-bundle check was run on the installed GPU build: the
+  `_internal` tree contains **soxr** and **no librosa** (confirms the Phase 2.5
+  dependency cut survived packaging). The zero-dependency `tools/bench.py --smoke`
+  run reports `app_version 0.15.0`, exit 0.
 
 ### ⏳ Operator hand-off (NOT done here — by design)
 
-These are the remaining release actions, deliberately left to the operator:
+Done since this section was first written: the GPU+CPU Release builds ran, sizes
+were measured and written into the README, the R-2 frozen-bundle soxr/no-librosa
+check passed, and the `--smoke` bench ran clean. The genuinely remaining actions
+need hardware/two machines or are publish-gated:
 
-1. Run `installer\Build-Installer.ps1 -Mode Release` (GPU) and `-Variant CPU`,
-   then update the README size column with the measured `.exe` sizes.
-2. Carry forward the still-pending **human-only smoke checks** from earlier phases:
-   the R-1 Windows record-after-load **GPU CUDA** test, a frozen onedir
-   record-once smoke (confirms soxr bundled / no librosa needed), and the R-10
-   two-machine remote LAN demo.
-3. `git tag v0.15.0 && git push origin v0.15.0`, attach both installers +
-   `SHA256SUMS.txt` to the draft release, and publish the checksums.
+1. **Human-only smoke checks** that need real hardware:
+   the R-1 Windows record-after-load **GPU CUDA** test (cold start → load →
+   dictate → sleep/resume → dictate), and the R-10 **two-machine** remote LAN
+   demo (`speakeasy serve` host + client, disclosure + Test connection + token
+   rejection + server-down handling).
+2. **Optional benchmark fill-in:** `tools/bench.py --device {cuda,cpu}` on
+   benchmark hardware to replace the ⏳ WER/latency cells in
+   [baseline-0.14.5.md](benchmarks/baseline-0.14.5.md) /
+   [backends-0.15.md](benchmarks/backends-0.15.md) (WER within 0.5 abs).
+3. **Publish:** `git tag v0.15.0 && git push origin v0.15.0`, attach both
+   installers + `SHA256SUMS.txt` (+ per-file `.sha256`) to the draft release, and
+   publish the checksums.
 
 See [REARCHITECTURE-PLAN.md §15](REARCHITECTURE-PLAN.md) for the full roadmap.
 
