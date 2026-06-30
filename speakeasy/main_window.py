@@ -1235,17 +1235,19 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._log_ui(f"Microphone error after resume: {exc}", error=True)
 
-        # Proactive device health check: after sleep/wake the GPU context can
-        # be silently corrupted, causing "CUDA error: unknown error" on the
-        # next transcription.  The service probes the device (a tiny CUDA
-        # allocation) behind the boundary — no torch import in the UI — and a
-        # non-"ok" report triggers a model reload before the user hits the error.
+        # Proactive model reload after sleep/wake on CUDA.  Sleep (S3) and
+        # hibernate (S4) do not preserve VRAM, so the multi-GB model weights
+        # loaded into GPU memory are stale/garbage after resume even when the
+        # CUDA *context* recovers.  A tiny allocation probe only confirms the
+        # context can allocate — it cannot detect corrupted weights — and the
+        # model then keeps "working" while silently producing degraded output
+        # (the first thing to break is punctuation/capitalization).  Because
+        # VRAM weights can never be trusted after a resume, unconditionally
+        # reload the model rather than relying on the allocation probe.
         if self._service.is_loaded and self._model_controller._actual_engine_device() == "cuda":
-            report = self._service.probe_device()
-            if report.status != "ok":
-                log.warning("CUDA health check failed after resume — reloading model")
-                self._log_ui("CUDA context lost after sleep — reloading model…", error=True)
-                self._model_controller._on_reload_model()
+            log.warning("Resume on CUDA — VRAM weights cannot be trusted; reloading model")
+            self._log_ui("Reloading model after sleep to restore GPU state…")
+            self._model_controller._on_reload_model()
 
     # ═════════════════════════════════════════════════════════════════════════
     # CLEANUP
